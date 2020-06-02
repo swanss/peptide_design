@@ -75,6 +75,7 @@ public:
   string classifyResInStruct(Structure* S, vector<int> res_idx);
   void writeResClassificationtoFile(Chain* C, fstream& out);
   void writeResClassificationtoTSV(Structure& S, fstream& out);
+  void writeCentroidtoPointFile(string bin_path, int num_final_seeds, fstream& out);
   void writeCaInfotoPointFile(Chain* C, fstream& out);
   void writeCaInfotoPointFile(string bin_path, fstream& out);
   void writeCaInfotoLineFile(Chain* C, fstream& out);

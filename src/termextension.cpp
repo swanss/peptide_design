@@ -236,7 +236,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
           if (!remConts.empty()) current_fragment = expansions[expansion_res.front()];
           if (!remConts.empty() && verbose) cout << expansions[expansion_res.front()]->getName() << " is now the current fragment" << endl;
           /* Don't break because--while unlikely--if there are remaining contacts, it's possible
-           that adding another contact in the context of the one the exisiting structure could somehow
+           that adding another contact in the context of the existing structure could somehow
            *increase* number of matches. This is due to the influence of the adaptive RMSD cutoff,
            which increases with the complexity of the fragment */
         } else if (expansion_res.size() > 1) {

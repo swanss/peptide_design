@@ -59,20 +59,22 @@ int main(int argc, char *argv[]) {
   //names
   string bin_out = outDir + out_prefix + ".bin";
   string lcloud_out = outDir + out_prefix + "_random_seed_ca.lcloud";
-  
+  string pcloud_out = outDir + out_prefix + "_random_seed_centroid.pcloud";
   
   Structure S(pdb_path);
   
   MstTimer timer;
   timer.start();
   if (sample) {
-    cout << "seeds from binary file" << endl;
-    naiveSeedsFromBin naiveSeeds(S,p_id);
-    naiveSeeds.newPose(bin_in,outDir,out_prefix,position,orientation);
-  } else {
     cout << "seeds from DB" << endl;
-    naiveSeedsFromDB naiveSeeds(S,p_id,DB_path);
-    naiveSeeds.newPose(bin_in,outDir,out_prefix,position,orientation);
+    mstreal distance = 1.0;
+    cout << "distance cutoff: " << distance << endl;
+    naiveSeedsFromDB naiveSeeds(S,p_id,DB_path,bin_in,distance);
+    naiveSeeds.newPose(outDir,out_prefix,position,orientation);
+  } else {
+    cout << "seeds from binary file" << endl;
+    naiveSeedsFromBin naiveSeeds(S,p_id,bin_in);
+    naiveSeeds.newPose(outDir,out_prefix,position,orientation);
   }
   timer.stop();
   
@@ -85,6 +87,13 @@ int main(int argc, char *argv[]) {
   secondaryStructureClassifier classifier;
   classifier.writeCaInfotoLineFile(bin_out, seed_num, out);
 
+  out.close();
+  
+  // write the seed centroid to a file for visualization
+  MstUtils::openFile(out, pcloud_out, fstream::out);
+  
+  classifier.writeCentroidtoPointFile(bin_out, seed_num, out);
+  
   out.close();
   
   //get the coverage

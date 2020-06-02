@@ -11,21 +11,26 @@
 /* --------- generateRandomSeed --------- */
 
 generateRandomSeed::generateRandomSeed(const string& dbFile, int _max_len) : classifier() {
+  cout << "Constructing generateRandomSeed class for sampling segments from the DB" << endl;
   readDatabase(dbFile,1);
   max_len = _max_len;
   
   //build windows
   for (int l = 1; l <= max_len; l++) {
     windows.insert(map<int,vector<pair<int,int>>>::value_type(l,vector<pair<int,int>>()));
-  }
-  
-  int target_num = numTargets();
-  for (int target_id = 0; target_id < target_num; target_id++) {
-    Structure* target = getTarget(target_id);
-    for (int l = 1; l <= max_len; l++) {
-      int window_num = target->residueSize() - l + 1;
-      for (int res_id = 0; res_id < window_num; res_id++) {
-        windows[l].push_back(make_pair(target_id,res_id));
+    int target_num = numTargets();
+    for (int target_id = 0; target_id < target_num; target_id++) {
+      Structure* target = getTarget(target_id);
+      int chain_size = target->chainSize();
+      int chain_res_id = 0; //the index of the N-terminal residue of the current chain
+      //only build windows within chains (which are contiguous)
+      for (int chain = 0; chain < chain_size; chain++) {
+        int window_num = target->getChain(chain).residueSize() - l + 1;
+        //add all windows to the vector
+        for (int window_id = 0; window_id < window_num; window_id++) {
+          windows[l].push_back(make_pair(target_id,chain_res_id+window_id));
+        }
+        chain_res_id += target->getChain(chain).residueSize();
       }
     }
   }
@@ -110,24 +115,43 @@ void structureBoundingBox::construct_structureBoundingBox(AtomPointerVector atom
 }
 
 /* --------- naiveSeedsfromBin --------- */
-naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id) : complex(S){
+naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, mstreal _distance, int _neighbors) : complex(S), seeds(seedBinaryPath_in) {
   //get target structure
   peptide = complex.getChainByID(p_id);
   vector<Residue*> target_residues;
   for (Residue* R : complex.getResidues()) if (R->getChainID() != p_id) target_residues.push_back(R);
   target = Structure(target_residues);
   
-  //generate proximity search of target backbone
+  //generate proximity search for target backbone
   cout << "Extracting target backbone to construct a promixity search object..." << endl;
   if (!RotamerLibrary::hasFullBackbone(target)) cout << "warning: target structure is missing backbone atoms!" << endl;
   target_BB_atoms = RotamerLibrary::getBackbone(target);
   target_BB_structure = Structure(target_BB_atoms);
   target_PS = new ProximitySearch(target_BB_atoms, vdwRadii::maxSumRadii()/2);
   
-  max_attempts = 10;
+  //generate proximity search for the seed centroids
+  cout << "Loading seeds and calculating centroids to construct a promixity search object..." << endl;
+  
+  //load each seed, get centroid, use it to construct new atom, and add to seed_centroids
+  while (seeds.hasNext()) {
+    Structure* extended_fragment = seeds.next();
+    Chain* seed_chain = extended_fragment->getChainByID("0");
+    CartesianPoint seed_centroid = AtomPointerVector(seed_chain->getAtoms()).getGeometricCenter();
+    Atom* A = new Atom();
+    A->setCoor(seed_centroid);
+    seed_centroids.push_back(A);
+    
+    delete extended_fragment;
+  }
+  seeds.reset();
+  
+  distance = _distance;
+  seed_PS = new ProximitySearch(seed_centroids,distance/2);
+  neighbors = _neighbors;
+  max_attempts = 50;
 }
 
-void naiveSeedsFromBin::newPose(string seedBinaryPath_in, string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site) {
+void naiveSeedsFromBin::newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site) {
   
   if ((position == false) && (orientation == false)) MstUtils::error("Neither position or orientation have been selected to be randomized. Nothing to do!");
   cout << "Will randomize: ";
@@ -136,8 +160,6 @@ void naiveSeedsFromBin::newPose(string seedBinaryPath_in, string output_path, st
   cout << endl;
   //construct bounding box
   structureBoundingBox bounding_box = structureBoundingBox(peptide); //only use if position is randomized
-  
-  StructuresBinaryFile bin(seedBinaryPath_in);
   
   //prepare for writing new seed binary file
   string seedBinaryPath_out = output_path + "/" + out_name + ".bin";
@@ -153,8 +175,8 @@ void naiveSeedsFromBin::newPose(string seedBinaryPath_in, string output_path, st
   
   //randomize seeds and write to file
   int count = 0;
-  while (bin.hasNext()) {
-    Structure* extended_fragment = bin.next();
+  while (seeds.hasNext()) {
+    Structure* extended_fragment = seeds.next();
     Chain* seed_C = extended_fragment->getChainByID("0");
     Structure* seed_structure = new Structure(*seed_C);
     CartesianPoint seed_centroid = AtomPointerVector(seed_structure->getAtoms()).getGeometricCenter();
@@ -173,7 +195,8 @@ void naiveSeedsFromBin::newPose(string seedBinaryPath_in, string output_path, st
     delete seed_structure;
     count++;
   }
-  int num_seeds = bin.structureCount();
+  seeds.reset();
+  int num_seeds = seeds.structureCount();
   cout << "There are " << num_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
   bin_out.close();
   retry_out.close();
@@ -228,11 +251,19 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
     
     //generate the translation
     if (position) {
-      //randomize
-      translate_to_bounding_box_origin = tf.translate(bounding_box.xlo, bounding_box.ylo, bounding_box.zlo);
-      mstreal x_pos = MstUtils::randUnit() * (bounding_box.xhi - bounding_box.xlo);
-      mstreal y_pos = MstUtils::randUnit() * (bounding_box.yhi - bounding_box.ylo);
-      mstreal z_pos = MstUtils::randUnit() * (bounding_box.zhi - bounding_box.zlo);
+      // sample and check if near seeds
+      mstreal x_pos;
+      mstreal y_pos;
+      mstreal z_pos;
+      bool near_seeds = false;
+      while (!near_seeds) {
+        x_pos = bounding_box.xlo + (MstUtils::randUnit() * (bounding_box.xhi - bounding_box.xlo));
+        y_pos = bounding_box.ylo + (MstUtils::randUnit() * (bounding_box.yhi - bounding_box.ylo));
+        z_pos = bounding_box.zlo + (MstUtils::randUnit() * (bounding_box.zhi - bounding_box.zlo));
+        CartesianPoint new_centroid(x_pos,y_pos,z_pos);
+        vector<int> near_points = seed_PS->getPointsWithin(new_centroid, 0.0, distance);
+        if (near_points.size() > neighbors) near_seeds = true;
+      }
       translate_into_box = tf.translate(x_pos,y_pos,z_pos);
     } else {
       //to the provided centroid
@@ -273,7 +304,7 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
 
 /* --------- naiveSeedsfromDB --------- */
 
-void naiveSeedsFromDB::newPose(string seedBinaryPath_in, string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site) {
+void naiveSeedsFromDB::newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site) {
   
   if ((position == false) && (orientation == false)) MstUtils::error("Neither position or orientation have been selected to be randomized. Nothing to do!");
   cout << "Will randomize: ";
@@ -283,8 +314,6 @@ void naiveSeedsFromDB::newPose(string seedBinaryPath_in, string output_path, str
   
   //construct bounding box
   structureBoundingBox bounding_box = structureBoundingBox(peptide);
-  //  structureBoundingBox bounding_box = structureBoundingBox(binding_site);
-  StructuresBinaryFile bin(seedBinaryPath_in);
   
   //open new seed binary file
   string seedBinaryPath_out = output_path + "/" + out_name + ".bin";
@@ -307,9 +336,9 @@ void naiveSeedsFromDB::newPose(string seedBinaryPath_in, string output_path, str
   
   //randomize seeds and write to file
   int count = 0;
-  while (bin.hasNext()) {
+  while (seeds.hasNext()) {
     //read original seed from binary file
-    Structure* extended_fragment = bin.next();
+    Structure* extended_fragment = seeds.next();
     Chain* seed_C = extended_fragment->getChainByID("0");
     CartesianPoint seed_original_centroid = AtomPointerVector(seed_C->getAtoms()).getGeometricCenter();
     int seed_length = seed_C->residueSize();
@@ -334,7 +363,8 @@ void naiveSeedsFromDB::newPose(string seedBinaryPath_in, string output_path, str
     delete new_seed;
     count++;
   }
-  int num_seeds = bin.structureCount();
+  seeds.reset();
+  int num_seeds = seeds.structureCount();
   cout << "There are " << num_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
   bin_out.close();
   retry_out.close();

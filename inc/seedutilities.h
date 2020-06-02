@@ -32,7 +32,7 @@ public:
    Note: the provided FASST DB must created with the option "s" in fasstdb.cpp, which splits
    chains with breaks into separate structures.
    */
-  generateRandomSeed(const string& dbFile, int max_len = 100);
+  generateRandomSeed(const string& dbFile, int max_len);
   
   pair<Structure*,string> getSeed(int len);
 private:
@@ -63,8 +63,8 @@ private:
 struct structureBoundingBox {
 public:
   //Use the just the backbone atoms to construct a bounding box, with the pad surrounding it
-  structureBoundingBox(Chain* C, mstreal pad = 5.0);
-  structureBoundingBox(vector<Residue*> residues, mstreal pad = 0.0);
+  structureBoundingBox(Chain* C, mstreal pad = 10.0);
+  structureBoundingBox(vector<Residue*> residues, mstreal pad = 10.0);
   
   void construct_structureBoundingBox(AtomPointerVector atoms);
   
@@ -75,8 +75,6 @@ private:
   mstreal pad;
 };
 
-/* --------- structureBoundingEllipsoid --------- */
-
 /* --------- naiveSeedsFromBin --------- */
 
 class naiveSeedsFromBin {
@@ -85,7 +83,13 @@ class naiveSeedsFromBin {
    seedBinaryFile.
    */
 public:
-  naiveSeedsFromBin(Structure& S, string p_id);
+  naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, mstreal distance = 1.0, int neighbors = 1);
+  
+  ~naiveSeedsFromBin() {
+    for (Atom* A : seed_centroids) delete A;
+    delete target_PS;
+    delete seed_PS;
+  }
   
   /*
    Loads seeds from an existing seedBinaryFile and randomizes their position/orientation. During
@@ -93,29 +97,37 @@ public:
    centroid distribution. If the seed placement results in clash, a new position/orientation are sampled,
    until there is no clash.
    */
-  void newPose(string seedBinaryPath_in, string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
+  void newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
   
 protected:
   int transform(Structure* seed, structureBoundingBox& bounding_box, bool position, bool orientation, CartesianPoint new_centroid);
   
   Chain* peptide;
+  StructuresBinaryFile seeds;
 private:
   Structure& complex;
   Structure target;
   
-  // variables stored for identifying seeds with clashes during randomization
+  
+  // for identifying seeds with clashes to the protein
   Structure target_BB_structure;
   AtomPointerVector target_BB_atoms;
   ProximitySearch* target_PS;
   
+  // for identifying allowable centroid positions
+  AtomPointerVector seed_centroids;
+  ProximitySearch* seed_PS;
+  
   int max_attempts;
+  mstreal distance;
+  int neighbors;
 };
 
 /* --------- naiveSeedsfromDB --------- */
 
 class naiveSeedsFromDB : public naiveSeedsFromBin {
 public:
-  naiveSeedsFromDB(Structure& S, string p_id, const string& dbFile, int max_len = 100) : naiveSeedsFromBin(S,p_id), seedSampler(dbFile,max_len) {};
+  naiveSeedsFromDB(Structure& S, string p_id, const string& dbFile, string seedBinaryPath_in, mstreal distance = 1.0, int max_len = 50) : naiveSeedsFromBin(S,p_id,seedBinaryPath_in,distance), seedSampler(dbFile,max_len) {};
   
   /*
    Loads each seed from an existing seedBinaryFile, finds its residue length, and samples a new one
@@ -123,7 +135,7 @@ public:
    within a bounding volume determined based on the original seed centroid distribution. If the seed
    placement results in clash, a new position/orientation are sampled, until there is no clash.
    */
-  void newPose(string seedBinaryPath_in, string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
+  void newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
   
   
 private:

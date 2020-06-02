@@ -108,8 +108,6 @@ int main(int argc, char *argv[]) {
    Type 1) randomized orientation, position sampled from previous seed
    Type 2) randomized position and orientation
    */
-  naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB());
-
   string extfrag_bin = (op.isGiven("extfrag_bin") ? op.getString("extfrag_bin") : outDir + "extendedfragments.bin");
   string type1_name = "type1_seeds";
   string type1_bin = outDir + "type1_seeds.bin";
@@ -117,15 +115,17 @@ int main(int argc, char *argv[]) {
   string type2_bin = outDir + "type2_seeds.bin";
   bool position = false;
   bool orientation = true;
+  
+  naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin);
 
   timer.start();
-  naiveSeeds.newPose(extfrag_bin, outDir, type1_name, position, orientation);
+  naiveSeeds.newPose(outDir, type1_name, position, orientation);
   timer.stop();
   cout << "Generated type 1 seeds in " << timer.getDuration() << " seconds" << endl;
   
   position = true;
   timer.start();
-  naiveSeeds.newPose(extfrag_bin, outDir, type2_name, position, orientation);
+  naiveSeeds.newPose(outDir, type2_name, position, orientation);
   timer.stop();
   cout << "Generated type 2 seeds in " << timer.getDuration() << " seconds" << endl;
 

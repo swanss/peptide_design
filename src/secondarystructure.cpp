@@ -145,11 +145,36 @@ void secondaryStructureClassifier::writeResClassificationtoTSV(Structure& S, fst
   }
 }
 
+void secondaryStructureClassifier::writeCentroidtoPointFile(string bin_path, int num_final_seeds, fstream& out) {
+  StructuresBinaryFile bin_file(bin_path);
+  
+  long num_seeds = bin_file.structureCount();
+  mstreal skip_probability = 1 - min(mstreal(1),mstreal(num_final_seeds)/num_seeds);
+  cout << "There are " << num_seeds << " seeds in the input binary file. Skip probability is " << skip_probability << endl;
+  
+  int count = 0;
+  while (bin_file.hasNext() == true) {
+    mstreal sampled_value = MstUtils::randUnit();
+    if (sampled_value <= skip_probability) {
+      bin_file.skip();
+      continue;
+    }
+    Structure* seed = bin_file.next();
+    Chain* seed_C = seed->getChainByID("0");
+    CartesianPoint centroid = AtomPointerVector(seed_C->getAtoms()).getGeometricCenter();
+    out << centroid.getX() << "," << centroid.getY() << "," << centroid.getZ() << "," << 0 << endl;
+    delete seed;
+    count++;
+  }
+  out.close();
+  cout << "In the end, wrote the coordinates of " << count << " seeds" << endl;
+}
+
 void secondaryStructureClassifier::writeCaInfotoPointFile(Chain* C, fstream &out) {
   vector<Residue*> chain_res = C->getResidues();
   for (Residue* R : chain_res) {
     Atom* Ca = R->findAtom("CA");
-    out << Ca->getX() << "," << Ca->getY() << "," << Ca->getZ() << "," << classification2ColorID(classifyResidue(R)) << endl;;
+    out << Ca->getX() << "," << Ca->getY() << "," << Ca->getZ() << "," << classification2ColorID(classifyResidue(R)) << endl;
   }
 }
 

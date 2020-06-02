@@ -1,4 +1,4 @@
-# Peptide Design using Seeds
+# peptide_design
 
 This repository incorporates several tools that enable the de novo design of peptides to bind a given protein. The process begins with the generation of **seeds**, which are small segments of protein backbone arranged in the space around the selected binding site. Given these seeds, the programs enable the construction of a "seed graph" describing the overlaps between these seeds at various RMSD thresholds, the scoring of these seeds by various metrics, and the construction of *paths* that thread through the graph and optimize the score function.
 
