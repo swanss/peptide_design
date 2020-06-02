@@ -11,6 +11,7 @@
 
 //tpd dependencies
 #include "utilities.h" //for generateAllCombinationsKRes
+#include "structure_iter.h"
 
 
 int main(int argc, char *argv[]) {

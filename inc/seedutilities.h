@@ -17,6 +17,7 @@
 #include "mstfasst.h"
 
 #include "utilities.h"
+#include "structure_iter.h"
 #include "termextension.h"
 
 #include "Util.h"

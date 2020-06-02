@@ -17,6 +17,7 @@
 
 #include "utilities.h"
 #include "termextension.h"
+#include "structure_iter.h"
 
 #include "Util.h"
 #include "vdwRadii.h"

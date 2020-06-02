@@ -10,6 +10,7 @@
 
 #include "msttypes.h"
 #include "utilities.h"
+#include "structure_iter.h"
 
 using namespace MST;
 
@@ -81,12 +82,13 @@ public:
   void writeCaInfotoLineFile(Chain* C, fstream& out);
   void writeCaInfotoLineFile(string bin_path, int num_final_seeds, fstream& out);
   
-protected:
   string classification2ColorID(string classification) {
     if (classification == "H") return "0";
     else if (classification == "E") return "1";
     else return "2";
   };
+  
+protected:
   
 private:
   int flanking_res, agreement;

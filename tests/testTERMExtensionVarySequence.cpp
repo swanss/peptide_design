@@ -15,6 +15,7 @@
 #include "coverage.h" //to directly assess coverage
 #include "termextension.h"
 #include "secondarystructure.h"
+#include "structure_iter.h"
 
 ////structgen dependencies
 #include "Util.h"
