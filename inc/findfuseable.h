@@ -18,7 +18,7 @@ using namespace std;
 using namespace MST;
 
 enum FuseCandidateSearchMode {
-    /** TODO: searches all possible locations of overlap */
+    /** searches all possible locations of overlap */
     general,
     /** searches overlap between C-terminus of seed and N-terminus of candidate */
     fromCTerm,

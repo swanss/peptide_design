@@ -34,7 +34,7 @@ SRCEXT      := cpp
 DEPEXT      := d
 OBJEXT      := o
 
-LIB         := -L$(MSTLIB) -L$(STRUCTGENLIB) -lmst -lstructgen -lmstcondeg -lmstfuser -lmstoptim -lmstfasst
+LIB         := -L$(MSTLIB) -L$(STRUCTGENLIB) -lmst -lstructgen -lmstcondeg -lmstfuser -lmstoptim -lmstfasst -lmstmagic -ldtermen
 INC         :=
 INCDEP      :=
 

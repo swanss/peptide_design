@@ -342,13 +342,13 @@ void FuseCandidateFinder::writeFuseCandidates(vector<Structure *> seeds, vector<
     else
         bbox = batchBoundingBoxes[candidatesBatchIdx];
 
-    ProximitySearch ps(bbox[0], bbox[2], bbox[4], bbox[1], bbox[3], bbox[5], 30);
-    for (int candIdx = 0; candIdx < candidates.size(); candIdx++) {
-        Structure *c = candidates[candIdx];
-        AtomPointerVector apv(c->getAtoms());
-        vector<int> indexes(apv.size(), candIdx);
-        ps.addAtoms(apv, &indexes);
-    }
+//    ProximitySearch ps(bbox[0], bbox[2], bbox[4], bbox[1], bbox[3], bbox[5], 30);
+//    for (int candIdx = 0; candIdx < candidates.size(); candIdx++) {
+//        Structure *c = candidates[candIdx];
+//        AtomPointerVector apv(c->getAtoms());
+//        vector<int> indexes(apv.size(), candIdx);
+//        ps.addAtoms(apv, &indexes);
+//    }
 
     for (int j = 0; j < seeds.size(); j++) {
         Structure *seed = seeds[j];
