@@ -155,6 +155,88 @@ void StructuresBinaryFile::appendStructure(Structure *s) {
     s->writeData(fs);
 }
 
+// StructureCache
+
+StructureCache::~StructureCache() {
+    for (auto it = begin(); it != end(); ++it) {
+        delete *it;
+    }
+}
+
+void StructureCache::preloadFromBinaryFile() {
+    MstUtils::assert(binaryFile != nullptr, "Cannot preload without a binary file");
+
+    binaryFile->reset();
+    while (binaryFile->hasNext() && (long)cache.size() < capacity) {
+        Structure *s = binaryFile->next();
+        cache.push_front(s);
+        cachePointers[s->getName()] = cache.begin();
+    }
+    cout << "preload: load factor " << cachePointers.load_factor() << ", max " << cachePointers.max_load_factor() << endl;
+}
+
+Structure* StructureCache::getStructure(string name, string prefix) {
+    Structure *structure = nullptr;
+    auto pos = cachePointers.find(name);
+    if (pos != cachePointers.end()) {
+        structure = *(pos->second);
+
+        // Remove the structure from the cache, since we'll put it at front
+        cache.erase(pos->second);
+    } else {
+        if (binaryFile != nullptr) {
+            cout << "Loading structure" << endl;
+            structure = binaryFile->getStructureNamed(name);
+        } else {
+            string path = MstSystemExtension::join(prefix.size() > 0 ? prefix : pdbPrefix, name);
+            structure = new Structure(path);
+        }
+
+        // Remove the back of the cache if it is full
+        if ((long)cache.size() == capacity) {
+            Structure *backStruct = cache.back();
+            cache.erase(cachePointers[backStruct->getName()]);
+            cachePointers.erase(backStruct->getName());
+            atoms.erase(backStruct->getName());
+            delete backStruct;
+        }
+    }
+
+    // Push the new structure to the front
+    cache.push_front(structure);
+    cachePointers[name] = cache.begin();
+    MstUtils::assert(structure->getName() == name, "Names don't match");
+    return structure;
+}
+
+vector<Atom *> &StructureCache::getAtoms(string name, string prefix) {
+    MstUtils::assert(storeAtoms, "storeAtoms must be true to use getAtoms");
+    if (atoms.count(name) == 0) {
+        Structure *s = getStructure(name, prefix);
+        atoms[name] = s->getAtoms();
+    }
+    return atoms[name];
+}
+
+bool StructureCache::hasStructure(string name) {
+    return cachePointers.count(name) != 0;
+}
+
+void StructureCache::removeStructure(string name) {
+    if (cachePointers.count(name) != 0) {
+        cache.erase(cachePointers[name]);
+        cachePointers.erase(name);
+    }
+}
+
+void StructureCache::clear() {
+    cachePointers.clear();
+    atoms.clear();
+    cache.clear();
+}
+
+// StructureIterator
+
 StructureIterator::StructureIterator(const vector<string>& filePaths, int batchSize, vector<string> *chainIDs): _filePaths(filePaths), _batchSize(batchSize), _chainIDs(chainIDs) {
     if (chainIDs != nullptr)
         MstUtils::assert(chainIDs->size() == filePaths.size(), "must have same number of chain IDs and file paths");

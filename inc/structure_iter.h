@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include "msttypes.h"
 #include <unordered_map>
+#include <list>
 
 using namespace std;
 using namespace MST;
@@ -72,6 +73,134 @@ private:
     unordered_map<string, long> _filePositions; // Positions of each structure in the file
     vector<string> _structureNames;
 };
+
+/**
+ StructureCache maintains a shared set of Structure objects, which provides
+ convenient lookup and iteration. This is useful because keeping the same set of
+ Structures allows one to lookup residues by their pointers (otherwise, Residue
+ objects would be duplicated but represent the same residue).
+ 
+Note: StructureCache has a capacity parameter that saves memory by using a least-
+recently used (LRU) caching algorithm to save frequently-used structures. However,
+this means that structure data may get deleted from the cache, including any
+auxiliary objects owned by the structure. To avoid segmentation faults, copy
+any structure data that needs to be persisted over many calls to the structure
+cache, or omit the capacity argument to use an effectively infinite-sized cache.
+ */
+class StructureCache {
+public:
+    /**
+     Initializes a structure cache that will load files from the given directory,
+     i.e. the pdb prefix will be prepended to any paths that are requested.
+     */
+    StructureCache(string pdbPrefix = "", long capacity = 100000000): pdbPrefix(pdbPrefix), capacity(capacity) { };
+    
+    StructureCache(StructuresBinaryFile *binaryFile, long capacity = 100000000): binaryFile(binaryFile), capacity(capacity) { };
+
+    ~StructureCache();
+    
+    StructureCache(const StructureCache& other): pdbPrefix(other.pdbPrefix), cache(other.cache), binaryFile(other.binaryFile), cachePointers(other.cachePointers), capacity(other.capacity) { };
+    
+    /// If true, cache a vector of pointers to each structure's atoms.
+    bool storeAtoms = false;
+
+    /**
+     * Preloads all structures from the binary file, up to
+     * the capacity of the cache.
+     */
+    void preloadFromBinaryFile();
+
+    /**
+     Returns the structure for the given name/path, loading it fresh if it is not
+     already loaded. Uses the given path prefix if provided, otherwise uses the
+     cache's default one (provided in the constructor).
+     
+     @param name the name of the PDB file
+     @param prefix a path to prepend the file name with (if empty, uses the
+            StructureCache's default)
+     @return a Structure loaded from the PDB file
+     */
+    Structure *getStructure(string name, string prefix = "");
+    
+    /**
+     * Performs the same action as getStructure, but returns a vector of
+     * atoms. The storeAtoms property must be true for this to work.
+     */
+    vector<Atom *> &getAtoms(string name, string prefix = "");
+
+    /**
+     Determine whether this cache already has the given structure loaded.
+     
+     @param name the name of the PDB file
+     @return true if the structure is already loaded, and false if not
+     */
+    bool hasStructure(string name);
+    
+    /**
+     Removes the structure from the cache if it is present.
+
+     @param name the name of the PDB file
+    */
+    void removeStructure(string name);
+
+    /**
+     * Removes all structures from the cache.
+     */
+    void clear();
+
+    /** @return the PDB path prefix used by this cache */
+    string getPDBPrefix() { return pdbPrefix; }
+    
+    /** @param prefix the new prefix to use */
+    void setPDBPrefix(string prefix) { pdbPrefix = prefix; }
+    
+    /**
+     Allows clients to iterate over the structures in this cache (in no particular
+     order).
+     */
+    class iterator {
+    public:
+        typedef iterator self_type;
+        typedef Structure * value_type;
+        typedef int difference_type;
+        typedef forward_iterator_tag iterator_category;
+        iterator(list<Structure *>::iterator it) : it_(it) { }
+        iterator(const iterator& other): it_(other.it_) { }
+        self_type operator++() { it_++; return *this; }
+        self_type operator++(int junk) { self_type i = *this; it_++; return i; }
+        Structure * operator*() { return *it_; }
+        Structure * const * operator->() { return &(*it_); }
+        bool operator==(const self_type& rhs) { return it_ == rhs.it_; }
+        bool operator!=(const self_type& rhs) { return it_ != rhs.it_; }
+    private:
+        list<Structure *>::iterator it_;
+    };
+    
+    /**
+     Iterator pointing to the beginning of the structure cache.
+     */
+    iterator begin() {
+        iterator it(cache.begin());
+        return it;
+    }
+    
+    /**
+     Iterator pointing to the end of the structure cache.
+     */
+    iterator end() {
+        iterator it(cache.end());
+        return it;
+    }
+    
+private:
+    string pdbPrefix;
+    long capacity;
+    unordered_map<string, list<Structure *>::iterator> cachePointers;
+    unordered_map<string, vector<Atom *>> atoms;
+    list<Structure *> cache;
+    StructuresBinaryFile *binaryFile = nullptr;
+};
+
 
 class PairStructureIterator;
 

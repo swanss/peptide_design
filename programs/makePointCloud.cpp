@@ -9,7 +9,6 @@
 #include "findfuseable.h"
 #include "mstsystem_exts.h"
 #include "structure_iter.h"
-#include "fusehelper.h"
 #include "seedscore.h"
 #include "secondarystructure.h"
 #include <unordered_set>

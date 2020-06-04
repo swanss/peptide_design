@@ -16,9 +16,7 @@
 #include "msttypes.h"
 #include "mstcondeg.h"
 #include "mstsystem_exts.h"
-#include "fusehelper.h"
 #include "seedgraph.h"
-#include "seedmap.h"
 #include "ranklist.h"
 
 class PathFinder {

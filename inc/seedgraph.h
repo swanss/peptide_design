@@ -19,7 +19,6 @@
 #include "msttypes.h"
 #include "mstcondeg.h"
 #include "mstsystem_exts.h"
-#include "fusehelper.h"
 #include "seedutils.h"
 #include "structure_iter.h"
 #include "clustertree.h"

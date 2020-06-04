@@ -18,7 +18,6 @@
 #include "mstcondeg.h"
 #include "mstfuser.h"
 #include "mstsystem_exts.h"
-#include "fusehelper.h"
 #include "seedgraph.h"
 #include "clustertree.h"
 #include "Util.h" // For pair_hash

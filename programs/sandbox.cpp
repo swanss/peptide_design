@@ -11,7 +11,6 @@
 #include "mstcondeg.h"
 #include "mstfuser.h"
 #include "structure_iter.h"
-#include "fusehelper.h"
 #include "seedgraph.h"
 #include "seedscore.h"
 #include "ClusterSearch.h"
