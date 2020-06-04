@@ -22,6 +22,13 @@
 #include "clustertree.h"
 #include "Util.h" // For pair_hash
 
+/**
+ Object that represents a single path composed of segments from multiple seeds. The
+ result contains both 'original residues', which contain parent references to the
+ original seeds, a 'fused structure' (both the fused path itself as well as any surrounding
+ structural context used to constrain the fusion), and a 'fused path' (only the residues
+ in the fused path, with references to original structures removed).
+ */
 class PathResult {
 public:
     vector<Residue *> getOriginalResidues() { return _originalResidues; }
@@ -43,12 +50,35 @@ private:
     int _seedStartIdx;
 };
 
+/**
+ Class that randomly samples paths from a set of seed residues, which are connected
+ either by a seed graph or an overlap cluster tree.
+ */
 class PathSampler {
 public:
-    PathSampler(Structure *target, SeedGraph *graph, StructureCache *structures): _target(target), _graph(graph), _structures(structures), targetAPV(target->getAtoms()), ps(targetAPV, 10.0) {};
+    /**
+     Initialize the path sampler to use a seed graph.
+     
+     @param target the target structure from which to obtain structure context for fusion
+     @param graph a bond-adjacency graph containing seeds to sample from
+     */
+    PathSampler(Structure *target, SeedGraph *graph): _target(target), _graph(graph), targetAPV(target->getAtoms()), ps(targetAPV, 10.0) {};
 
+    /**
+     Initialize the path sampler to use a cluster tree.
+     
+     @param target the target structure from which to obtain structure context for fusion
+     @param fetcher the fragment fetcher used by the cluster tree
+     @param overlapTree an overlap-based cluster tree
+     @param overlapSize the number of residues used to determine overlap in the cluster tree
+     @param overlapRMSD RMSD cutoff for overlap with a structure to constitute adjacency
+     @param residues the complete list of residues from which to sample starting points for paths
+     */
     PathSampler(Structure *target, FragmentFetcher *fetcher, ClusterTree *overlapTree, int overlapSize, mstreal overlapRMSD, vector<Residue *> residues): _target(target), _fetcher(fetcher), _searchTree(overlapTree), _searchTreeResidues(residues), overlapLength(overlapSize), overlapRMSD(overlapRMSD), targetAPV(target->getAtoms()), ps(targetAPV, 10.0) {};
 
+    /**
+     Samples the given number of paths from the seed graph or cluster tree.
+     */
     vector<PathResult> sample(int numPaths);
     
     // If true, constrain sampled paths to never use seeds that have been used in previously-sampled paths
@@ -61,7 +91,6 @@ public:
 private:
     Structure *_target = nullptr;
     SeedGraph *_graph = nullptr;
-    StructureCache *_structures = nullptr;
     FragmentFetcher *_fetcher = nullptr;
     ClusterTree *_searchTree = nullptr;
     vector<Residue *> _searchTreeResidues;
