@@ -31,63 +31,6 @@ private:
   string fasst_DB_path;
 };
 
-/* Borrowed from Venkat */
-
-
-//class StructuresBinaryFile {
-//public:
-//  StructuresBinaryFile(string filePath, bool read = true): _filePath(filePath), readMode(read) {
-//    openFileStream(filePath);
-//  };
-//
-//  StructuresBinaryFile(const StructuresBinaryFile &other): readMode(true), _filePath(other._filePath), _filePositions(other._filePositions), _structureNames(other._structureNames) {
-//    MstUtils::assert(other.readMode, "Copying write-only binary file not supported");
-//    cout << "Opening file stream for copy, with " << _structureNames.size() << " loaded structure names" << endl;
-//    openFileStream(_filePath);
-//  }
-//
-//  ~StructuresBinaryFile() {
-//    fs.close();
-//  }
-//
-//  //Get structures
-//  Structure* next();
-//  Structure* getStructureNamed(string name);
-//
-//  //Get properties
-//  size_t structureCount() {
-//    if (_filePositions.empty())
-//      scanFilePositions();
-//    return _filePositions.size();
-//  }
-//
-//  //Navigate the file
-//  bool hasNext();
-//  void skip();
-//  void jumpToStructureIndex(int idx);
-//  void reset();
-//
-//  //Setters
-//  void appendStructure(Structure *s);
-//  //not sure about this
-//  //  void insertStructureNames(vector<string> &names) {
-//  //    if (_filePositions.empty())
-//  //      scanFilePositions();
-//  //    names.insert(names.end(), _structureNames.begin(), _structureNames.end());
-//  //  }
-//
-//protected:
-//  void scanFilePositions();
-//  void openFileStream(string filePath);
-//
-//private:
-//  string _filePath;
-//  bool readMode;
-//  fstream fs;
-//  unordered_map<string, long> _filePositions; // Positions of each structure in the file
-//  vector<string> _structureNames;
-//};
-
 
 class generalUtilities {
   
