@@ -10,7 +10,7 @@ STRUCTGENSRC = $(STRUCTGENDIR)/src
 STRUCTGENOBJS = $(STRUCTGENDIR)/objs
 STRUCTGENLIB = $(STRUCTGENDIR)/lib
 
-CC = /usr/bin/g++
+CC = g++
 CFLAGS = -std=c++11 -g -gdwarf-3 -O3 -fPIC -I$(MSTINCL) -I$(STRUCTGENINCL) -I$(INCL) # -g -gdwarf-3
 MPICC = mpic++
 MPIFLAGS = -std=c++0x -O3

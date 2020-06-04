@@ -72,7 +72,7 @@ void StructuresBinaryFile::openFileStream(string filePath) {
     if (readMode)
         MstUtils::openFile(fs, filePath, fstream::in | fstream::binary, "StructuresBinaryFile::openFileStream");
     else
-        MstUtils::openFile(fs, filePath, fstream::out | fstream::binary, "StructuresBinaryFile::openFileStream");
+        MstUtils::openFile(fs, filePath, fstream::out | fstream::binary | fstream::app, "StructuresBinaryFile::openFileStream");
 }
 
 bool StructuresBinaryFile::hasNext() {
