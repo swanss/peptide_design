@@ -12,7 +12,7 @@
 #include "mstfuser.h"
 #include "mstcondeg.h"
 #include "mstsystem_exts.h"
-#include "seedutils.h"
+#include "fileutilities.h"
 
 using namespace std;
 using namespace MST;

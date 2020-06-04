@@ -6,6 +6,8 @@
 //
 
 #include "utilities.h"
+#include "mstsystem_exts.h"
+#include <regex>
 
 using namespace MST;
 
@@ -340,4 +342,39 @@ mstreal generalUtilities::fragDegreesOfFreedom(const vector<int>& J, const Struc
   I.resize(keys.size());
   for (int i = 0; i < keys.size(); i++) I[i] = residuesFromChain[keys[i]];
   return generalUtilities::fragDegreesOfFreedom(I, L0);
+}
+
+/* ----------- Miscellaneous useful functions -------------- */
+
+int getTargetResidueIndex(string seedName) {
+    regex re("^[A-z0-9]{4}_[A-z](\\d+)_");
+    smatch match;
+    string fileName = MstSystemExtension::fileName(seedName);
+    if (std::regex_search(fileName, match, re) && match.size() > 1) {
+        return atoi(match.str(1).c_str());
+    }
+    return -1;
+}
+
+pair<string, int> getTargetResidueCode(string seedName) {
+    regex re("^[A-z0-9_]-([A-z])(\\d+)-");
+    smatch match;
+    string fileName = MstSystemExtension::fileName(seedName);
+    if (std::regex_search(fileName, match, re) && match.size() > 1) {
+        return make_pair(match.str(1), atoi(match.str(2).c_str()));
+    }
+    return make_pair("", -1);
+}
+
+vector<string> splitString(string s, const string &delim) {
+    size_t pos = 0;
+    string token;
+    vector<string> result;
+    while ((pos = s.find(delim)) != string::npos) {
+        token = s.substr(0, pos);
+        result.push_back(token);
+        s.erase(0, pos + delim.length());
+    }
+    result.push_back(s);
+    return result;
 }

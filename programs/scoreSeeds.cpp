@@ -12,6 +12,7 @@
 #include "structure_iter.h"
 #include "seedgraph.h"
 #include "seedscore.h"
+#include "utilities.h"
 #include <fstream>
 #include <sstream>
 #include <chrono>

@@ -26,24 +26,6 @@
 using namespace std;
 using namespace MST;
 
-vector<string> splitString(string s, const string &delim);
-
-/**
- Determines the target residue from which the given seed came. Assumes the file
- name is of the form "XXXX_XABC_match_XX_seed_X.pdb", and extracts the number
- "ABC".
- 
- @param seedName the file name of the seed
- @return the target residue index for this seed, or -1 if one was not found
- */
-int getTargetResidueIndex(string seedName);
-
-/**
- * Determines the target residue code, including the chain ID and the number,
- * assuming the file name is of the form "[TARGETNAME]-[CHAINID][NUMBER]-etc.pdb".
- */
-pair<string, int> getTargetResidueCode(string seedName);
-
 /**
  Type that encapsulates a CSV file indicating paths for seeds. At minimum, the
  file should contain the path for each seed and a string indicating which chains

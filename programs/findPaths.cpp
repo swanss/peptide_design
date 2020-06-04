@@ -13,6 +13,7 @@
 #include "seedscore.h"
 #include "pathsampler.h"
 #include "findpaths.h"
+#include "utilities.h"
 #include <unordered_set>
 
 using namespace std;

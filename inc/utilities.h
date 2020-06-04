@@ -117,4 +117,25 @@ public:
   static mstreal fragDegreesOfFreedom(const vector<int>& J, const Structure& S, mstreal L0 = 15);
 };
 
+// Miscellaneous useful functions
+
+vector<string> splitString(string s, const string &delim);
+
+/**
+ Determines the target residue from which the given seed came. Assumes the file
+ name is of the form "XXXX_XABC_match_XX_seed_X.pdb", and extracts the number
+ "ABC".
+ 
+ @param seedName the file name of the seed
+ @return the target residue index for this seed, or -1 if one was not found
+ */
+int getTargetResidueIndex(string seedName);
+
+/**
+ * Determines the target residue code, including the chain ID and the number,
+ * assuming the file name is of the form "[TARGETNAME]-[CHAINID][NUMBER]-etc.pdb".
+ */
+pair<string, int> getTargetResidueCode(string seedName);
+
+
 #endif /* utilities_h */

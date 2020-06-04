@@ -3,6 +3,7 @@
 #include "Fragments.h"
 #include <unordered_set>
 #include "findpaths.h"
+#include "utilities.h"
 #include <iostream>
 
 using Node = ClusterNode<FragmentInfo>;

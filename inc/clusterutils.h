@@ -11,7 +11,8 @@
 #include "mstfuser.h"
 #include "mstcondeg.h"
 #include "mstsystem_exts.h"
-#include "seedutils.h"
+#include "fileutilities.h"
+#include "utilities.h"
 
 using namespace MST;
 

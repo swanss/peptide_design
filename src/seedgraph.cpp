@@ -9,6 +9,7 @@
 #include <stack>
 #include "seedgraph.h"
 #include "findfuseable.h"
+#include "utilities.h"
 
 // SeedGraph
 

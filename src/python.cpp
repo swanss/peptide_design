@@ -8,7 +8,7 @@
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 #include <unordered_set>
 #include "structure_iter.h"
-#include "seedutils.h"
+#include "fileutilities.h"
 #include "clustertree.h"
 #include "clusterutils.h"
 #include "seedgraph.h"

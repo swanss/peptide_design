@@ -6,28 +6,8 @@
 //
 
 #include <stdio.h>
-#include "seedutils.h"
-#include <regex>
-
-int getTargetResidueIndex(string seedName) {
-    regex re("^[A-z0-9]{4}_[A-z](\\d+)_");
-    smatch match;
-    string fileName = MstSystemExtension::fileName(seedName);
-    if (std::regex_search(fileName, match, re) && match.size() > 1) {
-        return atoi(match.str(1).c_str());
-    }
-    return -1;
-}
-
-pair<string, int> getTargetResidueCode(string seedName) {
-    regex re("^[A-z0-9_]-([A-z])(\\d+)-");
-    smatch match;
-    string fileName = MstSystemExtension::fileName(seedName);
-    if (std::regex_search(fileName, match, re) && match.size() > 1) {
-        return make_pair(match.str(1), atoi(match.str(2).c_str()));
-    }
-    return make_pair("", -1);
-}
+#include "fileutilities.h"
+#include "utilities.h"
 
 // FuseCandidateFile
 
@@ -38,19 +18,6 @@ FuseCandidateFile::~FuseCandidateFile() {
     if (writestream != nullptr) {
         delete writestream;
     }
-}
-
-vector<string> splitString(string s, const string &delim) {
-    size_t pos = 0;
-    string token;
-    vector<string> result;
-    while ((pos = s.find(delim)) != string::npos) {
-        token = s.substr(0, pos);
-        result.push_back(token);
-        s.erase(0, pos + delim.length());
-    }
-    result.push_back(s);
-    return result;
 }
 
 vector<FuseCandidate> FuseCandidateFile::read(int numLines) {

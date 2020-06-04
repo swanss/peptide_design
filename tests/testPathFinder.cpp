@@ -13,6 +13,7 @@
 #include "seedgraph.h"
 #include "seedscore.h"
 #include "findpaths.h"
+#include "utilities.h"
 
 using namespace std;
 using namespace std::chrono;
