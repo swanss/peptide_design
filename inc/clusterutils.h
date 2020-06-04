@@ -311,7 +311,7 @@ public:
     void reset() override {};
 
     AtomPointerVector getAPV(FragmentInfo *info) override { return fragments[info]; };
-    int numAtoms() override { _numAtoms; };
+    int numAtoms() override { return _numAtoms; };
 
     void makeNextResult() override {};
     FragmentInfo *makeFragmentInfo(string infoString) override {
