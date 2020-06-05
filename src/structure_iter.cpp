@@ -415,7 +415,7 @@ void BatchPairStructureIterator::makeNextResult() {
      * 6|BBBBBBB
      * 7|AAAAAAAA
      *  ---------
-     *   01234567
+     *   01234567     
      */
     
     if (nextResultAvailable)
@@ -423,7 +423,7 @@ void BatchPairStructureIterator::makeNextResult() {
 
     // First make sure we're on the correct first index
     if (firstIndex <= secondIndex || !binaryFile->hasNext()) {
-        if (firstIndex < numRows / 2 && firstIndex + numWorkers >= numRows / 2)
+        if ((float)firstIndex < (float)numRows / 2.0f && (float)(firstIndex + numWorkers) >= (float)numRows / 2.0f)
             firstIndex = numRows - firstIndex - 1;
         else
             firstIndex += numWorkers;
