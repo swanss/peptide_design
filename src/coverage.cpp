@@ -41,10 +41,10 @@ vector<tuple<mstreal,mstreal,long>> sortedBins::getNumFragmentsCoveringContact(i
     //find all seedSubstructures that have a protein residue matching the query
     long count = 0;
     for (int j = 0; j < bins[i].size(); j++) {
-      if (bins[i][j].protein_res_idx.count(R_prot_idx) > 0) count++;
+//      if (bins[i][j].protein_res_idx.count(R_prot_idx) > 0) count++;
     }
     output.push_back(tuple<mstreal,mstreal,long> (min_boundary,min_boundary+interval,count));
-    
+
     min_boundary += interval;
   }
   return output;
@@ -218,6 +218,9 @@ void allChainSegments::mapSegmentToChainSubsegments(vector<Atom*> seed_segment, 
       Atom* A = seed_segment[0];
       string structure_name = A->getStructure()->getName();
       string chain_ID = A->getChain()->getID();
+      
+      //COMPILE
+      set<pair<int,int>> seed_protein_contacts;
       
       seedSubstructureInfo info(structure_name,chain_ID,seed_position,length,rmsd,seed_protein_contacts);
       
