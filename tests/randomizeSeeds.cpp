@@ -13,7 +13,7 @@
 //tpd dependencies
 #include "coverage.h"
 #include "secondarystructure.h"
-#include "seedutilities.h"
+#include "benchmarkutilities.h"
 #include "utilities.h"
 
 ////structgen dependencies

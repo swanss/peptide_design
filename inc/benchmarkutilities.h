@@ -6,9 +6,6 @@
 //  Copyright © 2020 Sebastian Swanson. All rights reserved.
 //
 
-#ifndef seedutilities_hpp
-#define seedutilities_hpp
-
 #include "msttypes.h"
 #include "mstsystem.h"
 #include "mstcondeg.h"
@@ -22,6 +19,46 @@
 
 #include "Util.h"
 #include "vdwRadii.h"
+
+/* --------- rejectionSampler --------- */
+
+class rejectionSampler {
+  
+//  Rejection sampling allows us to sample from a non-parametric probability density. The first
+//  step is to sample uniformly, and the second step is to accept or reject. The probability of
+//  acceptance is proportional to the density at the sampled value.
+//
+//  For more info, check out:
+//  https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/lectures/lecture17.pdf
+  
+public:
+  rejectionSampler(vector<int> histogram,
+                   mstreal min_value,
+                   mstreal max_value);
+  
+  rejectionSampler(string hist_file);
+  
+  rejectionSampler(const rejectionSampler& sampler) {
+    histogram = sampler.histogram;
+    min_value = sampler.min_value;
+    max_value = sampler.bin_size;
+    bin_size = sampler.bin_size;
+    max_count = sampler.max_count;
+  }
+  
+  bool accept(mstreal value);
+protected:
+  // file should be formatted like lower_bound,upper_bound,count
+  pair<mstreal,vector<int>> loadHistFile(string hist_file);
+  int getCount(mstreal value);
+private:
+  vector<int> histogram;
+  mstreal min_value;
+  mstreal max_value;
+  mstreal bin_size;
+  int max_count; //the number of counts in the largest bin
+};
+
 
 /* --------- generateRandomSeed --------- */
 
@@ -84,12 +121,12 @@ class naiveSeedsFromBin {
    seedBinaryFile.
    */
 public:
-  naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, mstreal distance = 1.0, int neighbors = 1);
+  naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, rejectionSampler& _sampler, mstreal distance = 1.0, int neighbors = 1);
   
   ~naiveSeedsFromBin() {
-    for (Atom* A : seed_centroids) delete A;
+//    for (Atom* A : seed_centroids) delete A;
     delete target_PS;
-    delete seed_PS;
+//    delete seed_PS;
   }
   
   /*
@@ -115,9 +152,12 @@ private:
   AtomPointerVector target_BB_atoms;
   ProximitySearch* target_PS;
   
-  // for identifying allowable centroid positions
-  AtomPointerVector seed_centroids;
-  ProximitySearch* seed_PS;
+//  // for identifying allowable centroid positions
+//  AtomPointerVector seed_centroids;
+//  ProximitySearch* seed_PS;
+  
+  // for sampling centroid positions
+  rejectionSampler sampler;
   
   int max_attempts;
   mstreal distance;
@@ -128,7 +168,7 @@ private:
 
 class naiveSeedsFromDB : public naiveSeedsFromBin {
 public:
-  naiveSeedsFromDB(Structure& S, string p_id, const string& dbFile, string seedBinaryPath_in, mstreal distance = 1.0, int max_len = 50) : naiveSeedsFromBin(S,p_id,seedBinaryPath_in,distance), seedSampler(dbFile,max_len) {};
+  naiveSeedsFromDB(Structure& S, string p_id, const string& dbFile, string seedBinaryPath_in, rejectionSampler& _sampler, mstreal distance = 1.0, int max_len = 50) : naiveSeedsFromBin(S,p_id,seedBinaryPath_in,_sampler,distance), seedSampler(dbFile,max_len) {};
   
   /*
    Loads each seed from an existing seedBinaryFile, finds its residue length, and samples a new one
@@ -153,6 +193,7 @@ public:
   
   mstreal boundingSphereRadius(Structure* seed);
   mstreal centroid2NearestProteinAtom(Structure* seed);
+  mstreal point2NearestProteinAtom(CartesianPoint point);
 //  mstreal atom2NearestProteinAtom(Structure* seed);
   
 private:
@@ -167,5 +208,3 @@ private:
   
   mstreal neigborhood;
 };
-
-#endif /* seedutilities_hpp */

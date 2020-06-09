@@ -81,6 +81,7 @@ public:
   void writeCaInfotoPointFile(string bin_path, fstream& out);
   void writeCaInfotoLineFile(Chain* C, fstream& out);
   void writeCaInfotoLineFile(string bin_path, int num_final_seeds, fstream& out);
+  void writeCaInfotoLineFile(string bin_path, vector<string> seed_names, fstream& out);
   
   string classification2ColorID(string classification) {
     if (classification == "H") return "0";

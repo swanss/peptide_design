@@ -227,3 +227,15 @@ void secondaryStructureClassifier::writeCaInfotoLineFile(string bin_path, int nu
   cout << "In the end, wrote the coordinates of " << count << " seeds" << endl;
   
 }
+
+void secondaryStructureClassifier::writeCaInfotoLineFile(string bin_path, vector<string> seed_names, fstream& out) {
+  StructuresBinaryFile bin_file(bin_path);
+  bin_file.scanFilePositions();
+
+  for (string seed_name : seed_names) {
+    Structure* seed = bin_file.getStructureNamed(seed_name);
+    Chain* seed_C = seed->getChainByID("0");
+    writeCaInfotoLineFile(seed_C, out);
+    delete seed;
+  }
+}

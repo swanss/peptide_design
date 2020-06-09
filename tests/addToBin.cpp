@@ -47,4 +47,6 @@ int main(int argc, char *argv[]) {
   
   S = bin->getStructureNamed(name);
   cout << "Structure with name: " << S->getName() << " now in the binary file" << endl;
+  
+  return 0;
 }

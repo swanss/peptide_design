@@ -79,7 +79,7 @@ void sortedBins::buildBins() {
 }
 
 /* --------- allChainSegments --------- */
-allChainSegments::allChainSegments(Chain* peptide, int max_segment_length, mstreal _max_rmsd) : max_rmsd(_max_rmsd) {
+allChainSegments::allChainSegments(Chain* peptide, int max_segment_length, mstreal _max_rmsd, string rotLibPath) : max_rmsd(_max_rmsd) {
   int peptide_length = peptide->residueSize();
   vector<Atom*> peptide_atoms = peptide->getAtoms();
   max_allowable_segment_length = min(peptide_length,max_segment_length);
@@ -106,9 +106,11 @@ allChainSegments::allChainSegments(Chain* peptide, int max_segment_length, mstre
       chainSubsegmentsBins[segment_length-1][segment_position] = bin;
     }
   }
+  
+  rotLib = new RotamerLibrary(rotLibPath);
 }
 
-void allChainSegments::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, set<int> protein_res_idx) {
+void allChainSegments::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, Structure* target) {
   int seed_length = seed_atoms.size()/4;
   int max_allowable_seed_segment_length = min(seed_length,max_allowable_segment_length);
   
@@ -118,7 +120,7 @@ void allChainSegments::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, set<i
       int start_position = segment_position*4;
       int end_position = (segment_position+segment_length)*4;
       vector<Atom*> seed_segment(seed_atoms.begin()+start_position,seed_atoms.begin()+end_position);
-      mapSegmentToChainSubsegments(seed_segment,protein_res_idx,segment_position,segment_length);
+      mapSegmentToChainSubsegments(seed_segment,target,segment_position,segment_length);
     }
   }
 }
@@ -206,7 +208,7 @@ void allChainSegments::writeSeedsToFile(fstream& output) {
   }
 }
 
-void allChainSegments::mapSegmentToChainSubsegments(vector<Atom*> seed_segment, set<int> protein_res_idx, int seed_position, int length) {
+void allChainSegments::mapSegmentToChainSubsegments(vector<Atom*> seed_segment, Structure* target, int seed_position, int length) {
   for (int segment_position = 0; segment_position < chainSubsegments[length-1].size(); segment_position++) {
     vector<Atom*>& peptide_segment = chainSubsegments[length-1][segment_position];
     
@@ -217,7 +219,7 @@ void allChainSegments::mapSegmentToChainSubsegments(vector<Atom*> seed_segment, 
       string structure_name = A->getStructure()->getName();
       string chain_ID = A->getChain()->getID();
       
-      seedSubstructureInfo info(structure_name,chain_ID,seed_position,length,rmsd,protein_res_idx);
+      seedSubstructureInfo info(structure_name,chain_ID,seed_position,length,rmsd,seed_protein_contacts);
       
       chainSubsegmentsBins[length-1][segment_position].insert(info, rmsd);
     }
@@ -250,7 +252,7 @@ interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, mstreal _max_rm
   
   //define and construct all subsegments of the peptide chain
   cout << "Constructing peptide subsegments" << endl;
-  peptideSubsegments = allChainSegments(peptide_chain,max_seed_length, max_rmsd);
+  peptideSubsegments = allChainSegments(peptide_chain,max_seed_length, max_rmsd,RL_path);
 }
 
 interfaceCoverage::~interfaceCoverage() {
@@ -265,10 +267,10 @@ void interfaceCoverage::findCoveringSeeds(string _binFilePath) {
   while (bin.hasNext()) {
     Structure* extended_fragment = bin.next();
     cout << "try mapping seed: " << extended_fragment->getName() << endl;
-    set<int> protein_res_idx = getExtendedFragmentProteinResidueIdx(extended_fragment);
+//    set<int> protein_res_idx = getExtendedFragmentProteinResidueIdx(extended_fragment);
     Chain* seed_C = extended_fragment->getChainByID("0");
     vector<Atom*> seed_backbone_atoms = getBackboneAtoms(seed_C);
-    peptideSubsegments.mapSeedToChainSubsegments(seed_backbone_atoms,protein_res_idx);
+    peptideSubsegments.mapSeedToChainSubsegments(seed_backbone_atoms,target);
     delete extended_fragment;
   }
 }

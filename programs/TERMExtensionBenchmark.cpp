@@ -13,7 +13,7 @@
 //tpd dependencies
 #include "utilities.h"
 #include "coverage.h" //to directly assess coverage
-#include "seedutilities.h"
+#include "benchmarkutilities.h"
 #include "termextension.h"
 #include "secondarystructure.h"
 
