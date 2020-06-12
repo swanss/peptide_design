@@ -92,7 +92,7 @@ mstreal FuseCandidateFinder::quickRMSD(const vector<Atom *> &atoms1, const vecto
     size_t M = atoms1.size();
     size_t N = atoms2.size();
     if (M != N)
-        MstUtils::error("Atom lists are different sizes", "FuseCandidateFinder::rmsdWithinThreshold");
+        MstUtils::error("Atom lists are different sizes", "FuseCandidateFinder::quickRMSD");
 
     if (atoms1[0]->distance2(atoms2[0]) > threshold * threshold * N)
         return 1e10;

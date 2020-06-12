@@ -11,7 +11,7 @@
 #include "mstoptions.h"
 
 //tpd dependencies
-#include "seedutilities.h"
+#include "benchmarkutilities.h"
 #include "secondarystructure.h"
 #include "utilities.h"
 

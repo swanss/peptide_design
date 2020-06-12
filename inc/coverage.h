@@ -26,6 +26,7 @@ using namespace MST;
 
 class benchmarkUtils;
 
+
 /* --------- seedSubstructureInfo --------- */
 
 struct seedSubstructureInfo {
@@ -35,15 +36,27 @@ public:
   int res_idx;
   int res_length;
   mstreal rmsd;
-  set<int> protein_res_idx;
+  set<pair<int,int>> seed_protein_contacts;
   
   seedSubstructureInfo() {};
-  seedSubstructureInfo(string name, string ID, int idx, int length, mstreal _rmsd, set<int> _protein_res_idx) : structure_name(name), chain_ID(ID), res_idx(idx), res_length(length), rmsd(_rmsd), protein_res_idx(_protein_res_idx) {};
-  seedSubstructureInfo(const seedSubstructureInfo& other) : structure_name(other.structure_name), chain_ID(other.chain_ID), res_idx(other.res_idx), res_length(other.res_length), rmsd(other.rmsd), protein_res_idx(other.protein_res_idx) {};
+  seedSubstructureInfo(string name, string ID, int idx, int length, mstreal _rmsd, set<pair<int,int>> _seed_protein_contacts) : structure_name(name), chain_ID(ID), res_idx(idx), res_length(length), rmsd(_rmsd), seed_protein_contacts(_seed_protein_contacts) {};
+  seedSubstructureInfo(const seedSubstructureInfo& other) : structure_name(other.structure_name), chain_ID(other.chain_ID), res_idx(other.res_idx), res_length(other.res_length), rmsd(other.rmsd), seed_protein_contacts(other.seed_protein_contacts) {};
   
   bool operator < (const seedSubstructureInfo& other) const {
     return (rmsd < other.rmsd);
   }
+  
+  string get_contacts_string() {
+    stringstream ss;
+    int count = 0;
+    for (auto cont : seed_protein_contacts) {
+      if (count != 0) ss << " ";
+      ss << cont.first << "," << cont.second;
+      count++;
+    }
+    ss << endl;
+    return ss.str();
+  };
 };
 
 /* --------- sortedBins --------- */
@@ -66,8 +79,8 @@ public:
   //min_rmsd, max_rmsd, number of seeds aligned to segment
   vector<tuple<mstreal,mstreal,long>> getSeedsByBin();
   
-  //min_rmsd, max_rmsd, number of seeds with a protein aligned region containing R_prot
-  vector<tuple<mstreal,mstreal,long>> getNumFragmentsCoveringContact(int R_prot_idx);
+//  //min_rmsd, max_rmsd, number of seeds with a protein aligned region containing R_prot
+//  vector<tuple<mstreal,mstreal,long>> getNumFragmentsCoveringContact(int R_prot_idx);
   
   vector<seedSubstructureInfo> getAllSeeds();
   
@@ -95,19 +108,25 @@ private:
 class allChainSegments {
 public:
   allChainSegments() {};
-  allChainSegments(Chain* peptide, int max_segment_length, mstreal max_rmsd);
+  allChainSegments(Chain* peptide, Structure* target, int max_segment_length, mstreal max_rmsd, string s_cid, string rotLibPath);
   
-  void mapSeedToChainSubsegments(vector<Atom*> seed_atoms, set<int> protein_res_idx);
+  ~allChainSegments() {
+    delete rotLib;
+  };
+  
+  void mapSeedToChainSubsegments(vector<Atom*> seed_atoms);
   
   void resetBins();
   
   void writeSegmentCoverage(fstream& output);
-  void writeContactCoverage(fstream& output, set<pair<Residue*,Residue*>> contact_residues);
+//  void writeContactCoverage(fstream& output, set<pair<Residue*,Residue*>> contact_residues);
   
   void writeSeedsToFile(fstream& output);
   
 protected:
-  void mapSegmentToChainSubsegments(vector<Atom*> seed_segment, set<int> protein_res, int seed_position, int length);
+  void mapSegmentToChainSubsegments(vector<Atom*> seed_segment, int seed_position, int length);
+  
+  set<pair<int,int>> getContacts(vector<Atom*> seed_segment);
   
 private:
   vector<vector<AtomPointerVector>> chainSubsegments;
@@ -117,7 +136,10 @@ private:
   int max_allowable_segment_length;
   RMSDCalculator rmsd_calc;
   
-  
+  //for contacts
+  RotamerLibrary* rotLib;
+  Structure* target; //only the protein atoms
+  string s_cid;
   
 };
 
@@ -148,17 +170,17 @@ protected:
   //this function assumes the peptide comes after the protein
   void prepareForTERMExtension();
   
-  set<int> getExtendedFragmentProteinResidueIdx(Structure* EF) {
-    set<int> protein_res;
-    for (int chain_idx = 0; chain_idx < EF->chainSize(); chain_idx++) {
-      Chain& C = (*EF)[chain_idx];
-      if (C.getID() != seed_chain_id) {
-        vector<Residue*> chain_res = C.getResidues();
-        for (Residue* R : chain_res) protein_res.insert(R->getNum());
-      }
-    }
-    return protein_res;
-  };
+//  set<int> getExtendedFragmentProteinResidueIdx(Structure* EF) {
+//    set<int> protein_res;
+//    for (int chain_idx = 0; chain_idx < EF->chainSize(); chain_idx++) {
+//      Chain& C = (*EF)[chain_idx];
+//      if (C.getID() != seed_chain_id) {
+//        vector<Residue*> chain_res = C.getResidues();
+//        for (Residue* R : chain_res) protein_res.insert(R->getNum());
+//      }
+//    }
+//    return protein_res;
+//  };
   
   vector<Atom*> getBackboneAtoms(Chain* C) {
     vector<Atom*> bb_atoms;
@@ -171,6 +193,7 @@ protected:
   };
   
 private:
+  
   // global variables
   RotamerLibrary RL;
   string RL_path;

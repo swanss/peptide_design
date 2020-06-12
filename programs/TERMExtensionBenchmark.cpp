@@ -13,7 +13,7 @@
 //tpd dependencies
 #include "utilities.h"
 #include "coverage.h" //to directly assess coverage
-#include "seedutilities.h"
+#include "benchmarkutilities.h"
 #include "termextension.h"
 #include "secondarystructure.h"
 
@@ -116,7 +116,10 @@ int main(int argc, char *argv[]) {
   bool position = false;
   bool orientation = true;
   
-  naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin);
+  vector<int> hist;
+  rejectionSampler sampler(hist,1.0,2.0);
+  
+  naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin, sampler);
 
   timer.start();
   naiveSeeds.newPose(outDir, type1_name, position, orientation);
