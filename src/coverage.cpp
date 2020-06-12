@@ -34,21 +34,21 @@ vector<tuple<mstreal,mstreal,long>> sortedBins::getSeedsByBin() {
   return output;
 }
 
-vector<tuple<mstreal,mstreal,long>> sortedBins::getNumFragmentsCoveringContact(int R_prot_idx) {
-  vector<tuple<mstreal,mstreal,long>> output;
-  mstreal min_boundary = 0;
-  for (int i = 0; i < bins.size(); i++) {
-    //find all seedSubstructures that have a protein residue matching the query
-    long count = 0;
-    for (int j = 0; j < bins[i].size(); j++) {
+//vector<tuple<mstreal,mstreal,long>> sortedBins::getNumFragmentsCoveringContact(int R_prot_idx) {
+//  vector<tuple<mstreal,mstreal,long>> output;
+//  mstreal min_boundary = 0;
+//  for (int i = 0; i < bins.size(); i++) {
+//    //find all seedSubstructures that have a protein residue matching the query
+//    long count = 0;
+//    for (int j = 0; j < bins[i].size(); j++) {
 //      if (bins[i][j].protein_res_idx.count(R_prot_idx) > 0) count++;
-    }
-    output.push_back(tuple<mstreal,mstreal,long> (min_boundary,min_boundary+interval,count));
-
-    min_boundary += interval;
-  }
-  return output;
-}
+//    }
+//    output.push_back(tuple<mstreal,mstreal,long> (min_boundary,min_boundary+interval,count));
+//
+//    min_boundary += interval;
+//  }
+//  return output;
+//}
 
 vector<seedSubstructureInfo> sortedBins::getAllSeeds() {
   vector<seedSubstructureInfo> all_seeds;
@@ -79,7 +79,7 @@ void sortedBins::buildBins() {
 }
 
 /* --------- allChainSegments --------- */
-allChainSegments::allChainSegments(Chain* peptide, int max_segment_length, mstreal _max_rmsd, string rotLibPath) : max_rmsd(_max_rmsd) {
+allChainSegments::allChainSegments(Chain* peptide, Structure* _target, int max_segment_length, mstreal _max_rmsd, string _s_cid, string rotLibPath) : target(_target), max_rmsd(_max_rmsd), s_cid(_s_cid) {
   int peptide_length = peptide->residueSize();
   vector<Atom*> peptide_atoms = peptide->getAtoms();
   max_allowable_segment_length = min(peptide_length,max_segment_length);
@@ -110,7 +110,7 @@ allChainSegments::allChainSegments(Chain* peptide, int max_segment_length, mstre
   rotLib = new RotamerLibrary(rotLibPath);
 }
 
-void allChainSegments::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, Structure* target) {
+void allChainSegments::mapSeedToChainSubsegments(vector<Atom*> seed_atoms) {
   int seed_length = seed_atoms.size()/4;
   int max_allowable_seed_segment_length = min(seed_length,max_allowable_segment_length);
   
@@ -120,7 +120,7 @@ void allChainSegments::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, Struc
       int start_position = segment_position*4;
       int end_position = (segment_position+segment_length)*4;
       vector<Atom*> seed_segment(seed_atoms.begin()+start_position,seed_atoms.begin()+end_position);
-      mapSegmentToChainSubsegments(seed_segment,target,segment_position,segment_length);
+      mapSegmentToChainSubsegments(seed_segment,segment_position,segment_length);
     }
   }
 }
@@ -152,43 +152,43 @@ void allChainSegments::writeSegmentCoverage(fstream& out) {
   }
 }
 
-void allChainSegments::writeContactCoverage(fstream& out, set<pair<Residue*,Residue*>> contact_residues) {
-  
-  //write the header
-  out << "segment_length\tcontact_name\tmin_rmsd\tmax_rmsd\tnumber_covering_seeds" << endl;
-  
-  for (pair<Residue*,Residue*> contact : contact_residues) {
-    //get the name of the contact
-    string contact_name = contact.first->getChainID() + MstUtils::toString(contact.first->getNum()) + "-" + contact.second->getChainID() + MstUtils::toString(contact.second->getNum());
-    int peptide_res_position = contact.first->getResidueIndexInChain();
-    int protein_res_idx = contact.second->getResidueIndex();
-    
-    //find the segments that contain the peptide residue
-    for (int segment_length = 1; segment_length <= chainSubsegmentsBins.size(); segment_length++){
-      for (int peptide_position = 0; peptide_position < chainSubsegmentsBins[segment_length-1].size(); peptide_position++) {
-        //check if the peptide residue of the contact falls within the covered segment
-        if (peptide_res_position >= peptide_position && peptide_res_position < peptide_position + segment_length) {
-          //get the seedsubstructures within the appropriate RMSD range
-          //iterate over them and count how many have the same protein residue as the one in the contact
-          sortedBins& peptide_segment = chainSubsegmentsBins[segment_length-1][peptide_position];
-          vector<tuple<mstreal,mstreal,long>> covered_contacts = peptide_segment.getNumFragmentsCoveringContact(protein_res_idx);
-          //write to file
-          for (int bin = 0; bin < covered_contacts.size(); bin++) {
-            out << segment_length << "\t";
-            out << contact_name << "\t";
-            out << get<0>(covered_contacts[bin]) << "\t";
-            out << get<1>(covered_contacts[bin]) << "\t";
-            out << get<2>(covered_contacts[bin]) << endl;
-          }
-        }
-      }
-    }
-  }
-}
+//void allChainSegments::writeContactCoverage(fstream& out, set<pair<Residue*,Residue*>> contact_residues) {
+//
+//  //write the header
+//  out << "segment_length\tcontact_name\tmin_rmsd\tmax_rmsd\tnumber_covering_seeds" << endl;
+//
+//  for (pair<Residue*,Residue*> contact : contact_residues) {
+//    //get the name of the contact
+//    string contact_name = contact.first->getChainID() + MstUtils::toString(contact.first->getNum()) + "-" + contact.second->getChainID() + MstUtils::toString(contact.second->getNum());
+//    int peptide_res_position = contact.first->getResidueIndexInChain();
+//    int protein_res_idx = contact.second->getResidueIndex();
+//
+//    //find the segments that contain the peptide residue
+//    for (int segment_length = 1; segment_length <= chainSubsegmentsBins.size(); segment_length++){
+//      for (int peptide_position = 0; peptide_position < chainSubsegmentsBins[segment_length-1].size(); peptide_position++) {
+//        //check if the peptide residue of the contact falls within the covered segment
+//        if (peptide_res_position >= peptide_position && peptide_res_position < peptide_position + segment_length) {
+//          //get the seedsubstructures within the appropriate RMSD range
+//          //iterate over them and count how many have the same protein residue as the one in the contact
+//          sortedBins& peptide_segment = chainSubsegmentsBins[segment_length-1][peptide_position];
+//          vector<tuple<mstreal,mstreal,long>> covered_contacts = peptide_segment.getNumFragmentsCoveringContact(protein_res_idx);
+//          //write to file
+//          for (int bin = 0; bin < covered_contacts.size(); bin++) {
+//            out << segment_length << "\t";
+//            out << contact_name << "\t";
+//            out << get<0>(covered_contacts[bin]) << "\t";
+//            out << get<1>(covered_contacts[bin]) << "\t";
+//            out << get<2>(covered_contacts[bin]) << endl;
+//          }
+//        }
+//      }
+//    }
+//  }
+//}
 
 void allChainSegments::writeSeedsToFile(fstream& output) {
   //header
-  output << "seed_name\tchain_id\tseed_n_terminal_res\tpeptide_n_terminal_res\tlength\trmsd" << endl;
+  output << "seed_name\tchain_id\tseed_n_terminal_res\tpeptide_n_terminal_res\tlength\trmsd\tcontacts" << endl;
   //find the segments that contain the peptide residue
   for (int segment_length = 1; segment_length <= chainSubsegmentsBins.size(); segment_length++){
     for (int peptide_position = 0; peptide_position < chainSubsegmentsBins[segment_length-1].size(); peptide_position++) {
@@ -201,14 +201,15 @@ void allChainSegments::writeSeedsToFile(fstream& output) {
         output << seed.res_idx << "\t";
         output << peptide_position << "\t";
         output << seed.res_length << "\t";
-        output << seed.rmsd;
+        output << seed.rmsd << "\t";
+        output << seed.get_contacts_string();
         output << endl;
       }
     }
   }
 }
 
-void allChainSegments::mapSegmentToChainSubsegments(vector<Atom*> seed_segment, Structure* target, int seed_position, int length) {
+void allChainSegments::mapSegmentToChainSubsegments(vector<Atom*> seed_segment, int seed_position, int length) {
   for (int segment_position = 0; segment_position < chainSubsegments[length-1].size(); segment_position++) {
     vector<Atom*>& peptide_segment = chainSubsegments[length-1][segment_position];
     
@@ -219,8 +220,7 @@ void allChainSegments::mapSegmentToChainSubsegments(vector<Atom*> seed_segment, 
       string structure_name = A->getStructure()->getName();
       string chain_ID = A->getChain()->getID();
       
-      //COMPILE
-      set<pair<int,int>> seed_protein_contacts;
+      set<pair<int,int>> seed_protein_contacts = getContacts(seed_segment);
       
       seedSubstructureInfo info(structure_name,chain_ID,seed_position,length,rmsd,seed_protein_contacts);
       
@@ -229,12 +229,35 @@ void allChainSegments::mapSegmentToChainSubsegments(vector<Atom*> seed_segment, 
   }
 }
 
+set<pair<int,int>> allChainSegments::getContacts(vector<Atom*> seed_segment) {
+  //construct a new confind object including the protein and the seed
+  Structure seed_and_target(*target);
+  seed_and_target.addAtoms(seed_segment);
+  
+  ConFind CD(rotLib,seed_and_target);
+  
+  set<pair<int,int>> contacts;
+  //find all contacts between the seed and the protein
+  Chain* seed_c = seed_and_target.getChainByID(s_cid);
+  vector<Residue*> seed_residues = seed_c->getResidues();
+  
+  for (Residue* R : seed_residues) {
+    contactList R_conts = CD.getContacts(R);
+    for (int i = 0; i < R_conts.size(); i++) {
+      int seed_r_id = R_conts.residueA(i)->getResidueIndex();
+      int prot_r_id = R_conts.residueB(i)->getResidueIndex();
+      contacts.emplace(seed_r_id,prot_r_id);
+    }
+  }
+  return contacts;
+}
+
 
 
 /* --------- interfaceCoverage --------- */
-interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, mstreal _max_rmsd, int _max_seed_length, string RL_path) : binFilePath("") {
+interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, mstreal _max_rmsd, int _max_seed_length, string _RL_path) : binFilePath("") {
   // intial construction
-  setParams(_max_rmsd,_max_seed_length,RL_path);
+  setParams(_max_rmsd,_max_seed_length,_RL_path);
   
   //extract backbone
   if (!RotamerLibrary::hasFullBackbone(S)) {
@@ -255,7 +278,7 @@ interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, mstreal _max_rm
   
   //define and construct all subsegments of the peptide chain
   cout << "Constructing peptide subsegments" << endl;
-  peptideSubsegments = allChainSegments(peptide_chain,max_seed_length, max_rmsd,RL_path);
+  peptideSubsegments = allChainSegments(peptide_chain,target,max_seed_length,max_rmsd,seed_chain_id,RL_path);
 }
 
 interfaceCoverage::~interfaceCoverage() {
@@ -273,7 +296,7 @@ void interfaceCoverage::findCoveringSeeds(string _binFilePath) {
 //    set<int> protein_res_idx = getExtendedFragmentProteinResidueIdx(extended_fragment);
     Chain* seed_C = extended_fragment->getChainByID("0");
     vector<Atom*> seed_backbone_atoms = getBackboneAtoms(seed_C);
-    peptideSubsegments.mapSeedToChainSubsegments(seed_backbone_atoms,target);
+    peptideSubsegments.mapSeedToChainSubsegments(seed_backbone_atoms);
     delete extended_fragment;
   }
 }
@@ -336,13 +359,13 @@ void interfaceCoverage::writeCoverageToFiles(string outDir) {
   peptideSubsegments.writeSegmentCoverage(out);
   out.close();
   
-  //contacts
-  cout << "contact coverage..." << endl;
-  output_path = outDir + "covered_contacts.tsv";
-  MstUtils::openFile(out, output_path, fstream::out);
-  
-  peptideSubsegments.writeContactCoverage(out, contact_residues);
-  out.close();
+//  //contacts
+//  cout << "contact coverage..." << endl;
+//  output_path = outDir + "covered_contacts.tsv";
+//  MstUtils::openFile(out, output_path, fstream::out);
+//
+//  peptideSubsegments.writeContactCoverage(out, contact_residues);
+//  out.close();
 }
 
 void interfaceCoverage::writeAllAlignedSeedstoFile(string outDir) {

@@ -29,42 +29,52 @@ int main(int argc, char *argv[]) {
   
   string list_file = op.getString("list");
   vector<string> pdb_paths = MstUtils::fileToArray(list_file);
+  cout << "list had " << pdb_paths.size() << " structures" << endl;
   
   configFile config(op.getString("config"));
   
   fstream info_file;
-  MstUtils::openFile(info_file,"./peptide_window_distance.tsv");
+  MstUtils::openFile(info_file,"peptide_window_distance.tsv",fstream::out);
   info_file << "name\tpeptide_chain_id\twindow\tdistance" << endl;
   
   for (string pdb_path : pdb_paths) {
     string pdb_name = MstSystemExtension::fileName(pdb_path);
+    cout << "pdb file name: " << pdb_name << endl;
     
-    vector<string> split = MstUtils::split(pdb_name);
+    vector<string> split = MstUtils::split(pdb_name,"_");
     string peptide_ID = split[2];
+    cout << "peptide chain name: " << peptide_ID << endl;
     
+    //load the complex and construct a ConFind object
     Structure complex(pdb_path);
-    Chain* p_chain = complex.getChainByID(peptide_ID);
-    vector<Residue*> protein_residue;
-    for (Residue* R: p_chain->getResidues()) {
-      protein_residue.push_back(R);
-    }
-
-    seedStatistics seedStat(complex,peptide_ID);
-    
-    Structure peptide(*p_chain);
-    Structure peptide_backbone = RotamerLibrary::getBackbone(peptide);
-    
     ConFind C(config.getRL(),complex);
+    
+    //get the protein residues and find all peptide residues that contact these
+    Chain* pep_chain = complex.getChainByID(peptide_ID);
+    vector<Residue*> protein_residue;
+    for (int i = 0; i < complex.chainSize(); i++) {
+      Chain* C = &complex.getChain(i);
+      if (C != pep_chain) {
+        vector<Residue*> chain_res = C->getResidues();
+        protein_residue.insert(protein_residue.end(),chain_res.begin(),chain_res.end());
+      }
+    }
     
     vector<pair<Residue*, Residue*>> contacts = generalUtilities::getContactsWith(protein_residue, C, 0, cd_cut, int_cut, bb_dist, true);
     vector<Residue*> peptide_contacts = generalUtilities::getContactingResidues(contacts);
     
+    //get the peptide backbone (for constructing windows that are comparable to the seeds)
+    Structure peptide(*pep_chain);
+    Structure peptide_backbone(RotamerLibrary::getBackbone(peptide));
+    cout << "got backbone of peptide" << endl;
+    
+    seedStatistics seedStat(complex,peptide_ID);
     for (Residue* R: peptide_contacts) {
       //get the residue in the peptide_backbone structure
       Residue* R_pep = peptide_backbone[0].findResidue(R->getName(),R->getNum());
       int i = R_pep->getResidueIndex();
       int n_i = max(0,i-flanking_residues);
-      int c_i = min(i+flanking_residues,peptide_backbone.residueSize());
+      int c_i = min(i+flanking_residues,peptide_backbone.residueSize()-1); //rip, you never grow out of off-by-one errors, do you?
       
       //construct windows around each peptide residue that contacts the protein
       AtomPointerVector window;
@@ -77,7 +87,7 @@ int main(int argc, char *argv[]) {
       CartesianPoint center = window.getGeometricCenter();
       mstreal distance = seedStat.point2NearestProteinAtom(center);
       
-      info_file << pdb_name << "\t" << p_chain->getID() << "\t" << n_i << "\t" << distance << endl;
+      info_file << pdb_name << "\t" << pep_chain->getID() << "\t" << n_i << "\t" << distance << endl;
     }
   }
   info_file.close();

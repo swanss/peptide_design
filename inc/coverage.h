@@ -26,6 +26,7 @@ using namespace MST;
 
 class benchmarkUtils;
 
+
 /* --------- seedSubstructureInfo --------- */
 
 struct seedSubstructureInfo {
@@ -44,6 +45,18 @@ public:
   bool operator < (const seedSubstructureInfo& other) const {
     return (rmsd < other.rmsd);
   }
+  
+  string get_contacts_string() {
+    stringstream ss;
+    int count = 0;
+    for (auto cont : seed_protein_contacts) {
+      if (count != 0) ss << " ";
+      ss << cont.first << "," << cont.second;
+      count++;
+    }
+    ss << endl;
+    return ss.str();
+  };
 };
 
 /* --------- sortedBins --------- */
@@ -66,8 +79,8 @@ public:
   //min_rmsd, max_rmsd, number of seeds aligned to segment
   vector<tuple<mstreal,mstreal,long>> getSeedsByBin();
   
-  //min_rmsd, max_rmsd, number of seeds with a protein aligned region containing R_prot
-  vector<tuple<mstreal,mstreal,long>> getNumFragmentsCoveringContact(int R_prot_idx);
+//  //min_rmsd, max_rmsd, number of seeds with a protein aligned region containing R_prot
+//  vector<tuple<mstreal,mstreal,long>> getNumFragmentsCoveringContact(int R_prot_idx);
   
   vector<seedSubstructureInfo> getAllSeeds();
   
@@ -95,25 +108,25 @@ private:
 class allChainSegments {
 public:
   allChainSegments() {};
-  allChainSegments(Chain* peptide, int max_segment_length, mstreal max_rmsd, string rotLibPath);
+  allChainSegments(Chain* peptide, Structure* target, int max_segment_length, mstreal max_rmsd, string s_cid, string rotLibPath);
   
   ~allChainSegments() {
     delete rotLib;
   };
   
-  void mapSeedToChainSubsegments(vector<Atom*> seed_atoms, Structure* target);
+  void mapSeedToChainSubsegments(vector<Atom*> seed_atoms);
   
   void resetBins();
   
   void writeSegmentCoverage(fstream& output);
-  void writeContactCoverage(fstream& output, set<pair<Residue*,Residue*>> contact_residues);
+//  void writeContactCoverage(fstream& output, set<pair<Residue*,Residue*>> contact_residues);
   
   void writeSeedsToFile(fstream& output);
   
 protected:
-  void mapSegmentToChainSubsegments(vector<Atom*> seed_segment, Structure* target, int seed_position, int length);
+  void mapSegmentToChainSubsegments(vector<Atom*> seed_segment, int seed_position, int length);
   
-  set<pair<int,int>> getContacts(vector<Atom*> seed_segment, Structure* target);
+  set<pair<int,int>> getContacts(vector<Atom*> seed_segment);
   
 private:
   vector<vector<AtomPointerVector>> chainSubsegments;
@@ -125,6 +138,8 @@ private:
   
   //for contacts
   RotamerLibrary* rotLib;
+  Structure* target; //only the protein atoms
+  string s_cid;
   
 };
 
@@ -178,6 +193,7 @@ protected:
   };
   
 private:
+  
   // global variables
   RotamerLibrary RL;
   string RL_path;

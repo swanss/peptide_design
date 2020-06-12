@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
   op.addOption("sample", "The number of seeds that should be sampled from the binary file");
   op.setOptions(argc, argv);
   
-  if (!op.isGiven("list") || !op.isGiven("sample")) MstUtils::error("Either '--list' or '--sample' must be provided (but not both)");
+  if (!op.isGiven("list") && !op.isGiven("sample")) MstUtils::error("Either '--list' or '--sample' must be provided (but not both)");
   if (op.isGiven("list") && op.isGiven("sample")) MstUtils::error("'--list' and '--sample' cannot both be provided");
   
   // Variables provided by user
