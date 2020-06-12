@@ -119,7 +119,26 @@ public:
 
 // Miscellaneous useful functions
 
+/**
+ Equivalent to Python's str.split()
+ */
 vector<string> splitString(string s, const string &delim);
+
+/**
+ Equivalent to Python's str.join(), but the components can be any
+ type that can be fed into a stringstream (e.g. using <<)
+ */
+template<typename Streamable>
+string joinString(const vector<Streamable> &components, const string &delim) {
+    stringstream ss;
+    for (int i = 0; i < components.size(); ++i) {
+        ss << components[i];
+        if (i < components.size() - 1) {
+            ss << delim;
+        }
+    }
+    return ss.str();
+}
 
 /**
  Determines the target residue from which the given seed came. Assumes the file

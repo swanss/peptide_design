@@ -621,6 +621,10 @@ void ClusterIterator::makeNextResult() {
 
     Node *topNode = _stack.back();
     _nextResult = topNode;
+    
+    // Update result address
+    _resultAddress.clear();
+    _resultAddress.insert(_resultAddress.end(), _indexes.begin(), _indexes.end());
 
     if (topNode->hasChildren()) {
         _stack.push_back(topNode->getChildren()[0]);

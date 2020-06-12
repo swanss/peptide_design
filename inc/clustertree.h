@@ -465,6 +465,12 @@ public:
     };
 
     bool hasNext();
+    /**
+     Retrieves the list of cluster indexes that leads to the most
+     recent previous call to next(). The first index is always zero,
+     for the root of the tree.
+     */
+    vector<int> currentAddress() { return _resultAddress; };
     ClusterNode<FragmentInfo> * next();
 
     void makeNextResult();
@@ -473,6 +479,7 @@ public:
 private:
     ClusterNode<FragmentInfo> *_root;
     ClusterNode<FragmentInfo> *_nextResult = nullptr;
+    vector<int> _resultAddress;
 
     vector<ClusterNode<FragmentInfo> *> _stack;
     vector<int> _indexes;

@@ -185,7 +185,6 @@ Structure* StructureCache::getStructure(string name, string prefix) {
         cache.erase(pos->second);
     } else {
         if (binaryFile != nullptr) {
-            cout << "Loading structure" << endl;
             structure = binaryFile->getStructureNamed(name);
         } else {
             string path = MstSystemExtension::join(prefix.size() > 0 ? prefix : pdbPrefix, name);
