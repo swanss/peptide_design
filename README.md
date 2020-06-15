@@ -4,12 +4,13 @@ This repository incorporates several tools that enable the de novo design of pep
 
 ## Build Instructions
 
-Before building, adjust the `makefile` variables `MSTDIR` and `STRUCTGENDIR` to point to the paths at which MST and structgen are stored on your system, respectively. The default location is in the parent directory of `sandbox`.
+Before building, adjust the `makefile` variable `MSTDIR` to be the path at which MST is stored on your system. The default location is in the parent directory of `peptide_design`.
 
 * `make all` - builds all programs
 * `make test` - builds only programs in the `tests` directory
 * `make bin/[executable name]` - builds the specific executable with its dependencies
 * `make clean` - removes build intermediates and products
+* `make python` - builds the Python library (see below)
 
 ## Python Library
 
@@ -27,12 +28,12 @@ $ PYTHON_TO_USE=$(which python)
 
 5. Run the bootstrap script to setup the Boost build engine: 
 ```
-./bootstrap.sh --prefix=/usr/local --show-libraries --with-python=$PYTHON_TO_USE --with-libraries=python
+$ ./bootstrap.sh --prefix=/usr/local --show-libraries --with-python=$PYTHON_TO_USE --with-libraries=python
 ```
 
 6. Finally, run the install script:
 ```
-./b2 install --with-python
+$ ./b2 install --with-python
 ```
 
 7. Now you should be able to run `make python` on either the MST repo or this repo, to build a shared library that incorporates the Python symbols.
