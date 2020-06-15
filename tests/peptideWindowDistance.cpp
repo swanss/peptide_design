@@ -23,8 +23,8 @@ int main(int argc, char *argv[]) {
   
   //define variables
   int flanking_residues = 2;
-  mstreal cd_cut = 0.1;
-  mstreal int_cut = 0.1;
+  mstreal cd_cut = 0.01;
+  mstreal int_cut = 0.01;
   mstreal bb_dist = 3.5;
   
   string list_file = op.getString("list");
