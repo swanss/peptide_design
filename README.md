@@ -11,7 +11,33 @@ Before building, adjust the `makefile` variables `MSTDIR` and `STRUCTGENDIR` to 
 * `make bin/[executable name]` - builds the specific executable with its dependencies
 * `make clean` - removes build intermediates and products
 
-## Programs
+## Python Library
+
+A Python library called `peptide_design` is provided using [Boost Python](https://www.boost.org/doc/libs/1_70_0/libs/python/doc/html/index.html), a library that enables bindings between Python and C++ code. The Makefile instructions for the library require Python 3.8 (instructions using a `conda` environment are given below), and the library requires also building the `MST` and `structgen` Python libraries  
+
+Building the Python library is a somewhat convoluted process. The steps below are tested on MacOS, and should also work on Linux/Anthill.
+
+1. Download and extract Boost (at the time of writing, the latest version is [1.73.0](https://www.boost.org/users/history/version_1_73_0.html)).
+2. Unzip the download and move the `boost_1_73_0` folder to `/usr/local`. Enter the directory with  `cd /usr/local/boost_1_73_0`.
+3. Activate your Python environment with `conda`. The Makefile requires that you use an environment with Python 3.8.
+4. Set an environment variable to point to your Python path: 
+```
+$ PYTHON_TO_USE=$(which python)
+```
+
+5. Run the bootstrap script to setup the Boost build engine: 
+```
+./bootstrap.sh --prefix=/usr/local --show-libraries --with-python=$PYTHON_TO_USE --with-libraries=python
+```
+
+6. Finally, run the install script:
+```
+./b2 install --with-python
+```
+
+7. Now you should be able to run `make python` on either the MST repo or this repo, to build a shared library that incorporates the Python symbols.
+
+# Programs
 
 Below is a description of the main programs in the repository and the parameters they take, in the order that they might be run in the pipeline.
 

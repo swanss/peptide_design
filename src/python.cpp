@@ -48,7 +48,7 @@ struct std_pair_to_python_converter {
 /*
  * This is a macro Boost.Python provides to signify a Python extension module.
  */
-BOOST_PYTHON_MODULE(sandbox) {
+BOOST_PYTHON_MODULE(peptide_design) {
     // An established convention for using boost.python.
     using namespace boost::python;
 
@@ -121,7 +121,7 @@ BOOST_PYTHON_MODULE(sandbox) {
         .def("__str__", &ClusterTree::toString)
         .def("search", &ClusterTree::search)
         .add_property("root", make_function(&ClusterTree::getRoot, return_value_policy<reference_existing_object>()))
-        .def("getNodesAtLevel", static_cast<vector<ClusterNode<FragmentInfo> *> (ClusterTree::*) (int)>(&ClusterTree::getNodesAtLevel))
+        .def("getNodesAtLevel", static_cast<vector<ClusterNode<FragmentInfo> *> (ClusterTree::*) (int) const>(&ClusterTree::getNodesAtLevel))
     ;
 
     class_<FragmentFetcher, boost::noncopyable>("FragmentFetcher", no_init);

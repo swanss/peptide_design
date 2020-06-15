@@ -34,8 +34,7 @@ SRCEXT      := cpp
 DEPEXT      := d
 OBJEXT      := o
 
-LIB         := -L$(MSTLIB) -L$(STRUCTGENLIB) -lmst -lstructgen -lmstcondeg -lmstfuser -lmstoptim -lmstfasst -lmstmagic -ldtermen
-INC         :=
+LIBFLAGS    := -L$(MSTLIB) -L$(STRUCTGENLIB) -lmst -lstructgen -lmstcondeg -lmstfuser -lmstoptim -lmstfasst -lmstmagic -ldtermen
 INCDEP      :=
 
 SOURCES     := $(shell find $(SRCDIR) -not -path '*/\.*' -type f -name *.$(SRCEXT))
@@ -72,27 +71,40 @@ clean:
 ######################
 
 uname := $(shell uname -s)
-PYLIB_PATH = $(shell python3-config --exec-prefix)/lib
-PYLIB = -L$(PYLIB_PATH) $(LIB) -L$(OUT)/lib -lsandbox -L/home/ifs-users/venkats/miniconda3/include/python3.7m -L/usr/local/lib -L/home/ifs-users/venkats/lib -lboost_python37 $(shell python3-config --libs) -Wl,--no-undefined
-PYFLAGS = $(shell python3-config --includes) -I/home/ifs-users/venkats/include -O2 -fPIC -std=c++11 -I$(INCL) -I$(MSTINCL) -I$(STRUCTGENINCL) -L$(OUT)/lib
+ifeq ($(uname),Linux)
+	# TODO verify that this works on Linux
+	pythonExec := python
+	PYLIB_PATH = $(shell $(pythonExec)-config --exec-prefix)/lib64
+	PYLIB = -L$(PYLIB_PATH) $(LIBFLAGS) -L$(LIB) -ldl -lboost_python$(PYTHON_SUFFIX) -lpeptide_design $(LDLIBS)
+else # MacOS
+	# Requires python 3.8
+	pythonExec := python3.8
+	PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
+	PYLIB_PATH = $(shell $(pythonExec) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'));")
+	PYLIB = -L$(PYLIB_PATH) $(LIBFLAGS) -L$(LIB) -ldl -framework CoreFoundation -undefined dynamic_lookup -lboost_python$(PYTHON_SUFFIX) -lpeptide_design $(LDLIBS)
+endif
+PY_INCLUDES = $(shell $(pythonExec)-config --includes)
+PY_SITE_INCLUDE_PARENT = $(shell $(pythonExec)-config --exec-prefix)
+PYFLAGS = $(PY_INCLUDES) -I$(PY_SITE_INCLUDE_PARENT)/include -O3 -fPIC -std=c++11 -I$(INCL) -I$(MSTINCL) -I$(STRUCTGENINCL)
+
 
 # make the boost.python shared object
-python: $(OUT)/lib/sandbox.so
+python: $(OUT)/lib/peptide_design.so
 
 $(BUILDDIR)/python.o: $(SRCDIR)/python.cpp # $(OBJECTS)
 	$(CC) $(PYFLAGS) -c -o $@ $<
 
-$(OUT)/lib/sandbox.so: $(BUILDDIR)/python.o $(OBJECTS) lib
+$(OUT)/lib/peptide_design.so: $(BUILDDIR)/python.o $(OBJECTS) lib
 	$(CC) -shared -o $@ $< $(PYLIB) -Wl,-rpath,$(PYLIB_PATH)
 
 .PHONY: lib
-lib: $(OUT)/lib/libsandbox.a
+lib: $(OUT)/lib/libpeptide_design.a
 
-$(OUT)/lib/libsandbox.a: directories $(OBJECTS)
+$(OUT)/lib/libpeptide_design.a: directories $(OBJECTS)
 	# Remove the Python.o file (it will need to be rebuilt anyway)
 	# rm -f $(BUILDDIR)/python.o
 
-	ar rs $(OUT)/lib/libsandbox.a $(OBJECTS) $(MSTOBJS)/*.o $(STRUCTGENOBJS)/*.o
+	ar rs $(OUT)/lib/libpeptide_design.a $(OBJECTS) $(MSTOBJS)/*.o $(STRUCTGENOBJS)/*.o
 
 ######################
 # Make the Directories
@@ -121,10 +133,10 @@ $(OUT)/lib/$(SENTINEL):
 -include $(OBJECTS:.$(OBJEXT)=.$(DEPEXT))
 
 $(BIN)/%: $(PROGS)/%.$(SRCEXT) $(OBJECTS)
-	$(CC) $(CFLAGS) $^ $(LIB) -o $@
+	$(CC) $(CFLAGS) $^ $(LIBFLAGS) -o $@
 
 $(BIN)/%: $(TEST)/%.$(SRCEXT) $(OBJECTS)
-	$(CC) $(CFLAGS) $^ $(LIB) -o $@
+	$(CC) $(CFLAGS) $^ $(LIBFLAGS) -o $@
 
 $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT) directories
 	@mkdir -p $(dir $@)
