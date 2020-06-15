@@ -13,8 +13,7 @@
 #include "structure_iter.h"
 #include "seedgraph.h"
 #include "seedscore.h"
-#include "ClusterSearch.h"
-#include "Fragments.h"
+#include "fragments.h"
 #include <fstream>
 #include <sstream>
 #include <chrono>

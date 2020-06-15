@@ -1,6 +1,6 @@
 #include "clusterutils.h"
-#include "Util.h"
-#include "Fragments.h"
+#include "utilities.h"
+#include "fragments.h"
 #include <unordered_set>
 
 // FragmentFetcher

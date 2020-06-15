@@ -13,9 +13,9 @@ Before building, adjust the `makefile` variables `MSTDIR` and `STRUCTGENDIR` to 
 
 ## Python Library
 
-A Python library called `peptide_design` is provided using [Boost Python](https://www.boost.org/doc/libs/1_70_0/libs/python/doc/html/index.html), a library that enables bindings between Python and C++ code. The Makefile instructions for the library require Python 3.8 (instructions using a `conda` environment are given below), and the library requires also building the `MST` and `structgen` Python libraries  
+A Python library called `peptide_design` is provided using [Boost Python](https://www.boost.org/doc/libs/1_70_0/libs/python/doc/html/index.html), a library that enables bindings between Python and C++ code. The Makefile instructions for the library require Python 3.8 (instructions using a `conda` environment are given below), and the library requires also building the `MST` Python library, which can be done by following the same install instructions below.  
 
-Building the Python library is a somewhat convoluted process. The steps below are tested on MacOS, and should also work on Linux/Anthill.
+Building the Python library for the first time is a somewhat convoluted process. The steps below are tested on MacOS, and should also work on Linux/Anthill.
 
 1. Download and extract Boost (at the time of writing, the latest version is [1.73.0](https://www.boost.org/users/history/version_1_73_0.html)).
 2. Unzip the download and move the `boost_1_73_0` folder to `/usr/local`. Enter the directory with  `cd /usr/local/boost_1_73_0`.

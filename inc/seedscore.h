@@ -24,12 +24,9 @@
 
 #include "seedgraph.h"
 
-// From structgen
-#include "Util.h"
-#include "Params.h"
-#include "Redundancy.h"
-#include "Assembly.h"
-#include "Fragments.h"
+#include "utilities.h"
+#include "params.h"
+#include "fragments.h"
 
 using namespace std;
 using namespace MST;

@@ -1,6 +1,5 @@
 #include "clustertree.h"
-#include "Util.h"
-#include "Fragments.h"
+#include "fragments.h"
 #include <unordered_set>
 #include "findpaths.h"
 #include "utilities.h"

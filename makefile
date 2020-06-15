@@ -4,14 +4,8 @@ MSTSRC = $(MSTDIR)/src
 MSTOBJS = $(MSTDIR)/objs
 MSTLIB = $(MSTDIR)/lib
 
-STRUCTGENDIR = ../structgen
-STRUCTGENINCL = $(STRUCTGENDIR)/include
-STRUCTGENSRC = $(STRUCTGENDIR)/src
-STRUCTGENOBJS = $(STRUCTGENDIR)/objs
-STRUCTGENLIB = $(STRUCTGENDIR)/lib
-
 CC = g++
-CFLAGS = -std=c++11 -g -gdwarf-3 -O3 -fPIC -I$(MSTINCL) -I$(STRUCTGENINCL) -I$(INCL) # -g -gdwarf-3
+CFLAGS = -std=c++11 -g -gdwarf-3 -O3 -fPIC -I$(MSTINCL) -I$(INCL) # -g -gdwarf-3
 MPICC = mpic++
 MPIFLAGS = -std=c++0x -O3
 
@@ -34,7 +28,7 @@ SRCEXT      := cpp
 DEPEXT      := d
 OBJEXT      := o
 
-LIBFLAGS    := -L$(MSTLIB) -L$(STRUCTGENLIB) -lmst -lstructgen -lmstcondeg -lmstfuser -lmstoptim -lmstfasst -lmstmagic -ldtermen
+LIBFLAGS    := -L$(MSTLIB) -lmst -lmstcondeg -lmstfuser -lmstoptim -lmstfasst -lmstmagic -ldtermen
 INCDEP      :=
 
 SOURCES     := $(shell find $(SRCDIR) -not -path '*/\.*' -type f -name *.$(SRCEXT))
@@ -85,7 +79,7 @@ else # MacOS
 endif
 PY_INCLUDES = $(shell $(pythonExec)-config --includes)
 PY_SITE_INCLUDE_PARENT = $(shell $(pythonExec)-config --exec-prefix)
-PYFLAGS = $(PY_INCLUDES) -I$(PY_SITE_INCLUDE_PARENT)/include -O3 -fPIC -std=c++11 -I$(INCL) -I$(MSTINCL) -I$(STRUCTGENINCL)
+PYFLAGS = $(PY_INCLUDES) -I$(PY_SITE_INCLUDE_PARENT)/include -O3 -fPIC -std=c++11 -I$(INCL) -I$(MSTINCL)
 
 
 # make the boost.python shared object
@@ -104,7 +98,7 @@ $(OUT)/lib/libpeptide_design.a: directories $(OBJECTS)
 	# Remove the Python.o file (it will need to be rebuilt anyway)
 	# rm -f $(BUILDDIR)/python.o
 
-	ar rs $(OUT)/lib/libpeptide_design.a $(OBJECTS) $(MSTOBJS)/*.o $(STRUCTGENOBJS)/*.o
+	ar rs $(OUT)/lib/libpeptide_design.a $(OBJECTS) $(MSTOBJS)/*.o
 
 ######################
 # Make the Directories

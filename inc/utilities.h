@@ -10,6 +10,8 @@
 
 #include "msttypes.h"
 #include "mstcondeg.h"
+#include "mstlinalg.h"
+#include "mstsequence.h"
 #include <unordered_map>
 
 using namespace MST;
@@ -156,5 +158,138 @@ int getTargetResidueIndex(string seedName);
  */
 pair<string, int> getTargetResidueCode(string seedName);
 
+
+// =========== Utilities inherited from structgen, added 6/15/2020
+
+// makes an ordered pair from two elements
+template <class T1, class T2>
+pair<T1, T2> orderedPair(T1 a, T2 b) {
+    if (!(a < b)) { // greater than
+        return make_pair(b, a);
+    }
+    return make_pair(a, b); //less than or equals to
+
+}
+
+// hash function for a pair - so that it can be used in an unordered set or map
+struct pair_hash {
+    template <class T1, class T2>
+    size_t operator () (const pair<T1,T2> &p) const {
+        auto h1 = hash<T1> {} (p.first);
+        auto h2 = hash<T2> {} (p.second);
+        return h1 ^ h2;
+    }
+};
+
+// tests whether atom is backbone
+bool isBackboneHeavy(Atom& atom);
+
+bool hasBackbone(Residue& res, bool requireOxygen = true);
+
+double bondDistance(Residue& res1, Residue& res2);
+
+// is res1 close enough to be bonded to res2?
+// order matters here
+bool isBonded(Residue& res1, Residue& res2, double maxPepBond = 2.0);
+
+// removes the side chains from a structure
+void removeSideChains(Structure& structure);
+
+// returns a new AtomPointerVector without the side chains
+AtomPointerVector backboneAtoms(AtomPointerVector& apv);
+
+// removes the hydrogens from a structure
+void removeHydrogens(Structure& s);
+
+// an alphabet for naming chains
+string generateChainID(int i);
+
+// combines a vector of structures into a single structure where each former structure is now a chain
+Structure combineStructures(const vector<Structure>& structs, bool split = false, bool renumber = true);
+
+// splits a structure into a vector of structures based on the chains
+vector<Structure> splitByChains(const Structure& s);
+
+string residueID(Residue& res, string sep = "", bool full = true);
+
+// writes residues of a vector out
+// perhaps make a write for a vector of pointers (template function)
+void writeResidues(ostream& os, const vector<Residue*>& residues);
+
+// writes residues from a vector out
+void writeResidues(ostream& os, const vector<vector<Residue*> >& residues);
+
+vector<Residue*> sortByResidueIndex(vector<Residue*>& residues);
+
+vector<Residue*> sortByResidueIndex(set<Residue*>& residues);
+
+map<Residue*, int> residueIndexMapping(vector<Residue*>& residues, bool fromResidue = true);
+
+AtomPointerVector residuesToAtoms(vector<Residue*>& residues);
+
+Matrix seqFreqs(const vector<Sequence>& seqs, double psuedocount = 0.0, bool normalize = true, bool nonStd = false);
+
+Matrix seqFreqs(const vector<Sequence>& seqs, Matrix& pseudocounts, bool normalize = true);
+
+// TODO
+// remove chains below a certain size (e.g. 2 residues)
+// option for dealing non standard AAs
+// incorporate TargetStruct redundancy here
+void cleanStructure(Structure& s, Structure& cleaned, bool reassignChains = true, bool renumber = true, int minSegLen = 1);
+
+Structure cleanStructure(Structure& s, bool reassignChains = true, bool renumber = true, int minSegLen = 1);
+
+// vector of chain lengths for a structure
+vector<int> chainLengths(Structure& s);
+
+// calulate density
+double calculateDensity(Structure& s);
+
+// calculate pairwise RMSD
+void pairwiseRMSD(vector<AtomPointerVector>& apvs, unordered_map<int, unordered_map<int, double> >& dists, double rmsdCut);
+
+set<pair<Atom*, Atom*> > findClashes(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& qAPV, double ratio = 0.75);
+
+// simple clash function
+// does not take into account atom sizes, ect
+// no ability to exclude certain atoms or residues
+bool isClash(ProximitySearch& ps, AtomPointerVector& queryAPV, double clashDist = 2.0, int maxNumClashes = 0);
+
+// determines whether there a clash betwen an AtomPointerVector (apv) and another structure represented by a ProximitySearch object (ps)
+// ps is a ProximitySearchObject
+// apv is an AtomPointerVector
+// psExclude is the set of atom indices in psAPV (and ps) to exlude from clashes
+// ratio of sum of vdw radii (default = 0.7)
+// maxNumClasshes is the maximum number of allowed clashes between queryAPV and psAPV (default = 0)
+// /home/ironfs/scratch/grigoryanlab/cmack2357/minCover/lists
+bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, set<pair<Residue*, Residue*> >& exclude, double ratio = 0.75, int maxNumClashes = 0);
+
+// calls the above function without and excluded residues
+bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, double ratio = 0.75, int maxNumClashes = 0);
+
+// Added by venkats 1/28/20
+// Same as above, but operates on a single structure
+bool isClashSingleStructure(ProximitySearch& ps, AtomPointerVector& psAPV, double ratio = 0.7, int maxNumClashes = 0);
+
+vector<int> effectiveSegLengths(Structure& s, vector<Residue*> subset, int minGapCont, int minSegLen = 3);
+
+Structure residuesToStructure(vector<Residue*>& residues, double maxPeptideBond = 2.0, int startChainIdx = 0);
+
+// Contact list utils
+
+// writes the contents of a contactList
+void writeContactList(ostream& os, contactList& cl);
+
+// get the backbone backbone contacts for a structure
+// queryResidues should be a subset of the residues in s
+contactList backboneContacts(Structure& s, double dist, vector<Residue*> queryResidues = {});
+
+
+contactList vdwBackboneContacts(Structure& s, double lb, double ub, vector<Residue*> queryResidues = {});
+
+// union of contact list
+// does not allow duplicates
+// orders the contacts - perhaps give an option to not do this
+contactList contactListUnion(const vector<contactList>& contLists);
 
 #endif /* utilities_h */

@@ -7,7 +7,6 @@
 
 #include <stdio.h>
 #include "seedscore.h"
-#include "Score.h"
 #include "utilities.h"
 #include <chrono>
 
