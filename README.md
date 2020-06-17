@@ -4,12 +4,13 @@ This repository incorporates several tools that enable the de novo design of pep
 
 ## Build Instructions
 
-Before building, adjust the `makefile` variables `MSTDIR` and `STRUCTGENDIR` to point to the paths at which MST and structgen are stored on your system, respectively. The default location is in the parent directory of `sandbox`.
+Before building, adjust the `makefile` variable `MSTDIR` to be the path at which MST is stored on your system. The default location is in the parent directory of `peptide_design`.
 
 * `make all` - builds all programs
 * `make test` - builds only programs in the `tests` directory
 * `make bin/[executable name]` - builds the specific executable with its dependencies
 * `make clean` - removes build intermediates and products
+* `make python` - builds the Python library (see below)
 
 ## Python Library
 
@@ -27,15 +28,26 @@ $ PYTHON_TO_USE=$(which python)
 
 5. Run the bootstrap script to setup the Boost build engine: 
 ```
-./bootstrap.sh --prefix=/usr/local --show-libraries --with-python=$PYTHON_TO_USE --with-libraries=python
+$ ./bootstrap.sh --prefix=/usr/local --show-libraries --with-python=$PYTHON_TO_USE --with-libraries=python
 ```
 
 6. Finally, run the install script:
 ```
-./b2 install --with-python
+$ ./b2 install --with-python
 ```
 
 7. Now you should be able to run `make python` on either the MST repo or this repo, to build a shared library that incorporates the Python symbols.
+
+### Help, things went wrong
+
+The most common issues with the Python library seem to be:
+
+1. **Python interpreter mismatch.** Make sure that you use the same Python 3.8 interpreter when you install Boost as when you build the library. If you don't, you may see errors like `python3.8-config: Command not found` or `'pyconfig.h' file not found`. This may also cause import errors when trying to load the module into Python. 
+2. **Not finding all required symbols.** Building the Python library involves three steps: (1) building the `libpeptide_design.a` library containing all the symbols in the project, (2) building the `python.o` file containing the Boost Python bindings, and (3) building the `peptide_design.so` shared object, which can be imported into Python. Building the `python.o` object requires including the Boost Python headers (which should be in `/usr/local/include` following the steps above), as well as the Python development headers (provided by `python3.8-config --includes`). Building the shared object requires including the MST and `peptide_design` C++ libraries, the Boost Python library (should be in `/usr/local/lib`), and the Python development library. Absences of any of these files at the correct places can introduce errors, so you may need to look at the instructions printed by the Makefile and compare them to where the files exist on your system. Then you can adjust the Makefile for your specific configuration.
+
+When things go wrong, it may be helpful to look at the symbols included in each intermediate file of the build process. The `nm` tool on MacOS/Linux can be helpful for this purpose - simply call `nm [file]` on a `.o`, `.a`, or `.so` file and pipe the output into a `grep`. The single-letter code next to each symbol can be a helpful clue - see [the man page](https://sourceware.org/binutils/docs/binutils/nm.html) for more info on these symbol types.  
+
+Another strange error you may come across while building Boost is the following Clang message: `unknown argument -fcoalesce-templates`. I found that [this solution](https://alice-talk.web.cern.ch/t/o2-build-failed-at-boost-due-to-unknown-argument/545/2) fixed the issue.
 
 # Programs
 
