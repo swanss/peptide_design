@@ -1,4 +1,4 @@
-#include "Util.h"
+#include "utilities.h"
 #include "vdwRadii.h"
 
 // bool vdwRadii::initConstants;

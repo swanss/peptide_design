@@ -32,7 +32,8 @@ using namespace std;
 using namespace MST;
 
 // From structgen
-#define ROT_LIB_PATH "/home/grigoryanlab/library/MST/testfiles/rotlib.bin"
+//#define ROT_LIB_PATH "/home/grigoryanlab/library/MST/testfiles/rotlib.bin"
+#define ROT_LIB_PATH "/Users/sebastianswanson/Keating/utilities/repos/MST/testfiles/rotlib.bin"
 
 /**
  Creates a semicolon-separated string representing the scores for each residue

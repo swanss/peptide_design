@@ -25,6 +25,7 @@ int main(int argc, char *argv[]) {
   op.addOption("flanking_res","The number of residues flanking a contact to include when creating a fragment.", true);
   op.addOption("max_rmsd", "The max RMSD threshold used when determining whether a seed aligns to the peptide or not.",true);
   op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
+  op.addOption("hist","Path to the histogram file with the seed distance distribution that will be matched in the null model seeds");
   op.addOption("seq","Require that matches have the same sequence as the query");
   op.addOption("match_req", "The fragmenter will attempt to create the largest (ranked by number of residues) fragments that have at least this many matches. During TERM Extension, even if the fragment has more than this number match_num_req matches, only this number will be used to generate seeds.  If not defined, defaults to CEN_RES.");
   op.addOption("extfrag_bin", "If a binary file of extended fragment structures already exists, will skip creating fragments/extending them and just compare the provided ones to the peptide.");
@@ -116,21 +117,24 @@ int main(int argc, char *argv[]) {
   bool position = false;
   bool orientation = true;
   
-  vector<int> hist;
-  rejectionSampler sampler(hist,1.0,2.0);
   
-  naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin, sampler);
-
-  timer.start();
-  naiveSeeds.newPose(outDir, type1_name, position, orientation);
-  timer.stop();
-  cout << "Generated type 1 seeds in " << timer.getDuration() << " seconds" << endl;
-  
-  position = true;
-  timer.start();
-  naiveSeeds.newPose(outDir, type2_name, position, orientation);
-  timer.stop();
-  cout << "Generated type 2 seeds in " << timer.getDuration() << " seconds" << endl;
+  if (op.isGiven("hist")) {
+    string hist_file(op.getString("hist"));
+    rejectionSampler sampler(hist_file);
+    
+    naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin, sampler);
+    
+    timer.start();
+    naiveSeeds.newPose(outDir, type1_name, position, orientation);
+    timer.stop();
+    cout << "Generated type 1 seeds in " << timer.getDuration() << " seconds" << endl;
+    
+    position = true;
+    timer.start();
+    naiveSeeds.newPose(outDir, type2_name, position, orientation);
+    timer.stop();
+    cout << "Generated type 2 seeds in " << timer.getDuration() << " seconds" << endl;
+  }
 
   //Map the seed coverage
   //Extended fragments
@@ -139,30 +143,35 @@ int main(int argc, char *argv[]) {
   cout << "Write coverage to files..." << endl;
   IC.writeCoverageToFiles(covDir+"termext_");
   IC.writeAllAlignedSeedstoFile(covDir+"termext_");
-
-  //Type 1 seeds
-  cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
-  IC.findCoveringSeeds(type1_bin);
-  cout << "Write coverage to files..." << endl;
-  IC.writeCoverageToFiles(covDir+"type1_");
-  IC.writeAllAlignedSeedstoFile(covDir+"type1_");
   
-  //Type 2 seeds
-  cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
-  IC.findCoveringSeeds(type2_bin);
-  cout << "Write coverage to files..." << endl;
-  IC.writeCoverageToFiles(covDir+"type2_");
-  IC.writeAllAlignedSeedstoFile(covDir+"type2_");
+  if (op.isGiven("hist")) {
+    //Type 1 seeds
+    cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
+    IC.findCoveringSeeds(type1_bin);
+    cout << "Write coverage to files..." << endl;
+    IC.writeCoverageToFiles(covDir+"type1_");
+    IC.writeAllAlignedSeedstoFile(covDir+"type1_");
+    
+    //Type 2 seeds
+    cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
+    IC.findCoveringSeeds(type2_bin);
+    cout << "Write coverage to files..." << endl;
+    IC.writeCoverageToFiles(covDir+"type2_");
+    IC.writeAllAlignedSeedstoFile(covDir+"type2_");
+  }
   
   //Write Info
   seedStatistics stats(complex, p_cid);
   //Extended fragments
   stats.writeStatisticstoFile(extfrag_bin, outDir, "extended_fragments", num_final_seeds);
-  //Type 1 seeds
-  stats.writeStatisticstoFile(type1_bin, outDir, type1_name, num_final_seeds);
-  //Type 2 seeds
-  stats.writeStatisticstoFile(type2_bin, outDir, type2_name, num_final_seeds);
-
+  
+  if (op.isGiven("hist")) {
+    //Type 1 seeds
+    stats.writeStatisticstoFile(type1_bin, outDir, type1_name, num_final_seeds);
+    //Type 2 seeds
+    stats.writeStatisticstoFile(type2_bin, outDir, type2_name, num_final_seeds);
+  }
+  
   string lcloud_out;
   cout << "Writing a line cloud file (TERM Extension) for visualization" << endl;
   lcloud_out = outDir + "termext_seed_ca.lcloud";
@@ -170,17 +179,18 @@ int main(int argc, char *argv[]) {
   classifier.writeCaInfotoLineFile(extfrag_bin, num_final_seeds, out);
   out.close();
 
-  cout << "Writing a line cloud file (type 1) for visualization" << endl;
-  lcloud_out = outDir + "type1_seed_ca.lcloud";
-  MstUtils::openFile(out, lcloud_out, fstream::out);
-  classifier.writeCaInfotoLineFile(type1_bin, num_final_seeds, out);
-  out.close();
-  
-  cout << "Writing a line cloud file (type 2) for visualization" << endl;
-  lcloud_out = outDir + "type2_seed_ca.lcloud";
-  MstUtils::openFile(out, lcloud_out, fstream::out);
-  classifier.writeCaInfotoLineFile(type2_bin, num_final_seeds, out);
-  out.close();
-
+  if (op.isGiven("hist")) {
+    cout << "Writing a line cloud file (type 1) for visualization" << endl;
+    lcloud_out = outDir + "type1_seed_ca.lcloud";
+    MstUtils::openFile(out, lcloud_out, fstream::out);
+    classifier.writeCaInfotoLineFile(type1_bin, num_final_seeds, out);
+    out.close();
+    
+    cout << "Writing a line cloud file (type 2) for visualization" << endl;
+    lcloud_out = outDir + "type2_seed_ca.lcloud";
+    MstUtils::openFile(out, lcloud_out, fstream::out);
+    classifier.writeCaInfotoLineFile(type2_bin, num_final_seeds, out);
+    out.close();
+  }
   return 0;
 }

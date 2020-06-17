@@ -19,9 +19,6 @@
 #include "termextension.h"
 #include "structure_iter.h"
 
-#include "Util.h"
-#include "vdwRadii.h"
-
 using namespace MST;
 
 class benchmarkUtils;
@@ -110,10 +107,6 @@ public:
   allChainSegments() {};
   allChainSegments(Chain* peptide, Structure* target, int max_segment_length, mstreal max_rmsd, string s_cid, string rotLibPath);
   
-  ~allChainSegments() {
-    delete rotLib;
-  };
-  
   void mapSeedToChainSubsegments(vector<Atom*> seed_atoms);
   
   void resetBins();
@@ -137,7 +130,8 @@ private:
   RMSDCalculator rmsd_calc;
   
   //for contacts
-  RotamerLibrary* rotLib;
+  string RL_path;
+//  RotamerLibrary rotLib;
   Structure* target; //only the protein atoms
   string s_cid;
   
