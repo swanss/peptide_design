@@ -1,5 +1,4 @@
 #include "pathsampler.h"
-#include "Util.h"
 #include "secondarystructure.h"
 #include <chrono>
 #include <list>

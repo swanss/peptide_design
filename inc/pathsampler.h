@@ -20,7 +20,6 @@
 #include "mstsystem_exts.h"
 #include "seedgraph.h"
 #include "clustertree.h"
-#include "Util.h" // For pair_hash
 
 /**
  Object that represents a single path composed of segments from multiple seeds. The

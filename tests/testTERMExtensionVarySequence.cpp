@@ -17,10 +17,6 @@
 #include "secondarystructure.h"
 #include "structure_iter.h"
 
-////structgen dependencies
-#include "Util.h"
-#include "vdwRadii.h"
-
 
 int main(int argc, char *argv[]) {
   MstOptions op;

@@ -15,10 +15,6 @@
 #include "secondarystructure.h"
 #include "utilities.h"
 
-////structgen dependencies
-#include "Util.h"
-#include "vdwRadii.h"
-
 int main(int argc, char *argv[]) {
   MstOptions op;
   op.setTitle("Load seeds from a binary file, writes their statistics");
