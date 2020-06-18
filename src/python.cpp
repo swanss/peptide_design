@@ -93,9 +93,9 @@ BOOST_PYTHON_MODULE(peptide_design) {
     ;*/
     class_<StructuresBinaryFile, boost::noncopyable>("StructuresBinaryFile", init<string>())
         .def("hasNext", &StructuresBinaryFile::hasNext)
-        .def("next", &StructuresBinaryFile::next, return_value_policy<reference_existing_object>())
+        .def("next", &StructuresBinaryFile::next, return_value_policy<manage_new_object>())
         .def("reset", &StructuresBinaryFile::reset)
-        .def("__getitem__", &StructuresBinaryFile::getStructureNamed, return_value_policy<reference_existing_object>())
+        .def("__getitem__", &StructuresBinaryFile::getStructureNamed, return_value_policy<manage_new_object>())
         .def("skip", &StructuresBinaryFile::skip)
         .def("scanFilePositions", &StructuresBinaryFile::scanFilePositions)
         .def("__len__", &StructuresBinaryFile::structureCount)
