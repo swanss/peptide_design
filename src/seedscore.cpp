@@ -51,8 +51,8 @@ void detailedPrintFragment(Fragment &frag) {
 
 #pragma mark - FASSTScorer
 
-FASSTScorer::FASSTScorer(Structure *target, string fasstDB, double fractionIdentity, int maxNumMatches, double vdwRadius): SeedScorer(target), fractionIdentity(fractionIdentity), maxNumMatches(maxNumMatches), vdwRadius(vdwRadius) {
-    loadFromTarget(fasstDB);
+FASSTScorer::FASSTScorer(Structure *target, string configFilePath, double fractionIdentity, int maxNumMatches, double vdwRadius): SeedScorer(target), fractionIdentity(fractionIdentity), maxNumMatches(maxNumMatches), config(configFilePath), vdwRadius(vdwRadius) {
+    loadFromTarget(config.getDB());
 }
 
 FASSTScorer::~FASSTScorer() {
@@ -73,7 +73,7 @@ void FASSTScorer::loadFromTarget(string fasstDB) {
     psTargetAPV = targetStructBB.getAtoms();
     ps = ProximitySearch(psTargetAPV, 40.0);
     
-    rl = new RotamerLibrary(ROT_LIB_PATH);
+    rl = new RotamerLibrary(config.getRL());
     fasst = new FASST();
     fasst->setRedundancyProperty("sim");
     fasst->setMaxNumMatches(maxNumMatches);
@@ -137,7 +137,7 @@ unordered_map<Residue*, mstreal> FASSTScorer::remapResiduesFromCombinedStructure
 
 #pragma mark - SequenceCompatibilityScorer
 
-SequenceCompatibilityScorer::SequenceCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string fasstDB, int targetFlank, int seedFlank, double fractionIdentity, double minRatio, double pseudocount, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, fasstDB, fractionIdentity, maxNumMatches, vdwRadius), targetFlank(targetFlank), seedFlank(seedFlank), contParams(contParams), rParams(rParams), minRatio(minRatio), pseudocount(pseudocount), minNumMatches(minNumMatches) {
+SequenceCompatibilityScorer::SequenceCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank, int seedFlank, double fractionIdentity, double minRatio, double pseudocount, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), targetFlank(targetFlank), seedFlank(seedFlank), contParams(contParams), rParams(rParams), minRatio(minRatio), pseudocount(pseudocount), minNumMatches(minNumMatches) {
     fragParams = FragmentParams(max(targetFlank, seedFlank), false);
 }
 
@@ -509,7 +509,7 @@ mstreal SequenceCompatibilityScorer::contactScore(Residue *seedRes, Residue *tar
 
 #pragma mark - StructureCompatibilityScorer
 
-StructureCompatibilityScorer::StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string fasstDB, double fractionIdentity, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, fasstDB, fractionIdentity, maxNumMatches, vdwRadius), fragParams(fragParams), rParams(rParams), contParams(contParams), minNumMatches(minNumMatches) {}
+StructureCompatibilityScorer::StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), fragParams(fragParams), rParams(rParams), contParams(contParams), minNumMatches(minNumMatches) {}
 
 unordered_map<Residue*, mstreal> StructureCompatibilityScorer::score(Structure *seed) {
     _numDesignable = 0;

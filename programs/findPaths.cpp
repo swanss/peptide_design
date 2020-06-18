@@ -68,17 +68,19 @@ int main (int argc, char *argv[]) {
     opts.addOption("seeds", "Path to a binary file containing seed structures", true);
     opts.addOption("seedChain", "Chain ID for the seed structures (default is '0')", false);
     opts.addOption("overlaps", "Path to a text file defining a cluster tree of overlaps", true);
-    opts.addOption("seedGraph", "Path to a text file defining a cluster tree of overlaps", true);
+    opts.addOption("seedGraph", "Path to a text file defining a seed graph", false);
     opts.addOption("out", "Path to a directory into which the fused seed path structures and scores will be written", true);
     opts.addOption("numPaths", "Number of paths to generate (linearly impacts running time - default 1000)", false);
     opts.addOption("req_seed", "The name of a seed in the binary file that all paths should extend",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
+    opts.addOption("config", "The path to a configfile",true);
     opts.setOptions(argc, argv);
 
     string targetPath = opts.getString("target");
     string binaryFilePath = opts.getString("seeds");
     string overlapTreePath = opts.getString("overlaps");
     string outputPath = opts.getString("out");
+    string configFilePath = opts.getString("config");
 
     if (!MstSys::fileExists(outputPath)) {
         MstSys::cmkdir(outputPath);
@@ -104,7 +106,7 @@ int main (int argc, char *argv[]) {
     FragmentParams fParams(2, true);
     rmsdParams rParams(1.2, 15, 1);
     contactParams cParams;
-    StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, "/home/grigoryanlab/library/databases/dTERMen.databases/2019-01-22/dtermen.sim");
+    StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, configFilePath);
 
     int numPaths = opts.getInt("numPaths", 1000);
 

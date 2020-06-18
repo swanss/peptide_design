@@ -71,6 +71,7 @@ int main (int argc, char *argv[]) {
   opts.addOption("seedChain", "Chain ID for the seed structures (default is '0')", false);
   opts.addOption("out", "Path to a directory into which the fused seed path structures and scores will be written", true);
   opts.addOption("paths","Path to a text file where each line specifies a path. This option is used in place of sampling.",false);
+  opts.addOption("config", "The path to a configfile",true);
   opts.setOptions(argc, argv);
   
   string targetPath = opts.getString("target");
@@ -78,6 +79,7 @@ int main (int argc, char *argv[]) {
   string seedGraphPath = opts.getString("seedGraph");
   string outputPath = opts.getString("out");
   string pathsPath = opts.getString("paths");
+  string configFilePath = opts.getString("config");
   
   // Load target structure and remove native peptide
   Structure target(targetPath);
@@ -109,7 +111,7 @@ int main (int argc, char *argv[]) {
   rmsdParams rParams(1.2, 15, 1);
   contactParams cParams;
 //  StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, "/home/grigoryanlab/library/databases/dTERMen.databases/2019-01-22/dtermen.sim");
-  StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, "/Users/sebastianswanson/Keating/utilities/db/mini.db");
+  StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, configFilePath);
   
   ofstream out(MstSystemExtension::join(outputPath, "fused_paths.csv"), ios::out);
   if (!out.is_open())
