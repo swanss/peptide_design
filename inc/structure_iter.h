@@ -250,6 +250,8 @@ public:
      Skips the current batch of structures.
      */
     void skip();
+  
+    int getBatchSize() {return _batchSize;}
 
 private:
     vector<Structure *> *_lastBatch = nullptr;

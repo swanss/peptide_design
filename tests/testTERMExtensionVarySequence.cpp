@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
     timer.start();
     cout << "Extending the fragments using the MANY_CONTACT mode..." << endl;
     string extfragDir_aa = extfragDir + aa + "_";
-    F.extendFragmentsandWriteStructures(Fragment::seedType::MANY_CONTACT, extfragDir_aa);
+    F.extendFragmentsandWriteStructures(seedTERM::seedType::MANY_CONTACT, extfragDir_aa);
     timer.stop();
     cout << "Took " << timer.getDuration() << "s to extend fragments" << endl;
     cout << "Generated " << F.getExtendedFragmentNumber() << " extended fragments" << endl;

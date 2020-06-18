@@ -70,7 +70,7 @@ int main (int argc, char *argv[]) {
   opts.addOption("seedGraph","Path to a seed graph that contains the overlaps between seeds in the binary file",true); //required because PathSampler uses this to interface with the StructureCache
   opts.addOption("seedChain", "Chain ID for the seed structures (default is '0')", false);
   opts.addOption("out", "Path to a directory into which the fused seed path structures and scores will be written", true);
-  opts.addOption("paths","Path to a text file where each line specifies a path. This option is used in place of sampling.",false);
+  opts.addOption("paths","Path to a text file where each line specifies a path. Format: seed_A:residue_i,seed_B:residue_j,etc...",false);
   opts.addOption("config", "The path to a configfile",true);
   opts.setOptions(argc, argv);
   
@@ -110,7 +110,6 @@ int main (int argc, char *argv[]) {
   FragmentParams fParams(2, true);
   rmsdParams rParams(1.2, 15, 1);
   contactParams cParams;
-//  StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, "/home/grigoryanlab/library/databases/dTERMen.databases/2019-01-22/dtermen.sim");
   StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, configFilePath);
   
   ofstream out(MstSystemExtension::join(outputPath, "fused_paths.csv"), ios::out);

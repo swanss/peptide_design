@@ -30,16 +30,16 @@ using namespace MST;
 
 //// forward declarations
 class TermExtension;
-class Fragment;
+class seedTERM;
 
-class Fragment {
+class seedTERM {
   friend class TermExtension;
 public:
   /* Constructor */
-  Fragment();
-  Fragment(TermExtension* Fragmenter, vector<Residue*> all_res, bool search, bool seq_const);
-  Fragment(const Fragment& F);
-  ~Fragment();
+  seedTERM();
+  seedTERM(TermExtension* Fragmenter, vector<Residue*> all_res, bool search, bool seq_const);
+  seedTERM(const seedTERM& F);
+  ~seedTERM();
   
   /* The seed type specifies how the residues from match proteins are selected to create the seed
    
@@ -134,7 +134,7 @@ private:
 
 
 class TermExtension {
-  friend class Fragment;
+  friend class seedTERM;
   
   /* The fragmenter stores the objects/parameters used to define fragments from a structure of interest.
    The fragments are searched against the provided database to identify matches and these matches are
@@ -191,7 +191,7 @@ public:
   void setSeqConst(bool _seq_const) {seq_const = _seq_const;}
   
   void resetFragments() {
-    for (Fragment* f : all_fragments) delete f;
+    for (seedTERM* f : all_fragments) delete f;
     all_fragments.clear();
   }
   
@@ -218,7 +218,7 @@ public:
   void generateFragments(fragType option, bool search = true);
   
   /* Fragment getters */
-  vector<Fragment*> getFragments() {return all_fragments;}
+  vector<seedTERM*> getFragments() {return all_fragments;}
   vector<Structure> getFragmentStructures();
   
   /* Fragment storage */
@@ -244,10 +244,10 @@ public:
    */
 //  void extendFragments(seedType seed_type, bool store = 0, string outDir = "", string file_type = "bin");
   
-  int extendFragment(Fragment* f, Fragment::seedType option, string outDir, fstream& output, fstream& info, fstream& sec_struct);
+  int extendFragment(seedTERM* f, seedTERM::seedType option, string outDir, fstream& output, fstream& info, fstream& sec_struct);
   
   // Lower memory requirement
-  void extendFragmentsandWriteStructures(Fragment::seedType seed_type, string outDir = "");
+  void extendFragmentsandWriteStructures(seedTERM::seedType seed_type, string outDir = "");
   
   /* ExtendedFragment getters */
   vector<Structure*> getExtendedFragments();
@@ -262,7 +262,7 @@ protected:
    Returns the indices of the residues that contact the central residue in the fasst target structure
    Each vector is a set of residues that will form a single seed segment
    NOTE: this is fundamentally different than the match_idx, because it is only the *contacting* residues */
-  vector<int> identifySeedResidueIdx(const Fragment* frag, const Structure* match_structure, vector<int> match_idx, int fasst_target_index);
+  vector<int> identifySeedResidueIdx(const seedTERM* frag, const Structure* match_structure, vector<int> match_idx, int fasst_target_index);
   
   vector<int> getNonClashingResidueIdx(vector<int> seed_res_idx, const Structure* match_structure);
   
@@ -293,7 +293,7 @@ private:
   bool adaptive_rmsd, seq_const;
   
   // Fragments
-  vector<Fragment*> all_fragments;
+  vector<seedTERM*> all_fragments;
   
   // Fragment extension parameters
   // variables stored for filtering seeds with clashes during TERM extension

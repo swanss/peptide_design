@@ -50,7 +50,7 @@ void TermExtension::set_params(string fasstDBPath, string rotLib) {
   seq_const = false;
   
   // Initialize vector to store fragments
-  vector<Fragment> all_fragments;
+  vector<seedTERM> all_fragments;
   
   // Import Rotamer Library
   RL_path = rotLib;
@@ -78,7 +78,7 @@ void TermExtension::set_params(string fasstDBPath, string rotLib) {
 TermExtension::~TermExtension() {
   delete target_PS;
   for (int i = 0; i < target_structures.size(); i++) delete target_structures[i];
-  for (Fragment* f : all_fragments) delete f;
+  for (seedTERM* f : all_fragments) delete f;
   all_fragments.clear();
 }
 
@@ -124,7 +124,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
     
       /* CEN_RES */
     if (option == CEN_RES) {
-      Fragment* frag = new Fragment(this, {cenRes}, search, seq_const);
+      seedTERM* frag = new seedTERM(this, {cenRes}, search, seq_const);
       all_fragments.push_back(frag);
       
       /* CONTACT */
@@ -134,7 +134,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
       vector<Residue*> allRes = generalUtilities::getContactingResidues(conts);
       // place center residue at the front of the vector of all residues
       allRes.insert(allRes.begin(), cenRes);
-      Fragment* frag = new Fragment(this, allRes, search, seq_const);
+      seedTERM* frag = new seedTERM(this, allRes, search, seq_const);
       all_fragments.push_back(frag);
       
       /* ALL_COMBINATIONS */
@@ -156,7 +156,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
         all_res.reserve(contacting_res.size() + 1);
         all_res.insert(all_res.end(), bindingSiteRes[cenResID]);
         all_res.insert(all_res.end(), contacting_res.begin(), contacting_res.end());
-        Fragment* frag = new Fragment(this,all_res,search,seq_const);
+        seedTERM* frag = new seedTERM(this,all_res,search,seq_const);
         all_fragments.push_back(frag);
       }
       /* MATCH_GUIDED */
@@ -176,7 +176,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
       if (verbose) cout << "Generate fragment(s) centered on residue " << *(bindingSiteRes[cenResID]) << endl;
       
       // Begin by making a fragment with the binding site residue alone
-      Fragment* self_f = new Fragment(this,{cenRes},search,seq_const);
+      seedTERM* self_f = new seedTERM(this,{cenRes},search,seq_const);
       
       // get the residues that contact the central residue
       vector<pair<Residue*,Residue*>> conts = generalUtilities::getContactsWith({cenRes}, C, 0, cd_threshold, int_threshold, bbInteraction_cutoff, verbose);
@@ -190,9 +190,9 @@ void TermExtension::generateFragments(fragType option, bool search) {
       
       //Begin loop (I realize this is a nightmare to read through)
       vector<Residue*> remConts = contResidues;
-      Fragment* current_fragment = self_f;
+      seedTERM* current_fragment = self_f;
       while (!remConts.empty()) {
-        map<Residue*,Fragment*> expansions;
+        map<Residue*,seedTERM*> expansions;
         vector<Residue*> expansion_res;
         
         // Try adding each of the remaining residues to the current residue
@@ -201,7 +201,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
           if (verbose) cout << "Try adding contact " << *R << "..." << endl;
           vector<Residue*> new_res = current_fragment->getInteractingRes();
           new_res.push_back(R);
-          Fragment* new_f = new Fragment(this,new_res,search,seq_const);
+          seedTERM* new_f = new seedTERM(this,new_res,search,seq_const);
           
           // If fragment has at least the minimum number of matches AND more res than current, keep
           if (new_f->getNumMatches() >= match_req && new_f->getNumRes() > current_fragment->getNumRes()) {
@@ -312,7 +312,7 @@ void TermExtension::writeFragmentPDBs(string outDir) {
   
   //write line for each fragment
   for (int i = 0; i != all_fragments.size(); i++){
-    Fragment* f = all_fragments[i];
+    seedTERM* f = all_fragments[i];
     string fragName = f->getName();
     string pdbFile = outDir + fragName + ".pdb";
     
@@ -362,7 +362,7 @@ void TermExtension::writeFragmentClassification(string outDir) {
   
   secondaryStructureClassifier classifier;
   
-  for (Fragment* f : all_fragments) {
+  for (seedTERM* f : all_fragments) {
     vector<int> all_res_idx = f->getResIdx();
     for (int res_idx : all_res_idx){
       Residue* R = &target_structure->getResidue(res_idx);
@@ -373,7 +373,7 @@ void TermExtension::writeFragmentClassification(string outDir) {
 }
 
 
-void TermExtension::extendFragmentsandWriteStructures(Fragment::seedType option, string outDir) {
+void TermExtension::extendFragmentsandWriteStructures(seedTERM::seedType option, string outDir) {
 //  if ((file_type != "pdb") && (file_type != "bin")) MstUtils::error("File type not recognized: " +file_type);
   
   MstTimer timer;
@@ -393,7 +393,7 @@ void TermExtension::extendFragmentsandWriteStructures(Fragment::seedType option,
   
   // Now, iterate over each target that has at least one match
   for (int frag_id = 0; frag_id < all_fragments.size(); frag_id++) {
-    Fragment* frag = all_fragments[frag_id];
+    seedTERM* frag = all_fragments[frag_id];
     int num_new_structures = extendFragment(frag, option, outDir, bin_out, info_out, secstruct_out);
     extendedFragmentNumber += num_new_structures;
   }
@@ -405,7 +405,7 @@ void TermExtension::extendFragmentsandWriteStructures(Fragment::seedType option,
   cout << "Seed creation took " << timer.getDuration() << " s" << endl;
 }
 
-int TermExtension::extendFragment(Fragment* frag, Fragment::seedType option, string outDir, fstream& output, fstream& info, fstream& sec_struct) {
+int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, string outDir, fstream& output, fstream& info, fstream& sec_struct) {
   int num_extendedfragments = 0;
   fasstSolutionSet& matches = frag->getMatches();
   vector<Structure*> fragment_extensions;
@@ -459,7 +459,7 @@ int TermExtension::extendFragment(Fragment* frag, Fragment::seedType option, str
   return num_extendedfragments;
 }
 
-vector<int> TermExtension::identifySeedResidueIdx(const Fragment* frag, const Structure* match_structure, vector<int> match_idx, int fasst_target_index) {
+vector<int> TermExtension::identifySeedResidueIdx(const seedTERM* frag, const Structure* match_structure, vector<int> match_idx, int fasst_target_index) {
   
   // Identify the id of the central residue of the fragment, in the match
   int cenResIdx = frag->getCenResIdx();
@@ -588,11 +588,11 @@ vector<Structure*> TermExtension::getExtendedFragments() {
 }
 
 /* --------- Fragment --------- */
-Fragment::Fragment() {
+seedTERM::seedTERM() {
   // compiler error thrown unless I include this
 }
 
-Fragment::Fragment(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _search, bool seq_const) {
+seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _search, bool seq_const) {
   MstTimer timer;
   timer.start();
   
@@ -648,7 +648,7 @@ Fragment::Fragment(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _
   cout << "It took " << construction_time << " s to construct " << name << " with " << matches.size() << " matches with RMSD cutoff: " << RMSD_cutoff << endl;
 };
 
-Fragment::Fragment(const Fragment& F) {
+seedTERM::seedTERM(const seedTERM& F) {
   parent = F.parent;
   fragmentStructure = F.fragmentStructure;
   cenRes = F.cenRes;
@@ -666,13 +666,13 @@ Fragment::Fragment(const Fragment& F) {
   num_extended_fragments = F.num_extended_fragments;
 }
 
-Fragment::~Fragment() {
+seedTERM::~seedTERM() {
   for (int i = 0; i < extended_fragments.size(); i++) {
     delete extended_fragments[i];
   }
 }
 
-void Fragment::setName() {
+void seedTERM::setName() {
   stringstream ss;
   // parent structure name
   ss << parent->getName() << "-";
@@ -690,7 +690,7 @@ void Fragment::setName() {
   cout << "Fragment name set to:  " << name << endl;
 }
 
-vector<Structure*> Fragment::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, mstreal RMSD, bool store) {
+vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, mstreal RMSD, bool store) {
   vector<Structure*> new_structures;
   
   // for each seed segment, make a new extended fragment that includes the anchor
@@ -721,7 +721,7 @@ vector<Structure*> Fragment::extendMatch(seedType seed_type, const Structure* ma
   return new_structures;
 }
 
-void Fragment::writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out) {
+void seedTERM::writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out) {
   for (int i = 0; i != extended_fragments.size(); i++) {
     Structure* ext_frag = extended_fragments[i];
     string seed_name = outDir+ext_frag->getName()+".pdb";
@@ -730,7 +730,7 @@ void Fragment::writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fst
   }
 }
 
-void Fragment::writeExtendedFragmentstoBIN(string outDir, fstream& info_out, fstream& secstruct_out, fstream& bin_out) {
+void seedTERM::writeExtendedFragmentstoBIN(string outDir, fstream& info_out, fstream& secstruct_out, fstream& bin_out) {
   for (int i = 0; i != extended_fragments.size(); i++) {
     Structure* ext_frag = extended_fragments[i];
     string seed_name = outDir+ext_frag->getName()+".pdb";
@@ -741,7 +741,7 @@ void Fragment::writeExtendedFragmentstoBIN(string outDir, fstream& info_out, fst
 }
 
 
-void Fragment::deleteExtendedFragments() {
+void seedTERM::deleteExtendedFragments() {
   for (int i = 0; i < extended_fragments.size(); i++) {
     delete extended_fragments[i];
   }
@@ -749,12 +749,12 @@ void Fragment::deleteExtendedFragments() {
   secondary_structure_classification.clear();
 }
 
-int Fragment::getSegmentNum(mstreal maxPeptideBondLen) {
+int seedTERM::getSegmentNum(mstreal maxPeptideBondLen) {
   vector<int> segment_lengths = getSegmentLens(maxPeptideBondLen);
   return segment_lengths.size();
 }
 
-vector<int> Fragment::getSegmentLens(mstreal maxPeptideBondLen) {
+vector<int> seedTERM::getSegmentLens(mstreal maxPeptideBondLen) {
   vector<int> segment_lengths;
   
   vector<Residue*> residues = fragmentStructure.getResidues();
@@ -778,7 +778,7 @@ vector<int> Fragment::getSegmentLens(mstreal maxPeptideBondLen) {
   return segment_lengths;
 }
 
-void Fragment::addResToStructure(vector<int> res_idx, bool keep_chain, const Structure* source_structure, Structure& recipient_structure) {
+void seedTERM::addResToStructure(vector<int> res_idx, bool keep_chain, const Structure* source_structure, Structure& recipient_structure) {
   
   for (int i = 0; i < res_idx.size(); i++) {
     // get pointer to the res in the match
@@ -827,7 +827,7 @@ void Fragment::addResToStructure(vector<int> res_idx, bool keep_chain, const Str
   }
 }
 
-string Fragment::extendedFragmentName(mstreal RMSD) {
+string seedTERM::extendedFragmentName(mstreal RMSD) {
   stringstream ss;
   ss << name << "_";
   ss << parent->seed_flanking_res << "-";
