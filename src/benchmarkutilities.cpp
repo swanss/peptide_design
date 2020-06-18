@@ -8,61 +8,92 @@
 
 #include "benchmarkutilities.h"
 
-/* --------- rejectionSampler --------- */
 
-rejectionSampler::rejectionSampler(vector<int> _histogram, mstreal _min_value, mstreal _max_value) {
-  histogram = _histogram;
-  min_value = _min_value;
-  max_value = _max_value;
-  bin_size = (max_value - min_value)/histogram.size();
-  max_count = 0;
+
+/* --------- seedCentroidDistance --------- */
+
+seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstreal _max_value, int num_bins) : min_value(_min_value), max_value(_max_value) {
+  bin_counts.resize(num_bins);
+  fill(bin_counts.begin(),bin_counts.end(),0);
   
-  for (int val : histogram) if (max_count < val) max_count = val;
+  bin_size = (max_value - min_value) / num_bins;
+  
+  //get the list of binary files/structures
+  //e.g. path/to/binary path/to/structure
+  vector<string> files = MstUtils::fileToArray(list);
+  cout << "there are " << files.size() << " sets of seeds" << endl;
+  
+  if (files.size() * sample_n > INT_MAX) MstUtils::error("Note: it is possible that the counts in a single bin could exceed the maximum possible value of an 'int'. If this occurs, consider sampling less seeds or refactoring");
+  
+  for (string file_name : files) {
+    cout << file_name << endl;
+    vector<string> split = MstUtils::split(file_name);
+    string bin_path = split[0];
+    string struct_path = split[1];
+    
+    //get the peptide chain name
+    split = MstUtils::split(struct_path,"_");
+    string p_id = split[split.size() - 3]; //should get the peptide chain id
+    
+    cout << "pdb path: " << struct_path << " bin path: " << bin_path << " peptide chain ID: " << p_id << endl;
+    
+    //sample seeds from binary file and record distance from protein
+    Structure complex(struct_path);
+    seedStatistics stat(complex,p_id);
+    
+    StructuresBinaryFile bin(bin_path);
+    size_t num_seeds = bin.structureCount();
+    bin.reset();
+    
+    mstreal sample_prob = min(1.0,mstreal(sample_n/num_seeds)); //such that, on avg, sample_n seeds are sampled
+   
+    Structure* extfrag;
+    while (bin.hasNext()) {
+      if (MstUtils::randUnit() < sample_prob) extfrag = bin.next();
+      else {
+        bin.skip();
+        continue;
+      }
+      Chain* C = extfrag->getChainByID("0");
+      Structure* seed = new Structure(*C);
+      mstreal distance = stat.centroid2NearestProteinAtom(seed);
+      
+      bin_counts[getBin(distance)] += 1;
+      
+      delete extfrag;
+      delete seed;
+    }
+  }
+  
+  //build histogram (normalized by bin with highest count)
+  int max_value = 0;
+  for (int val : bin_counts) if (val > max_value) max_value = val;
+  for (int val : bin_counts) hist.bins.push_back(mstreal(val)/mstreal(max_value));
 }
 
+
+/* --------- rejectionSampler --------- */
+
 rejectionSampler::rejectionSampler(string hist_file) {
-  fstream info_file;
-  MstUtils::openFile(info_file,hist_file,fstream::in);
-  
-  string line;
-  vector<int> hist;
-  int line_count = 0;
-  mstreal _min_value,_max_value;
-  while (getline(info_file,line)) {
-    line_count++;
-    if (line_count == 1) {
-      if (line != "lower_bound,upper_bound,count") MstUtils::error("Wrong file type (header does not match)","rejectionSampler::rejectionSampler()");
-    }
-    vector<string> split = MstUtils::split(line,",");
-    MstUtils::assert(split.size() == 3); //should have three entries
-    if (line_count == 2) {
-      _min_value = MstUtils::toReal(split[0]);
-    }
-    hist.push_back(MstUtils::toInt(split[2]));
-    _max_value = MstUtils::toReal(split[1]); //final value will be the max_value
-  }
-  if (line_count == 1) MstUtils::error("File had no entries","rejectionSampler::rejectionSampler()");
-  info_file.close();
-  rejectionSampler(hist,_min_value,_max_value);
+  hist.readHistFile(hist_file);
 }
 
 bool rejectionSampler::accept(mstreal value) {
-  int bin_count = getCount(value);
-  mstreal accept_prob = float(bin_count) / float(max_count);
+  mstreal accept_prob = getVal(value);
   mstreal sampled_value = MstUtils::randUnit();
   if (sampled_value <= accept_prob) return true;
   else return false;
 }
 
-int rejectionSampler::getCount(mstreal value) {
-  if ((value < min_value) || (value > max_value)) {
+int rejectionSampler::getVal(mstreal value) {
+  if ((value < hist.min_value) || (value > hist.max_value)) {
     string value_str = MstUtils::toString(value);
-    string min_str = MstUtils::toString(min_value);
-    string max_str = MstUtils::toString(max_value);
+    string min_str = MstUtils::toString(hist.min_value);
+    string max_str = MstUtils::toString(hist.max_value);
     MstUtils::error("Provided value ("+value_str+") not in rejection sampler range: ["+min_str+","+max_str+"]","rejectionSampler::getCount()");
   }
-  int bin_id = floor((value - min_value) / bin_size);
-  return histogram[bin_id];
+  int bin_id = floor((value - hist.min_value) / hist.bin_size);
+  return hist.bins[bin_id];
 }
 
 /* --------- generateRandomSeed --------- */

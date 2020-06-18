@@ -1,4 +1,4 @@
-#include "Util.h"
+#include "utilities.h"
 #include "vdwRadii.h"
 
 // bool vdwRadii::initConstants;
@@ -15,7 +15,7 @@ map<string, map<string, double>> resVDWRadii::radii;
 bool resVDWRadiiInitialized = resVDWRadii::initConstants();
 
 // add in residues
-bool vdwRadii::initConstants() { radii = {{"N",  1.60}, {"NT", 1.60}, {"CA", 2.365}, {"C", 2.10}, {"CT", 2.10}, {"O", 1.60}, {"CB", 2.2350}}; }
+bool vdwRadii::initConstants() { radii = {{"N",  1.60}, {"NT", 1.60}, {"CA", 2.365}, {"C", 2.10}, {"CT", 2.10}, {"O", 1.60}, {"CB", 2.2350}}; return true; }
 // bool vdwRadii::initConstants() { radii = {{"N", 1.85}, {"NT", 1.85}, {"CA", 2.275}, {"C", 2.0}, {"CT", 2.0}, {"O", 1.70}}; }
 
 
@@ -387,6 +387,7 @@ bool resVDWRadii::initConstants() {
 	radii["T3P"]["OH2"] = 1.6000;
 	radii["T3P"]["H1"] = 0.8000;
 	radii["T3P"]["H2"] = 0.8000;
+  return true;
 }
 
 // different
@@ -418,6 +419,7 @@ double resVDWRadii::getRadii(const string& resName, const string& atomName) {
 
 	}
 	MstUtils::assert(false, "Atom type " + atomName + " not found in resVDWRadii.");
+  return double(0); //will never reach this
 }
 
 // different

@@ -1,5 +1,4 @@
 #include "pathsampler.h"
-#include "Util.h"
 #include "secondarystructure.h"
 #include <chrono>
 #include <list>
@@ -15,10 +14,29 @@ vector<PathResult> PathSampler::sample(int numPaths) {
     return paths;
 }
 
+vector<PathResult> PathSampler::fusePaths(const vector<string>& path_specifiers) {
+  MstUtils::assert((_graph != nullptr),"fusePaths() can only be called when PathSampler is constructed with a seedGraph");
+  
+  vector<PathResult> results;
+
+  for (string path_spec : path_specifiers) {
+    vector<Residue*> path = pathResiduesFromSpecifier(path_spec);
+    bool path_clash = emplacePathFromResidues(path, results);
+    if (path_clash) cout << "Path " << results.size() << " has a clash" << endl;
+  }
+  return results;
+}
+
 void PathSampler::sampleFromGraph(int numPaths, vector<PathResult> &results) {
     // This does not support new features like unique seed restrictions
+  
+  vector<Residue *> residuesOrdered;
+  if (_startingResidues.empty()) {
     unordered_set<Residue *> residues = _graph->getResidues();
-    vector<Residue *> residuesOrdered(residues.begin(), residues.end());
+    residuesOrdered = vector<Residue*>(residues.begin(), residues.end());
+  } else {
+    residuesOrdered = _startingResidues;
+  };
 
     while (results.size() < numPaths) {
         // Pick a residue at random from the graph
@@ -492,4 +510,15 @@ int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPat
     fusionOutput scores;
     fusedPath = Fuser::fuse(topology, scores);
     return seedStartIdx;
+}
+
+vector<Residue*> PathSampler::pathResiduesFromSpecifier(string path_spec) {
+  vector<Residue*> path;
+  //split name into SeedGraph residue_names
+  vector<string> residue_names = MstUtils::split(path_spec,",");
+  for (string residue_name : residue_names) {
+    Residue* R = _graph->getResidueFromFile(residue_name);
+    path.push_back(R);
+    }
+  return path;
 }

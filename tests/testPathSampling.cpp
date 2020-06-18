@@ -16,7 +16,6 @@
 #include "seedgraph.h"
 #include "seedscore.h"
 #include "pathsampler.h"
-#include "Util.h"
 
 using namespace std;
 using namespace std::chrono;

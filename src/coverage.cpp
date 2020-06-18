@@ -106,8 +106,9 @@ allChainSegments::allChainSegments(Chain* peptide, Structure* _target, int max_s
       chainSubsegmentsBins[segment_length-1][segment_position] = bin;
     }
   }
-  
-  rotLib = new RotamerLibrary(rotLibPath);
+  RL_path = rotLibPath;
+//  rotLib.readRotamerLibrary(RL_path);
+//  cout << "rotamer library is loaded? " << rotLib.isLoaded() << endl;
 }
 
 void allChainSegments::mapSeedToChainSubsegments(vector<Atom*> seed_atoms) {
@@ -234,12 +235,28 @@ set<pair<int,int>> allChainSegments::getContacts(vector<Atom*> seed_segment) {
   Structure seed_and_target(*target);
   seed_and_target.addAtoms(seed_segment);
   
-  ConFind CD(rotLib,seed_and_target);
+//  cout << "rotamer library is loaded? " << rotLib.isLoaded() << endl;
+  
+  cout << "constructing ConFind object" << endl;
+  RotamerLibrary rotLib;
+  rotLib.readRotamerLibrary(RL_path);
+  ConFind CD(&rotLib,seed_and_target);
+//  ConFind CD(RL_path,seed_and_target);
+  
+//  cout << "rotamer library is loaded? " << rotLib.isLoaded() << endl;
   
   set<pair<int,int>> contacts;
   //find all contacts between the seed and the protein
   Chain* seed_c = seed_and_target.getChainByID(s_cid);
   vector<Residue*> seed_residues = seed_c->getResidues();
+  
+  //check that the seed chain is configured properly
+  cout << "Seed chain has " << seed_residues.size() << " residues" << endl;
+  cout << "Residues with ";
+  for (Residue* R : seed_residues) {
+    cout << R->atomSize() << ",";
+  }
+  cout << " atoms" << endl;
   
   for (Residue* R : seed_residues) {
     contactList R_conts = CD.getContacts(R);

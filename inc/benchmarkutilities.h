@@ -17,8 +17,81 @@
 #include "structure_iter.h"
 #include "termextension.h"
 
-#include "Util.h"
-#include "vdwRadii.h"
+/* --------- histogram --------- */
+struct histogram {
+  //histogram is normalized such that the bin with the highest count has a value of 1.0
+  
+  vector<mstreal> bins;
+  mstreal min_value;
+  mstreal max_value;
+  mstreal bin_size;
+  
+  void readHistFile(string hist_file) {
+    bins.clear();
+    
+    fstream info_file;
+    MstUtils::openFile(info_file,hist_file,fstream::in);
+    
+    string line;
+    vector<int> bins_count;
+    int line_count = 0;
+    while (getline(info_file,line)) {
+      line_count++;
+      if (line_count == 1) {
+        if (line != "lower_bound,upper_bound,value") MstUtils::error("Wrong file type (header does not match)","rejectionSampler::rejectionSampler()");
+      }
+      vector<string> split = MstUtils::split(line,",");
+      MstUtils::assert(split.size() == 3); //should have three entries
+      if (line_count == 2) {
+        min_value = MstUtils::toReal(split[0]);
+      }
+      bins.push_back(MstUtils::toInt(split[2]));
+      max_value = MstUtils::toReal(split[1]); //final value will be the max_value
+    }
+    if (line_count == 1) MstUtils::error("File had no entries","rejectionSampler::rejectionSampler()");
+    info_file.close();
+  }
+  
+  void writeHistFile(string hist_file) {
+    fstream info_file;
+    MstUtils::openFile(info_file,hist_file,fstream::out);
+    
+    info_file << "lower_bound,upper_bound,value" << endl;
+    
+    mstreal lower_bound = min_value;
+    mstreal upper_bound = min_value + bin_size;
+    for (mstreal value : bins) {
+      info_file << lower_bound << "," << upper_bound << "," << value << endl;
+      lower_bound += bin_size;
+      upper_bound += bin_size;
+    }
+    info_file.close();
+  }
+};
+
+
+/* --------- seedCentroidDistance --------- */
+
+class seedCentroidDistance {
+public:
+  seedCentroidDistance(string list, mstreal min_value, mstreal max_value, int num_bins);
+
+  histogram getHist() {return hist;}
+protected:
+  int getBin(mstreal value) {
+    return int((value - min_value) / bin_size);
+  }
+private:
+  vector<string> seedbin_paths; //absolute paths to the seed binary files
+  int sample_n = 10000; //the maximum number of seeds sampled, per binary file
+  string s_cid = "0";
+  
+  vector<int> bin_counts;
+  mstreal min_value,max_value,bin_size;
+  
+  histogram hist;
+};
+
 
 /* --------- rejectionSampler --------- */
 
@@ -32,31 +105,20 @@ class rejectionSampler {
 //  https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/lectures/lecture17.pdf
   
 public:
-  rejectionSampler(vector<int> histogram,
-                   mstreal min_value,
-                   mstreal max_value);
-  
+  rejectionSampler(histogram _hist) : hist(_hist) {};
   rejectionSampler(string hist_file);
   
-  rejectionSampler(const rejectionSampler& sampler) {
-    histogram = sampler.histogram;
-    min_value = sampler.min_value;
-    max_value = sampler.bin_size;
-    bin_size = sampler.bin_size;
-    max_count = sampler.max_count;
-  }
+//  rejectionSampler(const rejectionSampler& sampler) {
+//    hist = sampler.hist;
+//  }
   
   bool accept(mstreal value);
 protected:
   // file should be formatted like lower_bound,upper_bound,count
   pair<mstreal,vector<int>> loadHistFile(string hist_file);
-  int getCount(mstreal value);
+  int getVal(mstreal value);
 private:
-  vector<int> histogram;
-  mstreal min_value;
-  mstreal max_value;
-  mstreal bin_size;
-  int max_count; //the number of counts in the largest bin
+  histogram hist;
 };
 
 

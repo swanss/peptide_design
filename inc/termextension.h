@@ -21,10 +21,8 @@
 #include "coverage.h" //to directly assess coverage
 #include "secondarystructure.h" //to classify the secondary structure of the res
 #include "structure_iter.h"
-
-//structgen dependencies
-#include "Util.h"
 #include "vdwRadii.h"
+
 
 /* TO DO:
  */

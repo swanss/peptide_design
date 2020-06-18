@@ -32,7 +32,8 @@ using namespace std;
 using namespace MST;
 
 // From structgen
-#define ROT_LIB_PATH "/home/grigoryanlab/library/MST/testfiles/rotlib.bin"
+//#define ROT_LIB_PATH "/home/grigoryanlab/library/MST/testfiles/rotlib.bin"
+//#define ROT_LIB_PATH "/Users/sebastianswanson/Keating/utilities/repos/MST/testfiles/rotlib.bin"
 
 /**
  Creates a semicolon-separated string representing the scores for each residue
@@ -70,14 +71,14 @@ public:
      Initializes a FASSTScorer and loads the FASST database.
      
      @param target the target structure, whose sequence is known
-     @param fasstDB the path to the binary FASST database
+     @param configFilePath the path to the binary FASST database
      @param fractionIdentity the redudancy cutoff when searching for matches
      @param maxNumMatches the number of matches after which to stop searching
      @param vdwRadius NOT the actual VDW radius within which clashes are checked,
             but the *ratio* of the maximum VDW radius for the specific atom within
             which clashes are checked
      */
-    FASSTScorer(Structure *target, string fasstDB, double fractionIdentity = 0.4, int maxNumMatches = 8000, double vdwRadius = 1.0);
+    FASSTScorer(Structure *target, string configFilePath, double fractionIdentity = 0.4, int maxNumMatches = 8000, double vdwRadius = 1.0);
     ~FASSTScorer();
     
     virtual unordered_map<Residue *, mstreal> score(Structure *seed) = 0;
@@ -98,6 +99,8 @@ public:
     void resetCombinedStructure();
     
 protected:
+    configFile config;
+  
     FASST* fasst;
     RotamerLibrary *rl;
     
@@ -153,7 +156,7 @@ public:
      @param rParams the parameters to use for determining the RMSD cutoff for
             search
      @param contParams the criteria for determining if a contact exists
-     @param fasstDB the path to the FASST database to load
+     @param configFilePath the path to the FASST database to load
      @param targetFlank the number of flanking residues on either side of the
             target residue
      @param seedFlank the number of flanking residues on either side of the seed
@@ -172,7 +175,7 @@ public:
             but the *ratio* of the maximum VDW radius for the specific atom within
             which clashes are checked
      */
-    SequenceCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string fasstDB, int targetFlank = 2, int seedFlank = 2, double fractionIdentity = 0.4, double minRatio = 0.05, double pseudocount = 0.25, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 1.0);
+    SequenceCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank = 2, int seedFlank = 2, double fractionIdentity = 0.4, double minRatio = 0.05, double pseudocount = 0.25, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 1.0);
     ~SequenceCompatibilityScorer();
     
     /**
@@ -342,7 +345,7 @@ public:
      For descriptions of parameters, see initializer for
      SequenceCompatibilityScorer.
      */
-    StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string fasstDB, double fractionIdentity = 0.4, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 0.7);
+  StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity = 0.4, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 0.7);
     
     /**
      This currently only supports seeds with a single chain.

@@ -16,10 +16,6 @@
 #include "benchmarkutilities.h"
 #include "utilities.h"
 
-////structgen dependencies
-#include "Util.h"
-#include "vdwRadii.h"
-
 int main(int argc, char *argv[]) {
 //  MstOptions op;
 //  op.setTitle("Load seeds from a binary file, randomize their position and orientation, and write them to a new binary file. Next, determine the coverage.");

@@ -20,7 +20,6 @@
 #include "mstsystem_exts.h"
 #include "seedgraph.h"
 #include "clustertree.h"
-#include "Util.h" // For pair_hash
 
 /**
  Object that represents a single path composed of segments from multiple seeds. The
@@ -56,6 +55,10 @@ private:
  */
 class PathSampler {
 public:
+    /*
+     Initialize an empty PathSampler
+     */
+    PathSampler() {};
     /**
      Initialize the path sampler to use a seed graph.
      
@@ -80,13 +83,31 @@ public:
      Samples the given number of paths from the seed graph or cluster tree.
      */
     vector<PathResult> sample(int numPaths);
-    
+  
+    /**
+     Fuse prespecified paths.
+     
+     @param path_specifiers a list of path specifying strings
+     
+     A path consisting of residues 1-3 in seed_i and 7-8 in seed_j would be denoted as:
+     "seed_i:1,seed_i:2,seed_i:3,seed_j:7,seed_j:8"
+     */
+  
+    vector<PathResult> fusePaths(const vector<string> &path_specifiers);
+  
     // If true, constrain sampled paths to never use seeds that have been used in previously-sampled paths
     bool uniqueSeeds = false;
 
     // If non-null, weight possible extensions by the predominant secondary structure classification of the seed
     string *preferredSecondaryStructure = nullptr;
     float secondaryStructureWeight = 2.0f;
+  
+    // If provided, will always initialize the path from a residue in this seed
+    // (only implemented in sampleFromGraph)
+  void setStartingSeed(Structure* seed, string seed_chain) {
+    _startingResidues = seed->getChainByID(seed_chain)->getResidues();
+    MstUtils::assert((_startingResidues.empty()),"There are no residues in the specified chain");
+  }
 
 private:
     Structure *_target = nullptr;
@@ -97,7 +118,10 @@ private:
 
     // Used if uniqueSeeds is true
     unordered_set<string> _usedSeeds;
-
+  
+    // Used only if starting_seed is provided
+    vector<Residue*> _startingResidues;
+  
     // Number of residues to include for overlap when fusing
     int overlapLength = 3;
 
@@ -156,6 +180,8 @@ private:
      * part that can be added.
      */
     Residue *findSeedToAdd(const vector<Residue *> &path, int endIndex, const string &currentSeedName, bool appendingForward);
+  
+    vector<Residue*> pathResiduesFromSpecifier(string path_spec);
 };
 
 #endif /* pathsampler_h */
