@@ -65,7 +65,7 @@ Phi 0     {X, X, X},
 mstreal dihedralProbabilities::getResidueProb(Residue* R) {
   bool strict = false;
   mstreal phi = R->getPhi(strict);
-  mstreal psi = R->getPsi();
+  mstreal psi = R->getPsi(strict);
   //just return 0 if the dihedral can't be computed
   if (R->isBadDihedral(phi) || R->isBadDihedral(psi)) return 0.0;
   int phi_bin = angle2Bin(phi);
@@ -129,9 +129,9 @@ tuple<mstreal,mstreal,mstreal> secondaryStructureClassifier::getSecStructFractio
     string classification = classifyResidue(R);
     if (classification == "H") {
       H += 1;
-    } else if (classification == "S") {
+    } else if (classification == "E") {
       S += 1;
-    } else if (classification == "C") {
+    } else if (classification == "O") {
       C += 1;
     }
   }
