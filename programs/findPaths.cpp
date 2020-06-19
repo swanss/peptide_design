@@ -67,7 +67,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("peptideChain", "Chain ID for the peptide chain in the target, if one exists - it will be removed", false);
     opts.addOption("seeds", "Path to a binary file containing seed structures", true);
     opts.addOption("seedChain", "Chain ID for the seed structures (default is '0')", false);
-    opts.addOption("overlaps", "Path to a text file defining a cluster tree of overlaps", true);
+    opts.addOption("overlaps", "Path to a text file defining a cluster tree of overlaps", false);
     opts.addOption("seedGraph", "Path to a text file defining a seed graph", false);
     opts.addOption("out", "Path to a directory into which the fused seed path structures and scores will be written", true);
     opts.addOption("numPaths", "Number of paths to generate (linearly impacts running time - default 1000)", false);
@@ -76,22 +76,19 @@ int main (int argc, char *argv[]) {
     opts.addOption("config", "The path to a configfile",true);
     opts.setOptions(argc, argv);
 
+    if (opts.isGiven("overlaps") == opts.isGiven("seedGraph")) MstUtils::error("Either 'overlaps' or 'seedGraph' must be provided, but not both.");
+    
     string targetPath = opts.getString("target");
     string binaryFilePath = opts.getString("seeds");
     string overlapTreePath = opts.getString("overlaps");
     string outputPath = opts.getString("out");
     string configFilePath = opts.getString("config");
+    
+    string seedChain = opts.getString("seedChain", "0");
 
     if (!MstSys::fileExists(outputPath)) {
         MstSys::cmkdir(outputPath);
     }
-
-    cout << "Loading seeds" << endl;
-    StructuresBinaryFile seedFile(binaryFilePath);
-    seedFile.scanFilePositions();
-    SingleFragmentFetcher fetcher(&seedFile, 3, opts.getString("seedChain", "0"));
-    ClusterTree overlapTree(&fetcher, 4, true); // 4 children per level; shared coordinate system
-    overlapTree.read(overlapTreePath);
 
     Structure target(targetPath);
 
@@ -109,34 +106,53 @@ int main (int argc, char *argv[]) {
     StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, configFilePath);
 
     int numPaths = opts.getInt("numPaths", 1000);
+    
+    cout << "Loading seeds" << endl;
+    StructuresBinaryFile seedFile(binaryFilePath);
+    seedFile.scanFilePositions();
+    
+    PathSampler* sampler;
+    SingleFragmentFetcher* fetcher;
+    ClusterTree* overlapTree;
+    StructureCache* cache;
+    SeedGraph* seedG;
+    if (opts.isGiven("overlaps")) {
+        cout << "Loading cluster tree..." << endl;
+        fetcher = new SingleFragmentFetcher(&seedFile, 3, seedChain);
+        overlapTree = new ClusterTree(fetcher, 4, true); // 4 children per level; shared coordinate system
+        overlapTree->read(overlapTreePath);
+        
+        // Stringent: 3-residue overlaps, 0.75A cutoff
+        // Permissive: 3-residue overlaps, 1.25A cutoff
+        sampler = new PathSampler(&target, fetcher, overlapTree, 3, 1.25, fetcher->getAllResidues());
+    } else if (opts.isGiven("seedGraph")) {
+        cout << "Loading graph.." << endl;
+        cache = new StructureCache(&seedFile);
+        seedG = new SeedGraph(false,cache);
+        
+        sampler = new PathSampler(&target,seedG);
+    }
+    
+    if (opts.isGiven("ss")) {
+        sampler->preferredSecondaryStructure = new string(opts.getString("ss"));
+    }
+    if (opts.isGiven("req_seed")) {
+        string reqSeedName = opts.getString("req_seed");
+        Structure* reqSeed = cache->getStructure(reqSeedName);
+        sampler->setStartingSeed(reqSeed,seedChain);
+    }
 
     ofstream out(MstSystemExtension::join(outputPath, "fused_paths.csv"), ios::out);
     if (!out.is_open())
         MstUtils::error("Could not open file stream");
     // CSV header
     out << "name,path,path_len,designability,num_contacts,num_designable,corroboration" << endl;
-
-  PathSampler sampler;
-  if (opts.isGiven("overlaps")) {
-    // Stringent: 3-residue overlaps, 0.75A cutoff
-    // Permissive: 3-residue overlaps, 1.25A cutoff
-    sampler = PathSampler(&target, &fetcher, &overlapTree, 3, 1.25, fetcher.getAllResidues());
-  } else if (opts.isGiven("seedGraph")) {
     
-  }
-    if (opts.isGiven("ss")) {
-      sampler.preferredSecondaryStructure = new string(opts.getString("ss"));
-    }
-    if (opts.isGiven("req_seed")) {
-      string reqSeedPath = opts.getString("req_seed");
-
-    }
-
     int pathIndex = 0;
     StructuresBinaryFile fusedFile(MstSystemExtension::join(outputPath, "fused_paths.bin"), false);
 
     while (pathIndex < numPaths) {
-        vector<PathResult> paths = sampler.sample(10);
+        vector<PathResult> paths = sampler->sample(10);
         for (PathResult &path: paths) {
             string name = "fused_path_" + to_string(pathIndex);
             out << name << ",";
@@ -161,6 +177,15 @@ int main (int argc, char *argv[]) {
             pathIndex++;
         }
     }
+    
+    if (opts.isGiven("overlaps")) {
+        delete fetcher;
+        delete overlapTree;
+    } else if (opts.isGiven("seedGraph")) {
+        delete cache;
+        delete seedG;
+    }
+    delete sampler;
 
     cout << "Done" << endl;
     out.close();

@@ -143,13 +143,13 @@ int main (int argc, char *argv[]) {
     Structure path;
     result.getFusedPathOnly(path);
     
-//    // Score the path
-//    mstreal totalScore;
-//    int numContacts;
-//    int numDesignable;
-//    scorer.score(&path, totalScore, numContacts, numDesignable);
-//    cout << "Score: " << totalScore << endl;
-//    out << totalScore << "," << numContacts << "," << numDesignable << "," << corroborationScore(result, 2) << endl;
+    // Score the path
+    mstreal totalScore;
+    int numContacts;
+    int numDesignable;
+    scorer.score(&path, totalScore, numContacts, numDesignable);
+    cout << "Score: " << totalScore << endl;
+    out << totalScore << "," << numContacts << "," << numDesignable << "," << corroborationScore(result, 2) << endl;
     
     // write out the structures
     path.setName(name);
