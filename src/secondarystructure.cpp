@@ -65,7 +65,7 @@ Phi 0     {X, X, X},
 mstreal dihedralProbabilities::getResidueProb(Residue* R) {
   bool strict = false;
   mstreal phi = R->getPhi(strict);
-  mstreal psi = R->getPsi();
+  mstreal psi = R->getPsi(strict);
   //just return 0 if the dihedral can't be computed
   if (R->isBadDihedral(phi) || R->isBadDihedral(psi)) return 0.0;
   int phi_bin = angle2Bin(phi);
@@ -118,6 +118,27 @@ string secondaryStructureClassifier::classifyResInStruct(Structure* S, vector<in
   string classification;
   for (int res_idx : all_res_idx) classification += classifyResidue(&S->getResidue(res_idx));
   return classification;
+}
+
+tuple<mstreal,mstreal,mstreal> secondaryStructureClassifier::getSecStructFractions(const Structure& Str) {
+  int H = 0; int S = 0; int C = 0; //for counting observations of each class
+  mstreal H_frac; mstreal S_frac; mstreal C_frac;
+  
+  vector<Residue*> residues = Str.getResidues();
+  for (Residue* R : residues) {
+    string classification = classifyResidue(R);
+    if (classification == "H") {
+      H += 1;
+    } else if (classification == "E") {
+      S += 1;
+    } else if (classification == "O") {
+      C += 1;
+    }
+  }
+  H_frac = mstreal(H)/residues.size();
+  S_frac = mstreal(S)/residues.size();
+  C_frac = mstreal(C)/residues.size();
+  return make_tuple(H_frac,S_frac,C_frac);
 }
 
 void secondaryStructureClassifier::writeResClassificationtoFile(Chain* C, fstream &out) {

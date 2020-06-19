@@ -105,6 +105,7 @@ public:
     // If provided, will always initialize the path from a residue in this seed
     // (only implemented in sampleFromGraph)
   void setStartingSeed(Structure* seed, string seed_chain) {
+      if (_graph == nullptr) MstUtils::error("Option not available when PathSampler is constructed without a seed graph");
     _startingResidues = seed->getChainByID(seed_chain)->getResidues();
     MstUtils::assert((_startingResidues.empty()),"There are no residues in the specified chain");
   }

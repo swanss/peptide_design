@@ -229,6 +229,8 @@ public:
         if (binaryFile != nullptr) {
             delete binaryFile;
         }
+        if (_lastBatch != nullptr)
+          delete _lastBatch;
     }
     /**
      @return whether there are structures that have not been loaded and returned
@@ -250,6 +252,8 @@ public:
      Skips the current batch of structures.
      */
     void skip();
+  
+    int getBatchSize() {return _batchSize;}
 
 private:
     vector<Structure *> *_lastBatch = nullptr;

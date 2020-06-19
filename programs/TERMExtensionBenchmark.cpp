@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
     if (op.isGiven("seq")) TE.setSeqConst(true);
     if (op.isGiven("match_req")) TE.generateFragments(TermExtension::MATCH_NUM_REQ);
     else TE.generateFragments(TermExtension::CEN_RES);
-    TE.extendFragmentsandWriteStructures(Fragment::MANY_CONTACT,outDir);
+    TE.extendFragmentsandWriteStructures(seedTERM::MANY_CONTACT,outDir);
     
     //write fragments
     cout << "Writing fragment pdbs..." << endl;
