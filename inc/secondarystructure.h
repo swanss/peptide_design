@@ -77,12 +77,12 @@ public:
   tuple<mstreal,mstreal,mstreal> getSecStructFractions(const Structure& S);
   void writeResClassificationtoFile(Chain* C, fstream& out);
   void writeResClassificationtoTSV(Structure& S, fstream& out);
-  void writeCentroidtoPointFile(string bin_path, int num_final_seeds, fstream& out);
+  void writeCentroidtoPointFile(string bin_path, int num_final_seeds, fstream& out, int bin_version = 0);
   void writeCaInfotoPointFile(Chain* C, fstream& out);
-  void writeCaInfotoPointFile(string bin_path, fstream& out);
+  void writeCaInfotoPointFile(string bin_path, fstream& out, int bin_version = 0);
   void writeCaInfotoLineFile(Chain* C, fstream& out);
-  void writeCaInfotoLineFile(string bin_path, int num_final_seeds, fstream& out);
-  void writeCaInfotoLineFile(string bin_path, vector<string> seed_names, fstream& out);
+  void writeCaInfotoLineFile(string bin_path, int num_final_seeds, fstream& out, int bin_version = 0);
+  void writeCaInfotoLineFile(string bin_path, vector<string> seed_names, fstream& out, int bin_version = 0);
   
   string classification2ColorID(string classification) {
     if (classification == "H") return "0";

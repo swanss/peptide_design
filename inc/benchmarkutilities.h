@@ -26,53 +26,27 @@ struct histogram {
   mstreal max_value;
   mstreal bin_size;
   
-  void readHistFile(string hist_file) {
-    bins.clear();
-    
-    fstream info_file;
-    MstUtils::openFile(info_file,hist_file,fstream::in);
-    
-    string line;
-    vector<int> bins_count;
-    int line_count = 0;
-    while (getline(info_file,line)) {
-      line_count++;
-      if (line_count == 1) {
-        if (line != "lower_bound,upper_bound,value") MstUtils::error("Wrong file type (header does not match)","rejectionSampler::rejectionSampler()");
-      }
-      vector<string> split = MstUtils::split(line,",");
-      MstUtils::assert(split.size() == 3); //should have three entries
-      if (line_count == 2) {
-        min_value = MstUtils::toReal(split[0]);
-      }
-      bins.push_back(MstUtils::toInt(split[2]));
-      max_value = MstUtils::toReal(split[1]); //final value will be the max_value
-    }
-    if (line_count == 1) MstUtils::error("File had no entries","rejectionSampler::rejectionSampler()");
-    info_file.close();
-  }
+  /*
+   The format is:
+   lower_bound,upper_bound,value
+   0,1,1
+   1,2,3,
+   ...
+   */
   
-  void writeHistFile(string hist_file) {
-    fstream info_file;
-    MstUtils::openFile(info_file,hist_file,fstream::out);
-    
-    info_file << "lower_bound,upper_bound,value" << endl;
-    
-    mstreal lower_bound = min_value;
-    mstreal upper_bound = min_value + bin_size;
-    for (mstreal value : bins) {
-      info_file << lower_bound << "," << upper_bound << "," << value << endl;
-      lower_bound += bin_size;
-      upper_bound += bin_size;
-    }
-    info_file.close();
-  }
+  void readHistFile(string hist_file);
+  
+  void writeHistFile(string hist_file);
 };
 
 
 /* --------- seedCentroidDistance --------- */
 
 class seedCentroidDistance {
+  /*
+   This class loads the seeds from multiple binary files, subsample them, averages
+   their centroid distance from the protein, and uses this to construct a histogram
+   */
 public:
   seedCentroidDistance(string list, mstreal min_value, mstreal max_value, int num_bins);
 
@@ -97,12 +71,14 @@ private:
 
 class rejectionSampler {
   
-//  Rejection sampling allows us to sample from a non-parametric probability density. The first
-//  step is to sample uniformly, and the second step is to accept or reject. The probability of
-//  acceptance is proportional to the density at the sampled value.
-//
-//  For more info, check out:
-//  https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/lectures/lecture17.pdf
+  /*
+  Rejection sampling allows us to sample from a non-parametric probability density. The first
+  step is to sample uniformly, and the second step is to accept or reject. The probability of
+  acceptance is ratio of the density at the sampled value and the maximum density.
+
+  For more info, check out:
+  https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/lectures/lecture17.pdf
+  */
   
 public:
   rejectionSampler(histogram _hist) : hist(_hist) {};
@@ -178,6 +154,7 @@ private:
 /* --------- naiveSeedsFromBin --------- */
 
 class naiveSeedsFromBin {
+  friend class naiveSeedsFromDB;
   /*
    Generates a seed cloud that matches certain properties of existing clouds and saves to a new
    seedBinaryFile.
@@ -186,9 +163,7 @@ public:
   naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, rejectionSampler& _sampler, mstreal distance = 1.0, int neighbors = 1);
   
   ~naiveSeedsFromBin() {
-//    for (Atom* A : seed_centroids) delete A;
     delete target_PS;
-//    delete seed_PS;
   }
   
   /*
@@ -202,12 +177,14 @@ public:
 protected:
   int transform(Structure* seed, structureBoundingBox& bounding_box, bool position, bool orientation, CartesianPoint new_centroid);
   
-  Chain* peptide;
-  StructuresBinaryFile seeds;
 private:
   Structure& complex;
   Structure target;
+  Chain* peptide;
   
+  StructuresBinaryFile seeds;
+  set<string> int_properties;
+  set<string> real_properties;
   
   // for identifying seeds with clashes to the protein
   Structure target_BB_structure;

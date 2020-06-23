@@ -43,7 +43,7 @@ void TermExtension::set_params(string fasstDBPath, string rotLib) {
   cd_threshold = .01;
   int_threshold = .01;
   bbInteraction_cutoff = 3.5;
-  max_rmsd = 1.1;
+  max_rmsd = 1.2;
   flanking_res = 2;
   match_req = -1; //only considered if value is > 0
   adaptive_rmsd = true;
@@ -382,30 +382,30 @@ void TermExtension::extendFragmentsandWriteStructures(seedTERM::seedType option,
   string binFile = outDir + "extendedfragments.bin";
   string infoFile = outDir + "extendedfragments.info";
   string secStrucFile = outDir + "seed_secondary_structure.info";
-  fstream info_out, bin_out, secstruct_out;
-
+  fstream info_out, secstruct_out;
+    
+  //open files to write
   MstUtils::openFile(info_out, infoFile, fstream::out);
   MstUtils::openFile(secstruct_out, secStrucFile, fstream::out);
-  //open files to write
-  MstUtils::openFile(bin_out, binFile, fstream::out | fstream::binary, "Fragmenter::writeExtendedFragmentsBin");
+  StructuresBinaryFile* bin = new StructuresBinaryFile(binFile,false,1); //open in write mode, file version 1
   
   cout << "Extending " << all_fragments.size() << " fragments total" << endl;
   
   // Now, iterate over each target that has at least one match
   for (int frag_id = 0; frag_id < all_fragments.size(); frag_id++) {
     seedTERM* frag = all_fragments[frag_id];
-    int num_new_structures = extendFragment(frag, option, outDir, bin_out, info_out, secstruct_out);
+    int num_new_structures = extendFragment(frag, option, bin, info_out, secstruct_out);
     extendedFragmentNumber += num_new_structures;
   }
   info_out.close();
   secstruct_out.close();
-  bin_out.close();
   
   timer.stop();
   cout << "Seed creation took " << timer.getDuration() << " s" << endl;
+  delete bin;
 }
 
-int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, string outDir, fstream& output, fstream& info, fstream& sec_struct) {
+int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, StructuresBinaryFile* bin, fstream& info, fstream& sec_struct) {
   int num_extendedfragments = 0;
   fasstSolutionSet& matches = frag->getMatches();
   vector<Structure*> fragment_extensions;
@@ -443,10 +443,15 @@ int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, str
     
     vector<string> seed_sec_structure = classifySegmentsInMatchProtein(transformed_match_structure,seed_segments);
     
-    //use the match_idx/extension_idx to make a fragment extension
-    vector<Structure*> new_structures = frag->extendMatch(option,transformed_match_structure,match_idx,seed_segments,seed_sec_structure,sol.getRMSD());
+    //check if central residue of the match has same sequence as query
+    Residue* R_match = &transformed_match_structure->getResidue(match_idx[frag->getCenResIdx()]);
+    Residue* R_query = frag->getCenRes();
+    bool same_res = (R_match->getName() == R_query->getName());
     
-    frag->writeExtendedFragmentstoBIN(outDir,info,sec_struct,output);
+    //use the match_idx/extension_idx to make a fragment extension
+    vector<Structure*> new_structures = frag->extendMatch(option,transformed_match_structure,match_idx,seed_segments,seed_sec_structure,sol.getRMSD(),same_res);
+    
+    frag->writeExtendedFragmentstoBIN(info,sec_struct,bin);
     
     num_extendedfragments += new_structures.size();
     
@@ -578,14 +583,14 @@ vector<string> TermExtension::classifySegmentsInMatchProtein(Structure* S, vecto
   return classifications;
 }
 
-vector<Structure*> TermExtension::getExtendedFragments() {
-  vector<Structure*> all_seeds;
-  for (int i = 0; i < all_fragments.size(); i ++) {
-    vector<Structure*> seeds = all_fragments[i]->getExtendedFragments();
-    all_seeds.insert(all_seeds.end(), seeds.begin(), seeds.end());
-  }
-  return all_seeds;
-}
+//vector<Structure*> TermExtension::getExtendedFragments() {
+//  vector<Structure*> all_seeds;
+//  for (int i = 0; i < all_fragments.size(); i ++) {
+//    vector<Structure*> seeds = all_fragments[i]->getExtendedFragments();
+//    all_seeds.insert(all_seeds.end(), seeds.begin(), seeds.end());
+//  }
+//  return all_seeds;
+//}
 
 /* --------- Fragment --------- */
 seedTERM::seedTERM() {
@@ -608,6 +613,7 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _
   
   //get the complexity
   effective_degrees_of_freedom = generalUtilities::fragDegreesOfFreedom(allResIdx, *parent->getTarget(), 15);
+  rmsd_adjust_factor = 1.0/sqrt(fragmentStructure.atomSize()/effective_degrees_of_freedom);
   
   //generate a name that is unique to the fragment
   //NOTE: this name uses the residue numbers from the parent structure
@@ -639,7 +645,7 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _
       seqConst.addConstraint(res.getChain()->getIndex(), res.getResidueIndexInChain(), {res.getName()});
       FragmenterObj->F.options().setSequenceConstraints(seqConst);
     }
-    
+
     matches = FragmenterObj->F.search();
   }
   
@@ -658,17 +664,18 @@ seedTERM::seedTERM(const seedTERM& F) {
   cenResIdx = F.cenResIdx; //index of the index of the central residue
   matches = F.matches;
   search = F.search;
-  extended_fragments = F.extended_fragments;
+  seeds = F.seeds;
   RMSD_cutoff = F.RMSD_cutoff;
   effective_degrees_of_freedom = F.effective_degrees_of_freedom;
+  rmsd_adjust_factor = F.rmsd_adjust_factor;
   name = F.name;
   construction_time = F.construction_time;
   num_extended_fragments = F.num_extended_fragments;
 }
 
 seedTERM::~seedTERM() {
-  for (int i = 0; i < extended_fragments.size(); i++) {
-    delete extended_fragments[i];
+  for (int i = 0; i < seeds.size(); i++) {
+    delete seeds[i].extended_fragment;
   }
 }
 
@@ -690,11 +697,12 @@ void seedTERM::setName() {
   cout << "Fragment name set to:  " << name << endl;
 }
 
-vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, mstreal RMSD, bool store) {
+vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, mstreal RMSD, bool same_res) {
   vector<Structure*> new_structures;
   
   // for each seed segment, make a new extended fragment that includes the anchor
   for (int i = 0; i < seed_segments.size(); i++) {
+    
     // initialize extendedFragment structure
     Structure* extended_fragment = new Structure();
     
@@ -713,40 +721,47 @@ vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* ma
     extended_fragment->setName(ext_frag_name);
     
     // add to fragmenter seeds
-    if (store) extended_fragments.push_back(extended_fragment);
+    Seed s;
+    s.extended_fragment = extended_fragment;
+    s.rmsd = RMSD;
+    s.secondary_structure_classification = seed_sec_struct[i];
+    s.sequence_match = same_res;
+    seeds.push_back(s);
     new_structures.push_back(extended_fragment);
   }
-  secondary_structure_classification.insert(secondary_structure_classification.begin(),seed_sec_struct.begin(),seed_sec_struct.end());
-  
   return new_structures;
 }
 
 void seedTERM::writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out) {
-  for (int i = 0; i != extended_fragments.size(); i++) {
-    Structure* ext_frag = extended_fragments[i];
+  for (int i = 0; i != seeds.size(); i++) {
+    Structure* ext_frag = seeds[i].extended_fragment;
     string seed_name = outDir+ext_frag->getName()+".pdb";
     ext_frag->writePDB(seed_name);
     info_out << seed_name << endl;
   }
 }
 
-void seedTERM::writeExtendedFragmentstoBIN(string outDir, fstream& info_out, fstream& secstruct_out, fstream& bin_out) {
-  for (int i = 0; i != extended_fragments.size(); i++) {
-    Structure* ext_frag = extended_fragments[i];
-    string seed_name = outDir+ext_frag->getName()+".pdb";
-    ext_frag->writeData(bin_out);
+void seedTERM::writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct_out, StructuresBinaryFile* bin) {
+  for (int i = 0; i != seeds.size(); i++) {
+    Structure* ext_frag = seeds[i].extended_fragment;
+    bin->appendStructure(ext_frag);
+    bin->appendStructurePropertyReal("match_rmsd",seeds[i].rmsd);
+    bin->appendStructurePropertyReal("rmsd_adj",rmsd_adjust_factor);
+    bin->appendStructurePropertyInt("seq", seeds[i].sequence_match);
+    
+    //write out other information to text files
+    string seed_name = ext_frag->getName();
     info_out << seed_name << endl;
-    secstruct_out << seed_name << "\t" << secondary_structure_classification[i] << endl;
+    secstruct_out << seed_name << "\t" << seeds[i].secondary_structure_classification << endl;
   }
 }
 
 
 void seedTERM::deleteExtendedFragments() {
-  for (int i = 0; i < extended_fragments.size(); i++) {
-    delete extended_fragments[i];
+  for (int i = 0; i < seeds.size(); i++) {
+    delete seeds[i].extended_fragment;
   }
-  extended_fragments.clear();
-  secondary_structure_classification.clear();
+  seeds.clear();
 }
 
 int seedTERM::getSegmentNum(mstreal maxPeptideBondLen) {
@@ -820,7 +835,6 @@ void seedTERM::addResToStructure(vector<int> res_idx, bool keep_chain, const Str
       C->appendResidue(R_new);
     } else {
       // if not, initialize chain, add to structure, and add to chain
-      string sid = "";
       Chain* C_new = recipient_structure.appendChain(R_frag_chain_id,false);
       C_new->appendResidue(R_new);
     }

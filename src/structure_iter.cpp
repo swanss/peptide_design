@@ -82,16 +82,13 @@ bool StructuresBinaryFile::hasNext() {
 
 Structure *StructuresBinaryFile::next() {
     MstUtils::assert(readMode, "next not supported in write mode");
-    Structure* S = new Structure();
-    S->readData(fs);
-    return S;
+    return readNextFileSection(false).first;
 }
 
 void StructuresBinaryFile::skip() {
     MstUtils::assert(readMode, "skip not supported in write mode");
-    Structure *s = new Structure();
-    s->readData(fs);
-    delete s;
+    Structure* S = readNextFileSection(false).first;
+    delete S;
 }
 
 void StructuresBinaryFile::reset() {
@@ -103,15 +100,14 @@ void StructuresBinaryFile::reset() {
 
 void StructuresBinaryFile::scanFilePositions() {
     //MstUtils::assert(readMode, "scanFilePositions not supported in write mode");
-    if (!_structureNames.empty())
-        return;
+    if (!_structureNames.empty()) return;
     cout << "Scanning file positions..." << endl;
     fs.seekg(0, fs.beg);
     _structureNames.clear();
     while (fs.peek() != EOF) {
-        Structure *S = new Structure();
-        long pos = fs.tellg();
-        S->readData(fs);
+        auto next = readNextFileSection(true);
+        Structure *S = next.first;
+        long pos = next.second;
         if (pos < 0) {
             cout << pos << endl;
         }
@@ -132,9 +128,7 @@ Structure * StructuresBinaryFile::getStructureNamed(string name) {
         return nullptr;
     }
     fs.seekg(_filePositions[name], fs.beg);
-    Structure *S = new Structure();
-    S->readData(fs);
-    return S;
+    return readNextFileSection(false).first;
 }
 
 void StructuresBinaryFile::jumpToStructureIndex(int idx) {
@@ -152,7 +146,58 @@ void StructuresBinaryFile::jumpToStructureIndex(int idx) {
 
 void StructuresBinaryFile::appendStructure(Structure *s) {
     MstUtils::assert(!readMode, "appendStructure not supported in read mode");
+    if (!structure_added) {
+        structure_added = true;
+    } else {
+        MstUtils::writeBin(fs,'E'); //finish the previous section
+    }
+    MstUtils::writeBin(fs,'S'); //start new structure section
     s->writeData(fs);
+}
+
+void StructuresBinaryFile::appendStructurePropertyInt(string prop, int val) {
+    MstUtils::writeBin(fs,'I');
+    MstUtils::writeBin(fs,prop);
+    MstUtils::writeBin(fs,val);
+}
+
+void StructuresBinaryFile::appendStructurePropertyReal(string prop, mstreal val) {
+    MstUtils::writeBin(fs,'R');
+    MstUtils::writeBin(fs,prop);
+    MstUtils::writeBin(fs,val);
+}
+
+pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metadata) {
+    Structure* S = new Structure();
+    long pos = fs.tellg();
+    if (_version == 0) {
+        S->readData(fs);
+        return pair<Structure*,long>(S,pos);
+    } else if (_version == 1) {
+        char sect; string prop; mstreal real_val; int dscrt_val;
+        MstUtils::readBin(fs, sect);
+        if (sect != 'S') MstUtils::error("The first section should be a Structure " + _filePath, "StructuresBinaryFile::readFileSection()");
+        S->readData(fs);
+        //read meta-data;
+        while (fs.peek() != EOF) {
+            MstUtils::readBin(fs, sect);
+            if (sect == 'I') {
+                MstUtils::readBin(fs, prop);
+                MstUtils::readBin(fs, dscrt_val);
+                if (save_metadata) seed_dscrt_vals[prop][S->getName()] = dscrt_val;
+            } else if (sect == 'R') {
+                MstUtils::readBin(fs,prop);
+                MstUtils::readBin(fs, real_val);
+                if (save_metadata) seed_real_vals[prop][S->getName()] = real_val;
+            } else if (sect == 'E') {
+                break;
+            } else {
+                MstUtils::error("Section name not recognized: " + MstUtils::toString(sect),"StructuresBinaryFile::readFileSection()");
+            }
+        }
+        return pair<Structure*,long>(S,pos);
+    }
+    return pair<Structure*,long>(S,pos); //just to quell compiler warning;
 }
 
 // StructureCache

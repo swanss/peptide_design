@@ -135,30 +135,6 @@ int main(int argc, char *argv[]) {
     timer.stop();
     cout << "Generated type 2 seeds in " << timer.getDuration() << " seconds" << endl;
   }
-
-  //Map the seed coverage
-  //Extended fragments
-  cout << "Search for segments of seed chains (TERM Extension) that map to the peptide..." << endl;
-  IC.findCoveringSeeds(extfrag_bin);
-  cout << "Write coverage to files..." << endl;
-  IC.writeCoverageToFiles(covDir+"termext_");
-  IC.writeAllAlignedSeedstoFile(covDir+"termext_");
-  
-  if (op.isGiven("hist")) {
-    //Type 1 seeds
-    cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
-    IC.findCoveringSeeds(type1_bin);
-    cout << "Write coverage to files..." << endl;
-    IC.writeCoverageToFiles(covDir+"type1_");
-    IC.writeAllAlignedSeedstoFile(covDir+"type1_");
-    
-    //Type 2 seeds
-    cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
-    IC.findCoveringSeeds(type2_bin);
-    cout << "Write coverage to files..." << endl;
-    IC.writeCoverageToFiles(covDir+"type2_");
-    IC.writeAllAlignedSeedstoFile(covDir+"type2_");
-  }
   
   //Write Info
   seedStatistics stats(complex, p_cid);
@@ -176,21 +152,72 @@ int main(int argc, char *argv[]) {
   cout << "Writing a line cloud file (TERM Extension) for visualization" << endl;
   lcloud_out = outDir + "termext_seed_ca.lcloud";
   MstUtils::openFile(out, lcloud_out, fstream::out);
-  classifier.writeCaInfotoLineFile(extfrag_bin, num_final_seeds, out);
+  classifier.writeCaInfotoLineFile(extfrag_bin, num_final_seeds, out, 1);
   out.close();
-
+  
   if (op.isGiven("hist")) {
     cout << "Writing a line cloud file (type 1) for visualization" << endl;
     lcloud_out = outDir + "type1_seed_ca.lcloud";
     MstUtils::openFile(out, lcloud_out, fstream::out);
-    classifier.writeCaInfotoLineFile(type1_bin, num_final_seeds, out);
+    classifier.writeCaInfotoLineFile(type1_bin, num_final_seeds, out, 1);
     out.close();
     
     cout << "Writing a line cloud file (type 2) for visualization" << endl;
     lcloud_out = outDir + "type2_seed_ca.lcloud";
     MstUtils::openFile(out, lcloud_out, fstream::out);
-    classifier.writeCaInfotoLineFile(type2_bin, num_final_seeds, out);
+    classifier.writeCaInfotoLineFile(type2_bin, num_final_seeds, out, 1);
     out.close();
   }
+
+  //Map the seed coverage
+  /*
+   Vary parameters that filter the seeds
+   - match RMSD. The RMSD of the match that generated the seed (depends on the complexity of the fragment)
+   - sequence constraint. When applied, only matches with the same residue at the central position are accepted
+   */
+  
+  vector<mstreal> match_rmsds = {0.2,0.4,0.6,0.8,1.0,1.2};
+  vector<bool> seq_consts = {false,true};
+  
+  for (mstreal match_rmsd : match_rmsds) {
+    for (bool seq_const : seq_consts) {
+      cout << "sequence constraint: " << seq_const << endl;
+      cout << "match_rmsd_cutoff: " << match_rmsd << endl;
+      //make directory for this output
+      string dir_name = "params_"+MstUtils::toString(match_rmsd)+"_"+MstUtils::toString(seq_const)+"/";
+      string path_to_covDir = covDir+dir_name;
+      MstSys::cmkdir(path_to_covDir);
+      
+      IC.setSeqConst(seq_const);
+      IC.setMatchRMSDConst(match_rmsd);
+      
+      cout << "Search for segments of seed chains (TERM Extension) that map to the peptide..." << endl;
+      IC.findCoveringSeeds(extfrag_bin);
+      cout << "Write coverage to files..." << endl;
+      IC.writePeptideResidues(path_to_covDir+"termext_");
+      IC.writeContacts(path_to_covDir+"termext_");
+      IC.writeAllAlignedSeedsInfo(path_to_covDir+"termext_");
+      IC.writeBestAlignedSeeds(path_to_covDir+"termext_",10);
+      
+      if (op.isGiven("hist")) {
+        //Type 1 seeds
+        cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
+        IC.findCoveringSeeds(type1_bin);
+        cout << "Write coverage to files..." << endl;
+        IC.writePeptideResidues(path_to_covDir+"type1_");
+        IC.writeContacts(path_to_covDir+"type1_");
+        IC.writeBestAlignedSeeds(path_to_covDir+"type1_",10);
+        
+        //Type 2 seeds
+        cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
+        IC.findCoveringSeeds(type2_bin);
+        cout << "Write coverage to files..." << endl;
+        IC.writePeptideResidues(path_to_covDir+"type2_");
+        IC.writeContacts(path_to_covDir+"type2_");
+        IC.writeBestAlignedSeeds(path_to_covDir+"type2_",10);
+      }
+    }
+  }
+  cout << "done" << endl;
   return 0;
 }

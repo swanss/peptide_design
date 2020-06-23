@@ -117,6 +117,18 @@ public:
    * for residues located within the same chain of S, their relative locations
    * are accounted for when computing degrees of freedom. */
   static mstreal fragDegreesOfFreedom(const vector<int>& J, const Structure& S, mstreal L0 = 15);
+  
+  /*
+   Defines a vector normal to the plane formed by N, Ca, and C atoms in each residue and
+   computes the cosine of the angle between them. Since this function just compares two
+   vectors defined in the same way, I don't think it matters how they are defined precisely
+   */
+  static mstreal cosAngleBetweenNormalVectors(Residue* R1, Residue* R2);
+  
+  static mstreal cosAngle(CartesianPoint v1, CartesianPoint v2);
+  
+  static mstreal avgCosAngleBetweenSegments(vector<Residue*> seg1, vector<Residue*> seg2);
+
 };
 
 // Miscellaneous useful functions

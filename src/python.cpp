@@ -163,7 +163,4 @@ BOOST_PYTHON_MODULE(peptide_design) {
         .def("getAPV", &ClusterSearchResults::getAPV)
         .def("getRMSD", &ClusterSearchResults::getRMSD)
     ;
-  
-    class_<PathResult>("PathResult", init<vector<Residue*>, Structure, int>())
-        .def(
 }

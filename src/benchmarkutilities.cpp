@@ -8,7 +8,49 @@
 
 #include "benchmarkutilities.h"
 
+/* --------- histogram --------- */
 
+void histogram::readHistFile(string hist_file) {
+  bins.clear();
+  
+  fstream info_file;
+  MstUtils::openFile(info_file,hist_file,fstream::in);
+  
+  string line;
+  vector<int> bins_count;
+  int line_count = 0;
+  while (getline(info_file,line)) {
+    line_count++;
+    if (line_count == 1) {
+      if (line != "lower_bound,upper_bound,value") MstUtils::error("Wrong file type (header does not match)","rejectionSampler::rejectionSampler()");
+    }
+    vector<string> split = MstUtils::split(line,",");
+    MstUtils::assert(split.size() == 3); //should have three entries
+    if (line_count == 2) {
+      min_value = MstUtils::toReal(split[0]);
+    }
+    bins.push_back(MstUtils::toInt(split[2]));
+    max_value = MstUtils::toReal(split[1]); //final value will be the max_value
+  }
+  if (line_count == 1) MstUtils::error("File had no entries","rejectionSampler::rejectionSampler()");
+  info_file.close();
+}
+
+void histogram::writeHistFile(string hist_file) {
+  fstream info_file;
+  MstUtils::openFile(info_file,hist_file,fstream::out);
+  
+  info_file << "lower_bound,upper_bound,value" << endl;
+  
+  mstreal lower_bound = min_value;
+  mstreal upper_bound = min_value + bin_size;
+  for (mstreal value : bins) {
+    info_file << lower_bound << "," << upper_bound << "," << value << endl;
+    lower_bound += bin_size;
+    upper_bound += bin_size;
+  }
+  info_file.close();
+}
 
 /* --------- seedCentroidDistance --------- */
 
@@ -41,7 +83,7 @@ seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstr
     Structure complex(struct_path);
     seedStatistics stat(complex,p_id);
     
-    StructuresBinaryFile bin(bin_path);
+    StructuresBinaryFile bin(bin_path,true,0);
     size_t num_seeds = bin.structureCount();
     bin.reset();
     
@@ -203,7 +245,7 @@ void structureBoundingBox::construct_structureBoundingBox(AtomPointerVector atom
 }
 
 /* --------- naiveSeedsfromBin --------- */
-naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, rejectionSampler& _sampler, mstreal _distance, int _neighbors) : complex(S), seeds(seedBinaryPath_in), sampler(_sampler) {
+naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, rejectionSampler& _sampler, mstreal _distance, int _neighbors) : complex(S), seeds(seedBinaryPath_in,true,1), sampler(_sampler) {
   //get target structure
   peptide = complex.getChainByID(p_id);
   vector<Residue*> target_residues;
@@ -220,18 +262,11 @@ naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinar
   //generate proximity search for the seed centroids
   cout << "Loading seeds and calculating centroids to construct a promixity search object..." << endl;
   
-  //load each seed, get centroid, use it to construct new atom, and add to seed_centroids
-//  while (seeds.hasNext()) {
-//    Structure* extended_fragment = seeds.next();
-//    Chain* seed_chain = extended_fragment->getChainByID("0");
-//    CartesianPoint seed_centroid = AtomPointerVector(seed_chain->getAtoms()).getGeometricCenter();
-//    Atom* A = new Atom();
-//    A->setCoor(seed_centroid);
-//    seed_centroids.push_back(A);
-//
-//    delete extended_fragment;
-//  }
+  //get file positions and properties
+  seeds.scanFilePositions();
   seeds.reset();
+  int_properties = seeds.getPropertyNamesInt();
+  real_properties = seeds.getPropertyNamesReal();
   
   distance = _distance;
 //  seed_PS = new ProximitySearch(seed_centroids,distance/2);
@@ -246,13 +281,13 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
   if (position) cout << "position\t";
   if (orientation) cout << "orientation";
   cout << endl;
+  
   //construct bounding box
   structureBoundingBox bounding_box = structureBoundingBox(peptide); //only use if position is randomized
   
   //prepare for writing new seed binary file
   string seedBinaryPath_out = output_path + "/" + out_name + ".bin";
-  fstream bin_out;
-  MstUtils::openFile(bin_out, seedBinaryPath_out, fstream::out | fstream::binary, "naiveSeedsFromBin::newPose");
+  StructuresBinaryFile seeds_out(seedBinaryPath_out,false,1);
   
   //open seed data file
   string seedRetry_out = output_path + "/" + out_name + "_newpose_attempts.out";
@@ -272,9 +307,19 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
     //randomize position/orientation
     int attempts = transform(seed_structure, bounding_box, position, orientation, seed_centroid);
     
-    //write transformed seed to binary file
+    //write transformed seed to binary file (including meta-data)
+    //structure
     seed_structure->setName(extended_fragment->getName());
-    seed_structure->writeData(bin_out);
+    seeds_out.appendStructure(seed_structure);
+    //meta-data
+    for (string prop_name : int_properties) {
+      int value = seeds.getStructurePropertyInt(prop_name,extended_fragment->getName());
+      seeds_out.appendStructurePropertyInt(prop_name,value);
+    }
+    for (string prop_name : real_properties) {
+      mstreal value = seeds.getStructurePropertyReal(prop_name,extended_fragment->getName());
+      seeds_out.appendStructurePropertyReal(prop_name,value);
+    }
     
     //write number of attempts to info file
     retry_out << seed_structure->getName() << "\t" << attempts << endl;
@@ -286,7 +331,6 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
   seeds.reset();
   int num_seeds = seeds.structureCount();
   cout << "There are " << num_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
-  bin_out.close();
   retry_out.close();
 }
 
@@ -501,7 +545,7 @@ void seedStatistics::writeStatisticstoFile(string seedBinaryPath_in, string outp
   //header
   seed_out << "name\tbounding_sphere_radius\tmin_distance_centroid_protein\tseed_length" << endl;
   
-  StructuresBinaryFile bin_file(seedBinaryPath_in);
+  StructuresBinaryFile bin_file(seedBinaryPath_in,true,1);
   
   long num_seeds = bin_file.structureCount();
   mstreal skip_probability = 1 - min(mstreal(1),mstreal(num_final_seeds)/num_seeds);

@@ -346,6 +346,48 @@ mstreal generalUtilities::fragDegreesOfFreedom(const vector<int>& J, const Struc
   return generalUtilities::fragDegreesOfFreedom(I, L0);
 }
 
+mstreal generalUtilities::cosAngleBetweenNormalVectors(Residue *R1, Residue *R2) {
+  //get the N,Ca,and C backbone atoms for both residues
+  vector<Atom*> bb1 = RotamerLibrary::getBackbone(R1);
+  vector<Atom*> bb2 = RotamerLibrary::getBackbone(R2);
+  if ((bb1[RotamerLibrary::bbCA] == NULL) || (bb1[RotamerLibrary::bbC] == NULL) || (bb1[RotamerLibrary::bbN] == NULL)) {
+    MstUtils::error("cannot place rotamer in residue " + MstUtils::toString(*R1) + ", as it lacks proper backbone", "RotamerLibrary::placeRotamer");
+  }
+  if ((bb2[RotamerLibrary::bbCA] == NULL) || (bb2[RotamerLibrary::bbC] == NULL) || (bb2[RotamerLibrary::bbN] == NULL)) {
+    MstUtils::error("cannot place rotamer in residue " + MstUtils::toString(*R2) + ", as it lacks proper backbone", "RotamerLibrary::placeRotamer");
+  }
+  CartesianPoint CA1 = CartesianPoint(bb1[RotamerLibrary::bbCA]);
+  CartesianPoint C1 = CartesianPoint(bb1[RotamerLibrary::bbC]);
+  CartesianPoint N1 = CartesianPoint(bb1[RotamerLibrary::bbN]);
+  CartesianPoint CA2 = CartesianPoint(bb2[RotamerLibrary::bbCA]);
+  CartesianPoint C2 = CartesianPoint(bb2[RotamerLibrary::bbC]);
+  CartesianPoint N2 = CartesianPoint(bb2[RotamerLibrary::bbN]);
+    
+  //take the cross product (N -> Ca) x (Ca -> C) to find the normal vector to the plane formed by N,Ca,C
+  CartesianPoint N1toCA1 = CA1 - N1;
+  CartesianPoint Normal1 = N1toCA1.cross(C1 - CA1);
+  CartesianPoint N2toCA2 = CA2 - N2;
+  CartesianPoint Normal2 = N2toCA2.cross(C2 - CA2);
+  
+  return cosAngle(Normal1,Normal2);
+}
+
+mstreal generalUtilities::cosAngle(CartesianPoint v1, CartesianPoint v2) {
+  mstreal dot = v1.dot(v2);
+  mstreal v1_mag = v1.norm();
+  mstreal v2_mag = v2.norm();
+  return dot / (v1_mag * v2_mag);
+}
+
+mstreal generalUtilities::avgCosAngleBetweenSegments(vector<Residue *> seg1, vector<Residue *> seg2) {
+  MstUtils::assert(seg1.size() == seg2.size(),"Two segments must have the same number of residues");
+  mstreal avg = 0;
+  for (int idx = 0; idx < seg1.size(); idx++) {
+    avg += cosAngleBetweenNormalVectors(seg1[idx],seg2[idx]);
+  }
+  return avg / mstreal(seg1.size());
+}
+
 /* ----------- Miscellaneous useful functions -------------- */
 
 int getTargetResidueIndex(string seedName) {

@@ -31,6 +31,15 @@ using namespace MST;
 //// forward declarations
 class TermExtension;
 class seedTERM;
+struct seed;
+
+struct Seed {
+  Structure* extended_fragment;
+  mstreal rmsd; //rmsd for this specific match
+  bool sequence_match; //true if match has same residue as the query at the central residue
+  string secondary_structure_classification;
+};
+
 
 class seedTERM {
   friend class TermExtension;
@@ -38,6 +47,10 @@ public:
   /* Constructor */
   seedTERM();
   seedTERM(TermExtension* Fragmenter, vector<Residue*> all_res, bool search, bool seq_const);
+  /*
+   To do: fix copying Seeds. Currently, the pointers are copied, so if the parent object is deleted
+   the pointers in the child object would be null.
+   */
   seedTERM(const seedTERM& F);
   ~seedTERM();
   
@@ -52,9 +65,9 @@ public:
   enum seedType {MANY_CONTACT, PEPTIDE_EXTENSION};
   
   // Fragment methods
-  vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, mstreal RMSD, bool store = true);
+  vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, mstreal RMSD, bool same_res);
   void writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out);
-  void writeExtendedFragmentstoBIN(string outDir, fstream& info_out, fstream& secstruct_out, fstream& bin_out);
+  void writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct_out, StructuresBinaryFile* bin);
   //  void writeSecStruct(string outDir, fstream& secstruct_out);
   void deleteExtendedFragments();
   
@@ -64,7 +77,7 @@ public:
   vector<Residue*> getInteractingRes() const {return interactingRes;}
   fasstSolutionSet& getMatches() {return matches;}
   fasstSolution& getMatch(int i) {return matches[i];}
-  vector<Structure*> getExtendedFragments() const {return extended_fragments;}
+//  vector<Structure*> getExtendedFragments() const {return extended_fragments;}
   
   
   // Getters (properties)
@@ -74,10 +87,11 @@ public:
   int getSegmentNum(mstreal maxPeptideBondLen = 2.0);
   vector<int> getSegmentLens(mstreal maxPeptideBondLen = 2.0); //ordered by the residue indices
   vector<int> getResIdx() {return allResIdx;}
+  Residue* getCenRes() {return cenRes;}
   int getCenResIdx() const {return cenResIdx;}
   TermExtension* getParent() const {return parent;}
   string getName() const {return name;};
-  bool checkExtended() {return (!extended_fragments.empty());}
+  bool checkExtended() {return (!seeds.empty());}
   bool searchMode() {return search;}
   int getExtendedFragmentNum() {return num_extended_fragments;}
   mstreal getComplexity() {return effective_degrees_of_freedom;}
@@ -109,12 +123,14 @@ private:
   vector<int> allResIdx;
   int cenResIdx; //index of the index of the central residue
   fasstSolutionSet matches;
-  map<int,mstreal> match_RMSD; //extendedfragment ID to RMSD
   bool search;
-  vector<Structure*> extended_fragments;
-  vector<string> secondary_structure_classification;
+    
+//  vector<Structure*> extended_fragments;
+//  vector<string> secondary_structure_classification;
+  vector<Seed> seeds;
   mstreal RMSD_cutoff;
   mstreal effective_degrees_of_freedom;
+  mstreal rmsd_adjust_factor;
   int num_extended_fragments;
   
   
@@ -244,7 +260,7 @@ public:
    */
 //  void extendFragments(seedType seed_type, bool store = 0, string outDir = "", string file_type = "bin");
   
-  int extendFragment(seedTERM* f, seedTERM::seedType option, string outDir, fstream& output, fstream& info, fstream& sec_struct);
+  int extendFragment(seedTERM* f, seedTERM::seedType option, StructuresBinaryFile* bin, fstream& info, fstream& sec_struct);
   
   // Lower memory requirement
   void extendFragmentsandWriteStructures(seedTERM::seedType seed_type, string outDir = "");

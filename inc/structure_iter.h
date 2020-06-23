@@ -28,8 +28,10 @@ void extractChains(Structure &s, string chainIDs, Structure &newS);
 
 class StructuresBinaryFile {
 public:
-    StructuresBinaryFile(string filePath, bool read = true): _filePath(filePath), readMode(read) {
-        openFileStream(filePath);   
+    StructuresBinaryFile(string filePath, bool read = true, int version = 0): _filePath(filePath), readMode(read), _version(version) {
+        if ((_version != 0) && (_version != 1)) MstUtils::error("version number not recognized","StructuresBinaryFile::StructuresBinaryFile()");
+        if ((_version == 0) && (read == false)) MstUtils::error("write mode not supported with version 0","StructuresBinaryFile::StructuresBinaryFile()");
+        openFileStream(filePath);
     };
 
     StructuresBinaryFile(const StructuresBinaryFile &other): readMode(true), _filePath(other._filePath), _filePositions(other._filePositions), _structureNames(other._structureNames) {
@@ -39,6 +41,7 @@ public:
     }
 
     ~StructuresBinaryFile() {
+        if ((!readMode) && (structure_added)) MstUtils::writeBin(fs,'E');
         fs.close();
     }
 
@@ -48,6 +51,10 @@ public:
     void reset();
     Structure * getStructureNamed(string name);
     
+    /*
+     Finds the position of each structure section in the file and populates the structure
+     property variables.
+     */
     void scanFilePositions();
 
     size_t structureCount() {
@@ -55,6 +62,9 @@ public:
             scanFilePositions();
         return _filePositions.size();
     }
+    
+    int getStructurePropertyInt(string prop, string name) {return seed_dscrt_vals.at(prop).at(name);}
+    mstreal getStructurePropertyReal(string prop, string name) {return seed_real_vals.at(prop).at(name);}
 
     void jumpToStructureIndex(int idx);
 
@@ -63,15 +73,51 @@ public:
             scanFilePositions();
         names.insert(names.end(), _structureNames.begin(), _structureNames.end());
     }
-
+    
+    //Only version 1 is supported for writing
     void appendStructure(Structure *s);
+    
+    //All properties are appended to the section following the last added structure
+    void appendStructurePropertyInt(string prop, int val);
+    void appendStructurePropertyReal(string prop, mstreal val);
+  
+    set<string> getPropertyNamesInt() {
+        set<string> properties;
+        for (auto element : seed_dscrt_vals) properties.insert(element.first);
+        return properties;
+      
+    }
+    set<string> getPropertyNamesReal() {
+        set<string> properties;
+        for (auto element : seed_real_vals) properties.insert(element.first);
+        return properties;
+    }
+    
+protected:
+    pair<Structure*,long> readNextFileSection(bool save_metadata = false);
+    
 private:
     string _filePath;
     bool readMode;
+    /*
+     0: the original seed binary format
+     1: updated version with meta-data (06/21/20)
+     */
+    int _version;
+    bool structure_added = false;
     void openFileStream(string filePath);
     fstream fs;
     unordered_map<string, long> _filePositions; // Positions of each structure in the file
     vector<string> _structureNames;
+    
+    /*
+     The following variables are only populated if scanFilePositions is called for a version 1
+     seed binary file.
+     
+     seed_vals[property_name][structure_name] = value;
+     */
+    map<string,map<string,int>> seed_dscrt_vals;
+    map<string,map<string,mstreal>> seed_real_vals;
 };
 
 /**

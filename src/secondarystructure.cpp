@@ -166,14 +166,14 @@ void secondaryStructureClassifier::writeResClassificationtoTSV(Structure& S, fst
   }
 }
 
-void secondaryStructureClassifier::writeCentroidtoPointFile(string bin_path, int num_final_seeds, fstream& out) {
-  StructuresBinaryFile bin_file(bin_path);
+void secondaryStructureClassifier::writeCentroidtoPointFile(string bin_path, int num_final_seeds, fstream& out, int bin_version) {
+  StructuresBinaryFile bin_file(bin_path,true,bin_version);
   
   long num_seeds = bin_file.structureCount();
   mstreal skip_probability = 1 - min(mstreal(1),mstreal(num_final_seeds)/num_seeds);
   cout << "There are " << num_seeds << " seeds in the input binary file. Skip probability is " << skip_probability << endl;
   
-  int count = 0;
+  bin_file.reset(); int count = 0;
   while (bin_file.hasNext() == true) {
     mstreal sampled_value = MstUtils::randUnit();
     if (sampled_value <= skip_probability) {
@@ -199,9 +199,9 @@ void secondaryStructureClassifier::writeCaInfotoPointFile(Chain* C, fstream &out
   }
 }
 
-void secondaryStructureClassifier::writeCaInfotoPointFile(string bin_path, fstream& out) {
-  StructuresBinaryFile bin_file(bin_path);
-  
+void secondaryStructureClassifier::writeCaInfotoPointFile(string bin_path, fstream& out, int bin_version) {
+  StructuresBinaryFile bin_file(bin_path,true,bin_version);
+  bin_file.reset();
   while (bin_file.hasNext() == true) {
     Structure* seed = bin_file.next();
     Chain* seed_C = seed->getChainByID("0");
@@ -225,14 +225,14 @@ void secondaryStructureClassifier::writeCaInfotoLineFile(Chain* C, fstream& out)
   out << endl;
 }
 
-void secondaryStructureClassifier::writeCaInfotoLineFile(string bin_path, int num_final_seeds, fstream& out) {
-  StructuresBinaryFile bin_file(bin_path);
+void secondaryStructureClassifier::writeCaInfotoLineFile(string bin_path, int num_final_seeds, fstream& out, int bin_version) {
+  StructuresBinaryFile bin_file(bin_path,true,bin_version);
   
   long num_seeds = bin_file.structureCount();
   mstreal skip_probability = 1 - min(mstreal(1),mstreal(num_final_seeds)/num_seeds);
   cout << "There are " << num_seeds << " seeds in the input binary file. Skip probability is " << skip_probability << endl;
   
-  int count = 0;
+  bin_file.reset(); int count = 0;
   while (bin_file.hasNext() == true) {
     mstreal sampled_value = MstUtils::randUnit();
     if (sampled_value <= skip_probability) {
@@ -249,10 +249,10 @@ void secondaryStructureClassifier::writeCaInfotoLineFile(string bin_path, int nu
   
 }
 
-void secondaryStructureClassifier::writeCaInfotoLineFile(string bin_path, vector<string> seed_names, fstream& out) {
-  StructuresBinaryFile bin_file(bin_path);
+void secondaryStructureClassifier::writeCaInfotoLineFile(string bin_path, vector<string> seed_names, fstream& out, int bin_version) {
+  StructuresBinaryFile bin_file(bin_path,true,bin_version);
   bin_file.scanFilePositions();
-
+  bin_file.reset();
   for (string seed_name : seed_names) {
     Structure* seed = bin_file.getStructureNamed(seed_name);
     Chain* seed_C = seed->getChainByID("0");
