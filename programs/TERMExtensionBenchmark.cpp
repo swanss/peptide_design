@@ -22,8 +22,8 @@ int main(int argc, char *argv[]) {
   op.setTitle("Generates structural fragments that are potentially compatible with the surface of a target protein binding site through TERM Extension. We refer to these fragments as 'seeds'. These seeds are mapped to the peptide and various metrics are reported.");
   op.addOption("pdb", "Structure file containing the whole complex", true);
   op.addOption("peptide", "Peptide chain ID", true);
-  op.addOption("flanking_res","The number of residues flanking a contact to include when creating a fragment.", true);
-  op.addOption("max_rmsd", "The max RMSD threshold used when determining whether a seed aligns to the peptide or not.",true);
+  op.addOption("flanking_res","The number of residues flanking a contact to include when creating a fragment.", false);
+  op.addOption("max_rmsd", "The max RMSD threshold used when determining whether a seed aligns to the peptide or not.",false);
   op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
   op.addOption("hist","Path to the histogram file with the seed distance distribution that will be matched in the null model seeds");
   op.addOption("seq","Require that matches have the same sequence as the query");
@@ -44,8 +44,8 @@ int main(int argc, char *argv[]) {
   // Variables provided by user
   configFile config(op.getString("config"));
   string p_cid = op.getString("peptide");
-  int flanking_res = op.getInt("flanking_res");
-  mstreal max_rmsd = op.getReal("max_rmsd");
+  int flanking_res = op.getInt("flanking_res",2);
+  mstreal max_rmsd = op.getReal("max_rmsd",2.0);
   Structure complex(op.getString("pdb"));
   
   // Set the sequence of the peptide to "unknown"
@@ -91,9 +91,10 @@ int main(int argc, char *argv[]) {
     
     TermExtension TE(config.getDB(), config.getRL(), bindingSiteRes);
     TE.setFlankingNumber(flanking_res);
-    if (op.isGiven("match_req")) TE.setMatchReq(op.getInt("match_req"));
-    if (op.isGiven("seq")) TE.setSeqConst(true);
-    if (op.isGiven("match_req")) TE.generateFragments(TermExtension::MATCH_NUM_REQ);
+    if (op.isGiven("match_req")) {
+      TE.setMatchReq(op.getInt("match_req"));
+      TE.generateFragments(TermExtension::MATCH_NUM_REQ);
+    }
     else TE.generateFragments(TermExtension::CEN_RES);
     TE.extendFragmentsandWriteStructures(seedTERM::MANY_CONTACT,outDir);
     
@@ -119,10 +120,10 @@ int main(int argc, char *argv[]) {
   
   
   if (op.isGiven("hist")) {
-    string hist_file(op.getString("hist"));
-    rejectionSampler sampler(hist_file);
+    cout << "generating null model seeds..." << endl;
+    string hist_file = op.getString("hist");
     
-    naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin, sampler);
+    naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin, hist_file);
     
     timer.start();
     naiveSeeds.newPose(outDir, type1_name, position, orientation);

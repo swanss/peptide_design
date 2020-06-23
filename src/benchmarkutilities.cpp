@@ -11,6 +11,7 @@
 /* --------- histogram --------- */
 
 void histogram::readHistFile(string hist_file) {
+  cout << "reading histogram from file" << endl;
   bins.clear();
   
   fstream info_file;
@@ -23,17 +24,20 @@ void histogram::readHistFile(string hist_file) {
     line_count++;
     if (line_count == 1) {
       if (line != "lower_bound,upper_bound,value") MstUtils::error("Wrong file type (header does not match)","rejectionSampler::rejectionSampler()");
+      continue;
     }
     vector<string> split = MstUtils::split(line,",");
     MstUtils::assert(split.size() == 3); //should have three entries
     if (line_count == 2) {
       min_value = MstUtils::toReal(split[0]);
     }
-    bins.push_back(MstUtils::toInt(split[2]));
+    bins.push_back(MstUtils::toReal(split[2]));
     max_value = MstUtils::toReal(split[1]); //final value will be the max_value
   }
+  bin_size = (max_value - min_value) / bins.size();
   if (line_count == 1) MstUtils::error("File had no entries","rejectionSampler::rejectionSampler()");
   info_file.close();
+  cout << "min: " << min_value << "\tmax: " << max_value << "\tbin size: " << bin_size << endl;
 }
 
 void histogram::writeHistFile(string hist_file) {
@@ -249,7 +253,7 @@ void structureBoundingBox::construct_structureBoundingBox(AtomPointerVector atom
 }
 
 /* --------- naiveSeedsfromBin --------- */
-naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, rejectionSampler& _sampler, mstreal _distance, int _neighbors) : complex(S), seeds(seedBinaryPath_in,true,1), sampler(_sampler) {
+naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, string sampler_path, mstreal _distance, int _neighbors) : complex(S), seeds(seedBinaryPath_in,true,1), sampler(sampler_path), stat(S,p_id) {
   //get target structure
   peptide = complex.getChainByID(p_id);
   vector<Residue*> target_residues;
@@ -291,6 +295,7 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
   
   //prepare for writing new seed binary file
   string seedBinaryPath_out = output_path + "/" + out_name + ".bin";
+
   StructuresBinaryFile seeds_out(seedBinaryPath_out,false,1);
   
   //open seed data file
@@ -302,6 +307,7 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
   
   //randomize seeds and write to file
   int count = 0;
+  seeds.reset();
   while (seeds.hasNext()) {
     Structure* extended_fragment = seeds.next();
     Chain* seed_C = extended_fragment->getChainByID("0");
@@ -313,7 +319,6 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
     
     //write transformed seed to binary file (including meta-data)
     //structure
-    seed_structure->setName(extended_fragment->getName());
     seeds_out.appendStructure(seed_structure);
     //meta-data
     for (string prop_name : int_properties) {
@@ -410,7 +415,7 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
         y_pos = bounding_box.ylo + (MstUtils::randUnit() * (bounding_box.yhi - bounding_box.ylo));
         z_pos = bounding_box.zlo + (MstUtils::randUnit() * (bounding_box.zhi - bounding_box.zlo));
         CartesianPoint new_centroid(x_pos,y_pos,z_pos);
-        mstreal distance =
+        mstreal distance = stat.point2NearestProteinAtom(new_centroid);
         accept = sampler.accept(distance);
       }
 
@@ -467,8 +472,7 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
   
   //open new seed binary file
   string seedBinaryPath_out = output_path + "/" + out_name + ".bin";
-  fstream bin_out;
-  MstUtils::openFile(bin_out, seedBinaryPath_out, fstream::out | fstream::binary, "Fragmenter::writeExtendedFragmentsBin");
+  StructuresBinaryFile seeds_out(seedBinaryPath_out,false,1);
   
   //open seed data file
   string seedRetry_out = output_path + "/" + out_name + "_newpose_attempts.out";
@@ -500,8 +504,18 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
     //randomize position/orientation
     int attempts = transform(new_seed, bounding_box, position, orientation, seed_original_centroid);
     
-    //write seed to new binary file
-    new_seed->writeData(bin_out);
+    //write transformed seed to binary file (including meta-data)
+    //structure
+    seeds_out.appendStructure(new_seed);
+    //meta-data
+    for (string prop_name : int_properties) {
+      int value = seeds.getStructurePropertyInt(prop_name,extended_fragment->getName());
+      seeds_out.appendStructurePropertyInt(prop_name,value);
+    }
+    for (string prop_name : real_properties) {
+      mstreal value = seeds.getStructurePropertyReal(prop_name,extended_fragment->getName());
+      seeds_out.appendStructurePropertyReal(prop_name,value);
+    }
     
     //write attempts to info file
     retry_out << new_seed->getName() << "\t" << attempts << endl;
@@ -516,7 +530,6 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
   seeds.reset();
   int num_seeds = seeds.structureCount();
   cout << "There are " << num_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
-  bin_out.close();
   retry_out.close();
   secstruct_out.close();
 };

@@ -29,6 +29,7 @@ void extractChains(Structure &s, string chainIDs, Structure &newS);
 class StructuresBinaryFile {
 public:
     StructuresBinaryFile(string filePath, bool read = true, int version = 0): _filePath(filePath), readMode(read), _version(version) {
+        cout << "read mode: " << readMode << "\t" << "opening file: " << filePath << endl;
         if ((_version != 0) && (_version != 1)) MstUtils::error("version number not recognized","StructuresBinaryFile::StructuresBinaryFile()");
         if ((_version == 0) && (read == false)) MstUtils::error("write mode not supported with version 0","StructuresBinaryFile::StructuresBinaryFile()");
         openFileStream(filePath);

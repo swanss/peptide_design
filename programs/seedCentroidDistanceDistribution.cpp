@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
   
   string list = op.getString("list");
   mstreal min_val = 0.0;
-  mstreal max_val = 50.0;
+  mstreal max_val = 25.0;
   int num_bins = 150;
   
   seedCentroidDistance dist(list,min_val,max_val,num_bins);
