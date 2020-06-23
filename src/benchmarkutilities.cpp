@@ -59,6 +59,11 @@ seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstr
   fill(bin_counts.begin(),bin_counts.end(),0);
   
   bin_size = (max_value - min_value) / num_bins;
+  cout << "bin size: " << bin_size << endl;
+  
+  hist.min_value = min_value;
+  hist.max_value = min_value + (bin_size*num_bins);
+  hist.bin_size = bin_size;
   
   //get the list of binary files/structures
   //e.g. path/to/binary path/to/structure
@@ -87,8 +92,7 @@ seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstr
     size_t num_seeds = bin.structureCount();
     bin.reset();
     
-    mstreal sample_prob = min(1.0,mstreal(sample_n/num_seeds)); //such that, on avg, sample_n seeds are sampled
-   
+    mstreal sample_prob = min(1.0,mstreal(sample_n)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled
     Structure* extfrag;
     while (bin.hasNext()) {
       if (MstUtils::randUnit() < sample_prob) extfrag = bin.next();
