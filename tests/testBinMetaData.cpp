@@ -7,14 +7,22 @@
 //
 
 #include "structure_iter.h"
+#include "mstoptions.h"
 
-int main() {
-  StructuresBinaryFile seeds("/Users/sebastianswanson/Keating/tests/1LB5_benchmark/termextension_output/extendedfragments.bin",true,1);
+int main(int argc, char *argv[]) {
+  MstOptions op;
+  op.setTitle("Read the structures/meta data in a version 1 seed binary file");
+  op.addOption("bin", "path to binary file",true);
+  op.addOption("top", "only look at top N structures",true);
+  op.setOptions(argc,argv);
+  
+  StructuresBinaryFile seeds(op.getString("bin"),true,1);
   seeds.scanFilePositions();
   seeds.reset();
   
-  
-  while (seeds.hasNext()) {
+  int top = op.getInt("top",10000000);
+  int count = 0;
+  while (seeds.hasNext() && count < top) {
 
     Structure* extended_fragment = seeds.next();
     
@@ -24,6 +32,8 @@ int main() {
     cout << "rmsd_adjust: " << seeds.getStructurePropertyReal("rmsd_adj",extended_fragment->getName()) << endl;
     
     delete extended_fragment;
+    
+    count += 1;
   }
   return 1;
 }

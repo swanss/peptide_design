@@ -294,12 +294,12 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
   structureBoundingBox bounding_box = structureBoundingBox(peptide); //only use if position is randomized
   
   //prepare for writing new seed binary file
-  string seedBinaryPath_out = output_path + "/" + out_name + ".bin";
+  string seedBinaryPath_out = output_path + out_name + ".bin";
 
   StructuresBinaryFile seeds_out(seedBinaryPath_out,false,1);
   
   //open seed data file
-  string seedRetry_out = output_path + "/" + out_name + "_newpose_attempts.out";
+  string seedRetry_out = output_path + out_name + "_newpose_attempts.out";
   fstream retry_out;
   MstUtils::openFile(retry_out, seedRetry_out, fstream::out, "naiveSeedsFromBin::newPose");
   //header
@@ -471,18 +471,18 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
   structureBoundingBox bounding_box = structureBoundingBox(peptide);
   
   //open new seed binary file
-  string seedBinaryPath_out = output_path + "/" + out_name + ".bin";
+  string seedBinaryPath_out = output_path + out_name + ".bin";
   StructuresBinaryFile seeds_out(seedBinaryPath_out,false,1);
   
   //open seed data file
-  string seedRetry_out = output_path + "/" + out_name + "_newpose_attempts.out";
+  string seedRetry_out = output_path + out_name + "_newpose_attempts.out";
   fstream retry_out;
   MstUtils::openFile(retry_out, seedRetry_out, fstream::out, "naiveSeedsFromBin::newPose");
   //header
   retry_out << "name\tattempts" << endl;
   
   //open seed secondary structure file
-  string seedSecStruct_out = output_path + "/" + out_name + "_secondary_structure.out";
+  string seedSecStruct_out = output_path + out_name + "_secondary_structure.out";
   fstream secstruct_out;
   MstUtils::openFile(secstruct_out, seedSecStruct_out, fstream::out, "naiveSeedsFromBin::newPose");
   //header
