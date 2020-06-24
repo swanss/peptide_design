@@ -556,7 +556,7 @@ seedStatistics::seedStatistics(Structure& S, string p_id) : complex(S) {
 void seedStatistics::writeStatisticstoFile(string seedBinaryPath_in, string output_path, string output_name, int num_final_seeds) {
   
   //open seed info file
-  string seed_info = output_path + "/" + output_name + "_statistics.info";
+  string seed_info = output_path + output_name + "_statistics.info";
   fstream seed_out;
   MstUtils::openFile(seed_out, seed_info, fstream::out, "seedStatistics::writeStatisticstoFile");
   //header
@@ -567,6 +567,7 @@ void seedStatistics::writeStatisticstoFile(string seedBinaryPath_in, string outp
   long num_seeds = bin_file.structureCount();
   mstreal skip_probability = 1 - min(mstreal(1),mstreal(num_final_seeds)/num_seeds);
   cout << "There are " << num_seeds << " seeds in the input binary file. Skip probability is " << skip_probability << endl;
+  
   
   int count = 0;
   while (bin_file.hasNext() == true) {

@@ -26,9 +26,8 @@ int main(int argc, char *argv[]) {
   op.addOption("max_rmsd", "The max RMSD threshold used when determining whether a seed aligns to the peptide or not.",false);
   op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
   op.addOption("hist","Path to the histogram file with the seed distance distribution that will be matched in the null model seeds");
-  op.addOption("seq","Require that matches have the same sequence as the query");
   op.addOption("match_req", "The fragmenter will attempt to create the largest (ranked by number of residues) fragments that have at least this many matches. During TERM Extension, even if the fragment has more than this number match_num_req matches, only this number will be used to generate seeds.  If not defined, defaults to CEN_RES.");
-  op.addOption("bin_path", "If a binary file of extended fragment structures already exists, will skip creating fragments/extending them and just compare the provided ones to the peptide. This assumes the null model binary files are also in the same directory");
+  op.addOption("bin_path", "If a binary file of extended fragment structures already exists, will skip creating fragments/extending them and just compare the provided ones to the peptide. This assumes the null model binary files are also in the same directory. e.g. /path/to/bins/");
   op.setOptions(argc, argv);
   
   /*
@@ -138,18 +137,19 @@ int main(int argc, char *argv[]) {
     cout << "Generated type 2 seeds in " << timer.getDuration() << " seconds" << endl;
   }
   
+  //Write Info
+  seedStatistics stats(complex, p_cid);
+  //Extended fragments
+  stats.writeStatisticstoFile(extfrag_bin, outDir, "extended_fragments", num_final_seeds);
+  
+  if (op.isGiven("bin_path") || op.isGiven("hist")) {
+    //Type 1 seeds
+    stats.writeStatisticstoFile(type1_bin, outDir, type1_name, num_final_seeds);
+    //Type 2 seeds
+    stats.writeStatisticstoFile(type2_bin, outDir, type2_name, num_final_seeds);
+  }
+  
   if (!op.isGiven("bin_path")) {
-    //Write Info
-    seedStatistics stats(complex, p_cid);
-    //Extended fragments
-    stats.writeStatisticstoFile(extfrag_bin, outDir, "extended_fragments", num_final_seeds);
-    
-    if (op.isGiven("hist")) {
-      //Type 1 seeds
-      stats.writeStatisticstoFile(type1_bin, outDir, type1_name, num_final_seeds);
-      //Type 2 seeds
-      stats.writeStatisticstoFile(type2_bin, outDir, type2_name, num_final_seeds);
-    }
     
     string lcloud_out;
     cout << "Writing a line cloud file (TERM Extension) for visualization" << endl;
@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
       IC.writeAllAlignedSeedsInfo(path_to_covDir+"termext_");
       IC.writeBestAlignedSeeds(path_to_covDir+"termext_",10);
       
-      if (op.isGiven("hist")) {
+      if (op.isGiven("bin_path") || op.isGiven("hist")) {
         //Type 1 seeds
         cout << "Search for segments of seed chains (randomized) that map to the peptide..." << endl;
         IC.findCoveringSeeds(type1_bin);

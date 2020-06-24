@@ -134,6 +134,7 @@ interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, mstreal _max_rm
   complex.setName(S.getName());
   
   peptide_chain = complex.getChainByID(p_cid);
+  peptide_first_residue_index_in_structure = peptide_chain->getResidue(0).getResidueIndex();
   
   //define coverage elements
   cout << "Identifying structural elements..." << endl;
@@ -345,7 +346,7 @@ void interfaceCoverage::writeBestAlignedSeeds(string outDir, int numSeeds) {
         mstreal avg_angle = generalUtilities::avgCosAngleBetweenSegments(seed_segment->getResidues(),chainResidueSubsegments[segment_length-1][peptide_position]);
 
         //get the contacts
-        set<pair<int,int>> seed_protein_contacts = getContacts(seed_segment->getAtoms());
+        set<pair<int,int>> seed_protein_contacts = getContacts(seed_segment->getAtoms(), peptide_position);
         
         //write out contacts in an interpretable format
         stringstream ss;
@@ -492,7 +493,7 @@ void interfaceCoverage::mapSegmentToChainSubsegments(vector<Atom*> seed_segment,
   }
 }
 
-set<pair<int,int>> interfaceCoverage::getContacts(vector<Atom*> seed_segment) {
+set<pair<int,int>> interfaceCoverage::getContacts(vector<Atom*> seed_segment, int peptide_position) {
   //construct a new confind object including the protein and the seed
   Structure seed_and_target(*target);
   seed_and_target.addAtoms(seed_segment);
@@ -507,8 +508,18 @@ set<pair<int,int>> interfaceCoverage::getContacts(vector<Atom*> seed_segment) {
   for (Residue* R : seed_residues) {
     contactList R_conts = CD.getContacts(R);
     for (int i = 0; i < R_conts.size(); i++) {
-      int seed_r_id = R_conts.residueA(i)->getNum();
-      int prot_r_id = R_conts.residueB(i)->getNum();
+      /*
+       We need three things to get the index of the corresponding peptide residue (in complex)
+       The index to the first residue of the peptide (peptide_first_residue_index_in_structure)
+       The index (in chain) of the first residue that the seed segment is aligned to (peptide_position)
+       The index (in segment) of the current residue (R_conts.residueA(i)->getResidueIndexInChain())
+       
+       The last assumption is valid because the all atoms in the segment are passed to this function, never a
+       subsegment
+       */
+      Residue* corresponding_peptide_res = &complex.getResidue(peptide_first_residue_index_in_structure + peptide_position + R_conts.residueA(i)->getResidueIndexInChain());
+      int seed_r_id = corresponding_peptide_res->getNum();
+      int prot_r_id = R_conts.residueB(i)->getResidueIndex();
       contacts.emplace(seed_r_id,prot_r_id);
     }
   }

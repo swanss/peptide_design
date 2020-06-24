@@ -61,6 +61,7 @@ public:
     size_t structureCount() {
         if (_filePositions.empty())
             scanFilePositions();
+            reset();
         return _filePositions.size();
     }
     

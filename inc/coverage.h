@@ -140,7 +140,7 @@ protected:
   
   void mapSegmentToChainSubsegments(vector<Atom*> seed_segment, int seed_position, int length);
   
-  set<pair<int,int>> getContacts(vector<Atom*> seed_segment);
+  set<pair<int,int>> getContacts(vector<Atom*> seed_segment, int peptide_position);
   
   Structure* getSeedSegment(seedSubstructureInfo);
 
@@ -161,6 +161,7 @@ private:
   // peptide-protein complex
   Structure complex;
   Chain* peptide_chain;
+  int peptide_first_residue_index_in_structure;
   
   // protein only structure
   Structure* target;
