@@ -506,7 +506,7 @@ set<pair<int,int>> interfaceCoverage::getContacts(vector<Atom*> seed_segment, in
   vector<Residue*> seed_residues = seed_c->getResidues();
   
   for (Residue* R : seed_residues) {
-    contactList R_conts = CD.getContacts(R);
+    contactList R_conts = CD.getContacts(R,cd_threshold);
     for (int i = 0; i < R_conts.size(); i++) {
       /*
        We need three things to get the index of the corresponding peptide residue (in complex)

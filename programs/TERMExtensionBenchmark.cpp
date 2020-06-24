@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
   op.addOption("hist","Path to the histogram file with the seed distance distribution that will be matched in the null model seeds");
   op.addOption("match_req", "The fragmenter will attempt to create the largest (ranked by number of residues) fragments that have at least this many matches. During TERM Extension, even if the fragment has more than this number match_num_req matches, only this number will be used to generate seeds.  If not defined, defaults to CEN_RES.");
-  op.addOption("bin_path", "If a binary file of extended fragment structures already exists, will skip creating fragments/extending them and just compare the provided ones to the peptide. This assumes the null model binary files are also in the same directory. e.g. /path/to/bins/");
+  op.addOption("bin_path", "If a binary file of extended fragment structures already exists, will skip creating fragments/extending them and just compare the provided ones to the peptide. This assumes the null model binary files are also in the same directory");
   op.setOptions(argc, argv);
   
   /*
