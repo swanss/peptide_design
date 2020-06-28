@@ -93,7 +93,6 @@ void StructuresBinaryFile::skip() {
 
 void StructuresBinaryFile::reset() {
     MstUtils::assert(readMode, "reset not supported in write mode");
-    cout << "Resetting" << endl;
     fs.clear(); // this is necessary in case ifstream doesn't clear eofbit
     fs.seekg(0, fs.beg);
 }
@@ -471,7 +470,9 @@ void BatchPairStructureIterator::makeNextResult() {
 
     // First make sure we're on the correct first index
     if (firstIndex <= secondIndex || !binaryFile->hasNext()) {
-        if ((float)firstIndex < (float)numRows / 2.0f && (float)(firstIndex + numWorkers) >= (float)numRows / 2.0f)
+        if (numRows % 2 != 0 && firstIndex == numRows / 2) // special case for midpoint of odd number of rows
+            firstIndex = numRows - firstIndex + numWorkers - 1;
+        else if ((float)firstIndex < (float)numRows / 2.0f && (float)(firstIndex + numWorkers) >= (float)numRows / 2.0f)
             firstIndex = numRows - firstIndex - 1;
         else
             firstIndex += numWorkers;

@@ -35,7 +35,8 @@ int main (int argc, char *argv[]) {
     opts.addOption("batch", "The batch number (from 1 to numBatches)", false);
     opts.addOption("numBatches", "The number of batches", false);
     opts.addOption("batchSize", "The number of structures to use in each batch (default 200,000)", false);
-    opts.addOption("bruteForce", "If true, use a brute-force all-to-all comparison", false);
+    opts.addOption("bruteForce", "If provided, use a brute-force all-to-all comparison", false);
+    opts.addOption("mock", "If provided, do not perform any overlap calculations, just list the batches that would be computed", false);
     opts.setOptions(argc, argv);
     
     //string filesPath = opts.getString("files");
@@ -62,6 +63,11 @@ int main (int argc, char *argv[]) {
     
     while (structureIter.hasNext()) {
         auto batch = structureIter.next();
+        
+        if (opts.isGiven("mock")) {
+            cout << "Batch: " << batch.first[0]->getName() << ", " << batch.second[0]->getName() << endl;
+            continue;
+        }
         
         if (opts.isGiven("bruteForce")) {
             // All-to-all comparison
