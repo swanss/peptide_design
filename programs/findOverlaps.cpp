@@ -27,6 +27,7 @@ int main (int argc, char *argv[]) {
     //opts.addOption("files", "Text file containing a list of seed structures", true);
     //opts.addOption("data", "Directory in which seed structures are stored", true);
     opts.addOption("bin", "Path to a binary file containing seed structures", true);
+    opts.addOption("v1", "Indicates the binary file is version 1");
     opts.addOption("out", "Directory into which to write overlaps", true);
     opts.addOption("overlapSize", "Number of residues that must overlap between two residues (default 2)", false);
     opts.addOption("overlapRMSD", "Maximum RMSD between sets of residues to be considered overlapping (default 1.0)", false);
