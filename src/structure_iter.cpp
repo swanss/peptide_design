@@ -406,7 +406,7 @@ BatchPairStructureIterator::BatchPairStructureIterator(const string &binaryFileP
     binaryFile->scanFilePositions();
     binaryFile->reset();
     firstIndex = workerIndex - numWorkers;
-    numRows = (int)ceil(binaryFile->structureCount() / batchSize);
+    numRows = (int)ceil((double)binaryFile->structureCount() / (double)batchSize);
     cout << "Work matrix has " << numRows << " rows" << endl;
 }
 
@@ -438,6 +438,10 @@ pair<vector<Structure *>, vector<Structure *>> BatchPairStructureIterator::next(
         makeNextResult();
     }
     nextResultAvailable = false;
+    // Ensure that if the first and second parts of the batch are the same structures,
+    // the same underlying objects are returned
+    if (currentSecond[0]->getName() == currentFirst[0]->getName() && currentSecond.size() == currentFirst.size())
+        return make_pair(currentFirst, currentFirst);
     return make_pair(currentFirst, currentSecond);
 }
 

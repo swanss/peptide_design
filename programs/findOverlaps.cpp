@@ -34,6 +34,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("minCosAngle", "Minimum cosine angle between Ca vectors allowed in a potential overlap (default -1.0)", false);
     opts.addOption("batch", "The batch number (from 1 to numBatches)", false);
     opts.addOption("numBatches", "The number of batches", false);
+    opts.addOption("batchSize", "The number of structures to use in each batch (default 200,000)", false);
     opts.addOption("bruteForce", "If true, use a brute-force all-to-all comparison", false);
     opts.setOptions(argc, argv);
     
@@ -48,99 +49,102 @@ int main (int argc, char *argv[]) {
 
     int batchIndex = opts.getInt("batch", 1);
     int numBatches = opts.getInt("numBatches", 1);
+    int batchSize = opts.getInt("batchSize", 200000);
     if (batchIndex < 1 || batchIndex > numBatches) {
         cerr << "Batch index must be between 1 and numBatches" << endl;
         return 1;
     }
     cout << "Batch " << batchIndex << " of " << numBatches << endl;
-
-    // Get the bounding box for the seeds
-    StructuresBinaryFile seeds(binaryPath);
-    vector<Structure *> structuresForOverlap;
-    
-    mstreal xlo = 1e9, xhi = -1e9, ylo = 1e9, yhi = -1e9, zlo = 1e9, zhi = -1e9;
-    int structureIndex = 0;
-    while (seeds.hasNext()) {
-        if ((structureIndex++) % numBatches != batchIndex - 1) {
-            seeds.skip();
-            continue;
-        }
-        
-        Structure *seed = seeds.next();
-        if (seed->residueSize() == 0)
-            continue;
-        structuresForOverlap.push_back(seed);
-        
-        mstreal ixlo, ixhi, iylo, iyhi, izlo, izhi;
-        ProximitySearch::calculateExtent(*seed, ixlo, iylo, izlo, ixhi, iyhi, izhi);
-        xlo = min(xlo, ixlo);
-        xhi = max(xhi, ixhi);
-        ylo = min(ylo, iylo);
-        yhi = max(yhi, iyhi);
-        zlo = min(zlo, izlo);
-        zhi = max(zhi, izhi);
-    }
-    cout << "Bounding box: " << xlo << ", " << xhi << ", " << ylo << ", " << yhi << ", " << zlo << ", " << zhi << ", " << endl;
-    vector<mstreal> bbox = { xlo, xhi, ylo, yhi, zlo, zhi };
     
     MaxDeviationVerifier verifier(rmsdCutoff);
     FuseCandidateFile outFile(outPath);
+    BatchPairStructureIterator structureIter(binaryPath, batchIndex - 1, numBatches, batchSize); // large batch size
     
-    if (opts.isGiven("bruteForce")) {
-        // All-to-all comparison
-        for (int i = 0; i < structuresForOverlap.size(); i++) {
-            if (i % 100 == 0)
-                cout << "Structure " << i << " of " << structuresForOverlap.size() << endl;
-            
-            Structure *s1 = structuresForOverlap[i];
-            
-            Chain *c1 = s1->getChainByID("0");
-            if (!c1)
-                continue;
-            
-            vector<FuseCandidate> results;
-            
-            // Iterate over all segments in the chain
-            vector<Residue *> residues1 = c1->getResidues();
-            for (int resIdx1 = 0; resIdx1 < residues1.size() - numResOverlap + 1; resIdx1++) {
-                vector<Residue *> segment1(residues1.begin() + resIdx1, residues1.begin() + resIdx1 + numResOverlap);
+    while (structureIter.hasNext()) {
+        auto batch = structureIter.next();
+        
+        if (opts.isGiven("bruteForce")) {
+            // All-to-all comparison
+            for (int i = 0; i < batch.first.size(); i++) {
+                if (i % 100 == 0)
+                    cout << "Structure " << i << " of " << batch.first.size() << endl;
                 
-                // Compare to all structures
-                for (Structure *s2: structuresForOverlap) {
-                    if (s2 <= s1) continue;
+                Structure *s1 = batch.first[i];
+                
+                Chain *c1 = s1->getChainByID("0");
+                if (!c1)
+                    continue;
+                
+                vector<FuseCandidate> results;
+                
+                // Iterate over all segments in the chain
+                vector<Residue *> residues1 = c1->getResidues();
+                for (int resIdx1 = 0; resIdx1 < residues1.size() - numResOverlap + 1; resIdx1++) {
+                    vector<Residue *> segment1(residues1.begin() + resIdx1, residues1.begin() + resIdx1 + numResOverlap);
                     
-                    Chain *c2 = s2->getChainByID("0");
-                    if (!c2)
-                        continue;
-                    
-                    vector<Residue *> residues2 = c2->getResidues();
-                    for (int resIdx2 = 0; resIdx2 < residues2.size() - numResOverlap + 1; resIdx2++) {
-                        vector<Residue *> segment2(residues2.begin() + resIdx2, residues2.begin() + resIdx2 + numResOverlap);
+                    // Compare to all structures
+                    for (Structure *s2: batch.second) {
+                        if (s2 <= s1) continue;
                         
-                        if (verifier.verify(segment1, segment2)) {
-                            FuseCandidate fuseCandidate;
-                            fuseCandidate.overlapSize = numResOverlap;
-                            fuseCandidate.setStructure1(s1, c1->getID());
-                            fuseCandidate.overlapPosition1 = resIdx1;
-                            fuseCandidate.setStructure2(s2, c2->getID());
-                            fuseCandidate.overlapPosition2 = resIdx2;
-                            fuseCandidate.rmsd = 0.0;
-                            results.push_back(fuseCandidate);
+                        Chain *c2 = s2->getChainByID("0");
+                        if (!c2)
+                            continue;
+                        
+                        vector<Residue *> residues2 = c2->getResidues();
+                        for (int resIdx2 = 0; resIdx2 < residues2.size() - numResOverlap + 1; resIdx2++) {
+                            vector<Residue *> segment2(residues2.begin() + resIdx2, residues2.begin() + resIdx2 + numResOverlap);
+                            
+                            if (verifier.verify(segment1, segment2)) {
+                                FuseCandidate fuseCandidate;
+                                fuseCandidate.overlapSize = numResOverlap;
+                                fuseCandidate.setStructure1(s1, c1->getID());
+                                fuseCandidate.overlapPosition1 = resIdx1;
+                                fuseCandidate.setStructure2(s2, c2->getID());
+                                fuseCandidate.overlapPosition2 = resIdx2;
+                                fuseCandidate.rmsd = 0.0;
+                                results.push_back(fuseCandidate);
+                            }
                         }
                     }
                 }
+                
+                outFile.write(results, "");
             }
+        } else {
+            mstreal xlo = 1e9, xhi = -1e9, ylo = 1e9, yhi = -1e9, zlo = 1e9, zhi = -1e9;
+            vector<Structure *> &firstStructures = batch.first;
+            vector<Structure *> &secondStructures = batch.second;
             
-            outFile.write(results, "");
+            auto it = firstStructures.begin();
+            while (it != secondStructures.end()) {
+                Structure *seed = *it;
+                if (seed->residueSize() == 0)
+                    continue;
+                
+                mstreal ixlo, ixhi, iylo, iyhi, izlo, izhi;
+                ProximitySearch::calculateExtent(*seed, ixlo, iylo, izlo, ixhi, iyhi, izhi);
+                xlo = min(xlo, ixlo);
+                xhi = max(xhi, ixhi);
+                ylo = min(ylo, iylo);
+                yhi = max(yhi, iyhi);
+                zlo = min(zlo, izlo);
+                zhi = max(zhi, izhi);
+                
+                ++it;
+                if (it == firstStructures.end())
+                    it = secondStructures.begin();
+            }
+            cout << "Bounding box: " << xlo << ", " << xhi << ", " << ylo << ", " << yhi << ", " << zlo << ", " << zhi << ", " << endl;
+            vector<mstreal> bbox = { xlo, xhi, ylo, yhi, zlo, zhi };
+            
+            CAResidueHasher<> hasher(bbox, 0.3);
+            OverlapFinder<CAResidueHasher<>> overlapFinder(hasher, rmsdCutoff, numResOverlap, "0", &verifier);
+            
+            overlapFinder.insertStructures(batch.first);
+            overlapFinder.findOverlaps(batch.second, outFile);
         }
-    } else {
-        CAResidueHasher<> hasher(bbox, 0.3);
-        OverlapFinder<CAResidueHasher<>> overlapFinder(hasher, rmsdCutoff, numResOverlap, "0", &verifier);
-        
-        overlapFinder.insertStructures(structuresForOverlap);
-        overlapFinder.findOverlaps(structuresForOverlap, outFile);
+
     }
-    
     // Search for overlaps
     /*FuseCandidateFinder fuser(numResOverlap, general, rmsdCutoff, numBatches, batchIndex - 1);
     fuser.minCosAngle = minCosAngle;
