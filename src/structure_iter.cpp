@@ -109,7 +109,7 @@ void StructuresBinaryFile::scanFilePositions() {
         delete S;
     }
     timer.stop();
-    cout << "Done scanning file, took " << timer.getDuration(MstTimer::sec) << endl;
+    cout << "Done scanning file, took " << timer.getDuration(MstTimer::msec) / 1000.0 << " sec" << endl;
 }
 
 Structure * StructuresBinaryFile::getStructureNamed(string name) {
@@ -500,7 +500,7 @@ void BatchPairStructureIterator::makeNextResult() {
         }
         else firstIndex += numWorkers;
         // Jump to the position in the file and load currentFirst
-        cout << "Jumping to row " << firstIndex << endl;
+        cout << "Starting work row " << firstIndex + 1 << "/" << numRows << endl;
         binaryFile->jumpToStructureIndex(firstIndex * batchSize);
         for (Structure *s: currentFirst)
             delete s;

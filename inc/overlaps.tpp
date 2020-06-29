@@ -4,7 +4,6 @@
 template <class Hasher>
 void OverlapFinder<Hasher>::insertStructures(const vector<Structure *> &structures) {
     // Hash every residue that is in a chain with the correct ID
-    cout << "Inserting " << structures.size() << " structures" << endl;
     for (Structure *s: structures) {
         for (int chainIdx = 0; chainIdx < s->chainSize(); ++chainIdx) {
             Chain &c = s->getChain(chainIdx);
@@ -18,7 +17,6 @@ void OverlapFinder<Hasher>::insertStructures(const vector<Structure *> &structur
             }
         }
     }
-    cout << "Done inserting" << endl;
 }
 
 template <class Hasher>
@@ -28,8 +26,8 @@ vector<FuseCandidate> OverlapFinder<Hasher>::findOverlaps(const vector<Structure
     
     // Loop over appropriate chains in all structures to test
     for (int i = 0; i < testStructures.size(); i++) {
-        if (i % 100 == 0)
-            cout << "Structure " << i << " of " << testStructures.size() << endl;
+        if (i % (testStructures.size() / 100) == 0)
+            cout << (i / (testStructures.size() / 100)) << "% complete (" << i << "/" << testStructures.size() << ") - " << results.size() << " overlaps" << endl;
         Structure *s = testStructures[i];
         for (int chainIdx = 0; chainIdx < s->chainSize(); ++chainIdx) {
             Chain &c = s->getChain(chainIdx);
@@ -52,10 +50,12 @@ vector<FuseCandidate> OverlapFinder<Hasher>::findOverlaps(const vector<Structure
 template <class Hasher>
 void OverlapFinder<Hasher>::findOverlaps(const vector<Structure *> &testStructures, FuseCandidateFile &outFile) const {
     
+    int numResults = 0;
+    
     // Loop over appropriate chains in all structures to test
     for (int i = 0; i < testStructures.size(); i++) {
-        if (i % 100 == 0)
-            cout << "Structure " << i << " of " << testStructures.size() << endl;
+        if (i % (testStructures.size() / 100) == 0)
+            cout << (i / (testStructures.size() / 100)) << "% complete (" << i << "/" << testStructures.size() << ") - " << numResults << " overlaps" << endl;
         Structure *s = testStructures[i];
         for (int chainIdx = 0; chainIdx < s->chainSize(); ++chainIdx) {
             Chain &c = s->getChain(chainIdx);
@@ -70,6 +70,7 @@ void OverlapFinder<Hasher>::findOverlaps(const vector<Structure *> &testStructur
             for (auto it = residues.begin(); it != residues.begin() + residues.size() - _segmentLength + 1; ++it) {
                 findOverlaps(it, it + _segmentLength, pos++, results);
             }
+            numResults += results.size();
             
             // Write results to file
             outFile.write(results, "");

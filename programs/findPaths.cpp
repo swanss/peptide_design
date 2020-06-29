@@ -145,7 +145,7 @@ int main (int argc, char *argv[]) {
     } else if (opts.isGiven("seedGraph")) {
         cout << "Loading graph.." << endl;
         cache = new StructureCache(&seedFile);
-        seedG = new SeedGraph(false,cache);
+        seedG = new SeedGraph(opts.getString("seedGraph"), false, cache);
         
         SeedGraphPathSampler *gSampler = new SeedGraphPathSampler(&target,seedG);
         if (opts.isGiven("ss")) {
