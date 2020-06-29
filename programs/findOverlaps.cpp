@@ -15,10 +15,8 @@
 #include "overlaps.h"
 #include <fstream>
 #include <sstream>
-#include <chrono>
 
 using namespace std;
-using namespace std::chrono;
 
 int main (int argc, char *argv[]) {
     
@@ -32,10 +30,11 @@ int main (int argc, char *argv[]) {
     opts.addOption("overlapSize", "Number of residues that must overlap between two residues (default 2)", false);
     opts.addOption("overlapRMSD", "Maximum RMSD between sets of residues to be considered overlapping (default 1.0)", false);
     opts.addOption("minCosAngle", "Minimum cosine angle between Ca vectors allowed in a potential overlap (default -1.0)", false);
-    opts.addOption("batch", "The batch number (from 1 to numBatches)", false);
-    opts.addOption("numBatches", "The number of batches", false);
+    opts.addOption("worker", "The index of this worker (from 1 to numWorkers)", false);
+    opts.addOption("numWorkers", "The number of workers", false);
     opts.addOption("batchSize", "The number of structures to use in each batch (default 200,000)", false);
     opts.addOption("bruteForce", "If provided, use a brute-force all-to-all comparison", false);
+    opts.addOption("limitBatches", "Number of batches to run (to produce a smaller debugging set)", false);
     opts.addOption("mock", "If provided, do not perform any overlap calculations, just list the batches that would be computed", false);
     opts.setOptions(argc, argv);
     
@@ -48,20 +47,30 @@ int main (int argc, char *argv[]) {
     float rmsdCutoff = opts.getReal("overlapRMSD", 1.0);
     float minCosAngle = opts.getReal("minCosAngle", -1.0);
 
-    int batchIndex = opts.getInt("batch", 1);
-    int numBatches = opts.getInt("numBatches", 1);
+    int worker = opts.getInt("worker", 1);
+    int numWorkers = opts.getInt("numWorkers", 1);
     int batchSize = opts.getInt("batchSize", 200000);
-    if (batchIndex < 1 || batchIndex > numBatches) {
-        cerr << "Batch index must be between 1 and numBatches" << endl;
+    int limitBatches = opts.getInt("limitBatches", -1);
+    if (worker < 1 || worker > numWorkers) {
+        cerr << "Batch index must be between 1 and numWorkers" << endl;
         return 1;
     }
-    cout << "Batch " << batchIndex << " of " << numBatches << endl;
+    cout << "Batch " << worker << " of " << numWorkers << endl;
     
     MaxDeviationVerifier verifier(rmsdCutoff);
     FuseCandidateFile outFile(outPath);
-    BatchPairStructureIterator structureIter(binaryPath, batchIndex - 1, numBatches, batchSize); // large batch size
+    BatchPairStructureIterator structureIter(binaryPath, worker - 1, numWorkers, batchSize); // large batch size
+    
+    // Measure time to compute overlaps
+    MstTimer timer;
+    timer.start();
+    
+    int batchesRun = 0;
     
     while (structureIter.hasNext()) {
+        if (limitBatches >= 0 && ++batchesRun > limitBatches)
+            break;
+        
         auto batch = structureIter.next();
         
         if (opts.isGiven("mock")) {
@@ -149,12 +158,14 @@ int main (int argc, char *argv[]) {
             overlapFinder.insertStructures(batch.first);
             overlapFinder.findOverlaps(batch.second, outFile);
         }
-
     }
     // Search for overlaps
-    /*FuseCandidateFinder fuser(numResOverlap, general, rmsdCutoff, numBatches, batchIndex - 1);
+    /*FuseCandidateFinder fuser(numResOverlap, general, rmsdCutoff, numWorkers, worker - 1);
     fuser.minCosAngle = minCosAngle;
     fuser.writeFuseCandidates(binaryPath, outPath);*/
 
+    timer.stop();
+    cout << "Elapsed time: " << ((double)timer.getDuration(MstTimer::msec) / 1000.0) << endl;
+    
     return 0;
 }
