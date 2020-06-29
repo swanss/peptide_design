@@ -78,6 +78,7 @@ public:
         if (_filePositions.empty())
             scanFilePositions();
             reset();
+        cout << "Seed binary file has " << _filePositions.size() << " structures" << endl;
         return _filePositions.size();
     }
     
