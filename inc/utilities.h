@@ -127,7 +127,7 @@ public:
     
     static mstreal cosAngle(CartesianPoint v1, CartesianPoint v2);
     
-    static mstreal avgCosAngleBetweenSegments(vector<Residue*> seg1, vector<Residue*> seg2);
+    static mstreal avgCosAngleBetweenSegments(const vector<Residue*> &seg1, const vector<Residue*> &seg2);
     
 };
 

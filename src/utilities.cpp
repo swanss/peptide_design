@@ -379,7 +379,7 @@ mstreal generalUtilities::cosAngle(CartesianPoint v1, CartesianPoint v2) {
     return dot / (v1_mag * v2_mag);
 }
 
-mstreal generalUtilities::avgCosAngleBetweenSegments(vector<Residue *> seg1, vector<Residue *> seg2) {
+mstreal generalUtilities::avgCosAngleBetweenSegments(const vector<Residue *> &seg1, const vector<Residue *> &seg2) {
     MstUtils::assert(seg1.size() == seg2.size(),"Two segments must have the same number of residues");
     mstreal avg = 0;
     for (int idx = 0; idx < seg1.size(); idx++) {
