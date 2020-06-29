@@ -92,6 +92,7 @@ BOOST_PYTHON_MODULE(peptide_design) {
             .def("getFragmentStructures", &Fragmenter::getFragmentStructures)
     ;*/
     class_<StructuresBinaryFile, boost::noncopyable>("StructuresBinaryFile", init<string>())
+        .def(init<string,bool,bool>())
         .def("hasNext", &StructuresBinaryFile::hasNext)
         .def("next", &StructuresBinaryFile::next, return_value_policy<manage_new_object>())
         .def("reset", &StructuresBinaryFile::reset)
@@ -99,6 +100,13 @@ BOOST_PYTHON_MODULE(peptide_design) {
         .def("skip", &StructuresBinaryFile::skip)
         .def("scanFilePositions", &StructuresBinaryFile::scanFilePositions)
         .def("__len__", &StructuresBinaryFile::structureCount)
+        .def("appendStructure",&StructuresBinaryFile::appendStructure)
+        .def("getStructurePropertyInt",&StructuresBinaryFile::getStructurePropertyInt)
+        .def("getStructurePropertyReal",&StructuresBinaryFile::getStructurePropertyReal)
+        .def("getPropertyNamesInt",&StructuresBinaryFile::getPropertyNamesInt)
+        .def("getPropertyNamesReal",&StructuresBinaryFile::getPropertyNamesReal)
+        .def("appendStructurePropertyInt",&StructuresBinaryFile::appendStructurePropertyInt)
+        .def("appendStructurePropertyReal",&StructuresBinaryFile::appendStructurePropertyReal)
     ;
 
     class_<ClusterNode<FragmentInfo>, boost::noncopyable>("ClusterNode", no_init)

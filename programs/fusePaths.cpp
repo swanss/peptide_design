@@ -67,7 +67,7 @@ int main (int argc, char *argv[]) {
   opts.addOption("target", "Path to the target PDB structure file", true);
   opts.addOption("peptideChain", "Chain ID for the peptide chain in the target, if one exists - it will be removed", false);
   opts.addOption("seeds", "Path to a binary file containing seed structures", true);
-  opts.addOption("seedGraph","Path to a seed graph that contains the overlaps between seeds in the binary file",true); //required because PathSampler uses this to interface with the StructureCache
+  opts.addOption("seedGraph","Path to a seed graph that contains the overlaps between seeds in the binary file",true);
   opts.addOption("seedChain", "Chain ID for the seed structures (default is '0')", false);
   opts.addOption("out", "Path to a directory into which the fused seed path structures and scores will be written", true);
   opts.addOption("paths","Path to a text file where each line specifies a path. Format: seed_A:residue_i,seed_B:residue_j,etc...",false);

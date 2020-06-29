@@ -26,19 +26,35 @@ using namespace MST;
 void extractChains(Structure &s, vector<string> chainIDs, Structure &newS);
 void extractChains(Structure &s, string chainIDs, Structure &newS);
 
+
+/*
+ StructuresBinaryFile handles reading and writing of binary files containing seeds.
+ 
+ In read mode, the class automatically detects version and allows the user to read structures
+ one-by-one. If the file is version 2, it can also contain meta-data pertaining to each of the seeds.
+ This can be accessed by first calling scanFilePositions() to read all meta-data in the file, and then
+ getStructureProperty() to get specific values.
+ 
+ In write mode, only version 2 is supported. By default, a new file will be opened at the specified
+ path and any existing file will be overwritten. However, if append is specified, the new structures
+ will be appended to the existing file
+ 
+ Note: seed binary files written before 06/28/20 are all version 1, and all files written afterwards are
+ version 2.
+ */
+
 class StructuresBinaryFile {
 public:
-    StructuresBinaryFile(string filePath, bool read = true, int version = 0): _filePath(filePath), readMode(read), _version(version) {
-        cout << "read mode: " << readMode << "\t" << "opening file: " << filePath << endl;
-        if ((_version != 0) && (_version != 1)) MstUtils::error("version number not recognized","StructuresBinaryFile::StructuresBinaryFile()");
-        if ((_version == 0) && (read == false)) MstUtils::error("write mode not supported with version 0","StructuresBinaryFile::StructuresBinaryFile()");
-        openFileStream(filePath);
+    StructuresBinaryFile(string filePath, bool read = true, bool append = false): _filePath(filePath), readMode(read), _append(append){
+        detectFileVersion();
+        cout << "read mode: " << readMode << "\tappend: " << _append << "\tversion: " << _version << "\topening file: " << filePath << endl;
+        openFileStream();
     };
 
     StructuresBinaryFile(const StructuresBinaryFile &other): readMode(true), _filePath(other._filePath), _filePositions(other._filePositions), _structureNames(other._structureNames) {
         MstUtils::assert(other.readMode, "Copying write-only binary file not supported");
         cout << "Opening file stream for copy, with " << _structureNames.size() << " loaded structure names" << endl;
-        openFileStream(_filePath);
+        openFileStream();
     }
 
     ~StructuresBinaryFile() {
@@ -95,9 +111,6 @@ public:
         return properties;
     }
     
-protected:
-    pair<Structure*,long> readNextFileSection(bool save_metadata = false);
-    
 private:
     string _filePath;
     bool readMode;
@@ -106,9 +119,15 @@ private:
      1: updated version with meta-data (06/21/20)
      */
     int _version;
+    bool _append;
     bool structure_added = false;
-    void openFileStream(string filePath);
+    
+    void openFileStream();
+    void detectFileVersion();
+    pair<Structure*,long> readNextFileSection(bool save_metadata = false);
+
     fstream fs;
+    long fileStart;
     unordered_map<string, long> _filePositions; // Positions of each structure in the file
     vector<string> _structureNames;
     

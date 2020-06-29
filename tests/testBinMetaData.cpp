@@ -11,12 +11,12 @@
 
 int main(int argc, char *argv[]) {
   MstOptions op;
-  op.setTitle("Read the structures/meta data in a version 1 seed binary file");
+  op.setTitle("Read the structures/meta data in a version 2 seed binary file");
   op.addOption("bin", "path to binary file",true);
   op.addOption("top", "only look at top N structures",true);
   op.setOptions(argc,argv);
   
-  StructuresBinaryFile seeds(op.getString("bin"),true,1);
+  StructuresBinaryFile seeds(op.getString("bin"));
   seeds.scanFilePositions();
   seeds.reset();
   

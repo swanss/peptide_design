@@ -563,8 +563,6 @@ void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, i
     numContacts = 0;
     numDesignable = 0;
     totalScore = DBL_MAX;
-
-    cout << "craig scorer1" << endl;
   
     // Stores combined structure in targetStructBB
     if (!prepareCombinedStructure(seed)) {
@@ -590,8 +588,6 @@ void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, i
     
     writeContactList(cout, conts);
   
-  cout << "craig scorer2" << endl;
-    
     // Compute designability score using the list of contacts
     unordered_map<Residue *, mstreal> tempResult = designabilityScore(targetStructBB, conts, poseResidues);
     totalScore = 0.0;
@@ -599,11 +595,9 @@ void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, i
         totalScore += item.second;
     }
     numDesignable = _numDesignable;
-  cout << "craig scorer2.1" << endl;
 
     // Clean up target structure
     resetCombinedStructure();
-  cout << "craig scorer3" << endl;
 }
 
 unordered_map<Residue*, mstreal> StructureCompatibilityScorer::designabilityScore(Structure &combStruct, contactList &cl, vector<Residue*> seedResidues) {

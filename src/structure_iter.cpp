@@ -68,13 +68,6 @@ vector<string> seedChainIDs(const string &fn) {
     return result;
 }
 
-void StructuresBinaryFile::openFileStream(string filePath) {
-    if (readMode)
-        MstUtils::openFile(fs, filePath, fstream::in | fstream::binary, "StructuresBinaryFile::openFileStream");
-    else
-        MstUtils::openFile(fs, filePath, fstream::out | fstream::binary | fstream::app, "StructuresBinaryFile::openFileStream");
-}
-
 bool StructuresBinaryFile::hasNext() {
     MstUtils::assert(readMode, "hasNext not supported in write mode");
     return fs.peek() != EOF;
@@ -99,9 +92,10 @@ void StructuresBinaryFile::reset() {
 
 void StructuresBinaryFile::scanFilePositions() {
     //MstUtils::assert(readMode, "scanFilePositions not supported in write mode");
+    MstTimer timer; timer.start();
     if (!_structureNames.empty()) return;
+    reset();
     cout << "Scanning file positions..." << endl;
-    fs.seekg(0, fs.beg);
     _structureNames.clear();
     while (fs.peek() != EOF) {
         auto next = readNextFileSection(true);
@@ -114,7 +108,8 @@ void StructuresBinaryFile::scanFilePositions() {
         _structureNames.push_back(S->getName());
         delete S;
     }
-    cout << "Done scanning file" << endl;
+    timer.stop();
+    cout << "Done scanning file, took " << timer.getDuration(MstTimer::sec) << endl;
 }
 
 Structure * StructuresBinaryFile::getStructureNamed(string name) {
@@ -147,6 +142,7 @@ void StructuresBinaryFile::appendStructure(Structure *s) {
     MstUtils::assert(!readMode, "appendStructure not supported in read mode");
     if (!structure_added) {
         structure_added = true;
+        if (!_append) MstUtils::writeBin(fs,string("!@#version_2!@#")); //write the version at the top of the file
     } else {
         MstUtils::writeBin(fs,'E'); //finish the previous section
     }
@@ -166,13 +162,38 @@ void StructuresBinaryFile::appendStructurePropertyReal(string prop, mstreal val)
     MstUtils::writeBin(fs,val);
 }
 
+void StructuresBinaryFile::openFileStream() {
+    if (readMode)
+        MstUtils::openFile(fs, _filePath, fstream::in | fstream::binary, "StructuresBinaryFile::openFileStream");
+    else if (_append)
+        MstUtils::openFile(fs, _filePath, fstream::out | fstream::binary | fstream::app, "StructuresBinaryFile::openFileStream");
+    else MstUtils::openFile(fs, _filePath, fstream::out | fstream::binary, "StructuresBinaryFile::openFileStream");
+}
+
+void StructuresBinaryFile::detectFileVersion() {
+    if (readMode == false) {
+        _version = 2;
+        return;
+    }
+    MstUtils::openFile(fs, _filePath, fstream::in | fstream::binary, "StructuresBinaryFile::openFileStream");
+    string version;
+    MstUtils::readBin(fs, version);
+    if (version == "!@#version_2!@#") _version = 2;
+    else _version = 1;
+    fs.close();
+}
+
 pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metadata) {
+    //if beginning of file, advance past the version
+    if (fs.tellg() == 0) {
+        string version; MstUtils::readBin(fs, version);
+    }
     Structure* S = new Structure();
     long pos = fs.tellg();
-    if (_version == 0) {
+    if (_version == 1) {
         S->readData(fs);
         return pair<Structure*,long>(S,pos);
-    } else if (_version == 1) {
+    } else if (_version == 2) {
         char sect; string prop; mstreal real_val; int dscrt_val;
         MstUtils::readBin(fs, sect);
         if (sect != 'S') MstUtils::error("The first section should be a Structure " + _filePath, "StructuresBinaryFile::readFileSection()");
