@@ -72,8 +72,11 @@ vector<hash_type> CAResidueHasher<hash_type, distance_metric>::region(Residue *r
 // parameters. Otherwise, the implementations will not be accessible.
 template class CAResidueHasher<unsigned long, mstreal>;
 
-// ========= MaxDeviationVerifier ===========
+// ========= Verifier ===========
 
+OverlapVerifier::~OverlapVerifier() {
+    
+}
 
 bool MaxDeviationVerifier::verify(const vector<Residue *> &segment1, const vector<Residue *> &segment2) const {
     MstUtils::assert(segment1.size() == segment2.size(), "Segments must be same size");
@@ -87,4 +90,22 @@ bool MaxDeviationVerifier::verify(const vector<Residue *> &segment1, const vecto
     }
     
     return maxDistance <= _cutoff;
+}
+
+
+bool NormalVectorVerifier::verify(const vector<Residue *> &segment1, const vector<Residue *> &segment2) const {
+    
+    mstreal cosAngle = generalUtilities::avgCosAngleBetweenSegments(segment1, segment2);
+    return cosAngle >= _minCosAngle;
+}
+
+
+bool CompositeVerifier::verify(const vector<Residue *> &segment1, const vector<Residue *> &segment2) const {
+    
+    return _v1->verify(segment1, segment2) && _v2->verify(segment1, segment2);
+}
+
+CompositeVerifier::~CompositeVerifier() {
+    delete _v1;
+    delete _v2;
 }

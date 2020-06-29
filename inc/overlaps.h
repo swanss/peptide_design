@@ -91,6 +91,7 @@ private:
 class OverlapVerifier {
 public:
     virtual bool verify(const vector<MST::Residue *> &segment1, const vector<MST::Residue *> &segment2) const = 0;
+    virtual ~OverlapVerifier() = 0;
 };
 
 /**
@@ -100,11 +101,43 @@ public:
 class MaxDeviationVerifier: public OverlapVerifier {
 public:
     MaxDeviationVerifier(MST::mstreal cutoff): _cutoff(cutoff) {};
+    ~MaxDeviationVerifier() override {}
     
     bool verify(const vector<MST::Residue *> &segment1, const vector<MST::Residue *> &segment2) const override;
 
 private:
     MST::mstreal _cutoff;
+};
+
+/**
+ Concrete subclass of OverlapVerifier that uses the average cosine angle between
+ normal vectors for each residue to check whether two segments are overlapping.
+ */
+class NormalVectorVerifier: public OverlapVerifier {
+public:
+    NormalVectorVerifier(MST::mstreal minCosAngle): _minCosAngle(minCosAngle) {};
+    ~NormalVectorVerifier() override {}
+    
+    bool verify(const vector<MST::Residue *> &segment1, const vector<MST::Residue *> &segment2) const override;
+    
+private:
+    MST::mstreal _minCosAngle;
+};
+
+/**
+ Overlap verifier that combines the results of two child verifiers using an AND
+ operation. Manages ownership of the child verifiers and deletes them upon destruction
+ of this verifier.
+ */
+class CompositeVerifier: public OverlapVerifier {
+public:
+    CompositeVerifier(OverlapVerifier *v1, OverlapVerifier *v2): _v1(v1), _v2(v2) {};
+    ~CompositeVerifier();
+    
+    bool verify(const vector<MST::Residue *> &segment1, const vector<MST::Residue *> &segment2) const override;
+
+private:
+    OverlapVerifier *_v1, *_v2;
 };
 
 

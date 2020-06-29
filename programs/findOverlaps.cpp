@@ -28,8 +28,8 @@ int main (int argc, char *argv[]) {
     opts.addOption("bin", "Path to a binary file containing seed structures", true);
     opts.addOption("out", "Path to CSV file at which to write overlaps", true);
     opts.addOption("overlapSize", "Number of residues that must overlap between two residues (default 2)", false);
-    opts.addOption("overlapRMSD", "Maximum RMSD between sets of residues to be considered overlapping (default 1.0)", false);
-    opts.addOption("minCosAngle", "Minimum cosine angle between Ca vectors allowed in a potential overlap (default -1.0)", false);
+    opts.addOption("deviation", "Maximum deviation allowed between individual residues in an overlap segment (default 1.0)", false);
+    opts.addOption("minCosAngle", "Minimum cosine angle between residue normal vectors in an overlap segment (default -1.0)", false);
     opts.addOption("worker", "The index of this worker (from 1 to numWorkers)", false);
     opts.addOption("numWorkers", "The number of workers", false);
     opts.addOption("batchSize", "The number of structures to use in each batch (default 200,000)", false);
@@ -44,7 +44,7 @@ int main (int argc, char *argv[]) {
     string outPath = opts.getString("out");
 
     int numResOverlap = opts.getInt("overlapSize", 2);
-    float rmsdCutoff = opts.getReal("overlapRMSD", 1.0);
+    float maxDeviation = opts.getReal("deviation", 1.0);
     float minCosAngle = opts.getReal("minCosAngle", -1.0);
 
     int worker = opts.getInt("worker", 1);
@@ -57,7 +57,11 @@ int main (int argc, char *argv[]) {
     }
     cout << "Batch " << worker << " of " << numWorkers << endl;
     
-    MaxDeviationVerifier verifier(rmsdCutoff);
+    OverlapVerifier *verifier = new MaxDeviationVerifier(maxDeviation);
+    if (minCosAngle > -1.0) {
+        verifier = new CompositeVerifier(verifier, new NormalVectorVerifier(minCosAngle));
+    }
+
     FuseCandidateFile outFile(outPath);
     BatchPairStructureIterator structureIter(binaryPath, worker - 1, numWorkers, batchSize); // large batch size
     
@@ -109,7 +113,7 @@ int main (int argc, char *argv[]) {
                         for (int resIdx2 = 0; resIdx2 < residues2.size() - numResOverlap + 1; resIdx2++) {
                             vector<Residue *> segment2(residues2.begin() + resIdx2, residues2.begin() + resIdx2 + numResOverlap);
                             
-                            if (verifier.verify(segment1, segment2)) {
+                            if (verifier->verify(segment1, segment2)) {
                                 FuseCandidate fuseCandidate;
                                 fuseCandidate.overlapSize = numResOverlap;
                                 fuseCandidate.setStructure1(s1, c1->getID());
@@ -153,19 +157,21 @@ int main (int argc, char *argv[]) {
             vector<mstreal> bbox = { xlo, xhi, ylo, yhi, zlo, zhi };
             
             CAResidueHasher<> hasher(bbox, 0.3);
-            OverlapFinder<CAResidueHasher<>> overlapFinder(hasher, rmsdCutoff, numResOverlap, "0", &verifier);
+            OverlapFinder<CAResidueHasher<>> overlapFinder(hasher, maxDeviation, numResOverlap, "0", verifier);
             
             overlapFinder.insertStructures(batch.first);
             overlapFinder.findOverlaps(batch.second, outFile);
         }
     }
     // Search for overlaps
-    /*FuseCandidateFinder fuser(numResOverlap, general, rmsdCutoff, numWorkers, worker - 1);
+    /*FuseCandidateFinder fuser(numResOverlap, general, maxDeviation, numWorkers, worker - 1);
     fuser.minCosAngle = minCosAngle;
     fuser.writeFuseCandidates(binaryPath, outPath);*/
 
     timer.stop();
     cout << "Elapsed time: " << ((double)timer.getDuration(MstTimer::msec) / 1000.0) << endl;
+    
+    delete verifier;
     
     return 0;
 }
