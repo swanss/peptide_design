@@ -74,6 +74,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("req_seed", "The name of a seed in the binary file that all paths should extend",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
     opts.addOption("config", "The path to a configfile",true);
+    opts.addOption("noScore", "If provided, disable designability and contact scoring", false);
     opts.setOptions(argc, argv);
 
     if (opts.isGiven("overlaps") == opts.isGiven("seedGraph")) MstUtils::error("Either 'overlaps' or 'seedGraph' must be provided, but not both.");
@@ -85,7 +86,8 @@ int main (int argc, char *argv[]) {
     string configFilePath = opts.getString("config");
     
     string seedChain = opts.getString("seedChain", "0");
-
+    bool shouldScore = !opts.isGiven("noScore");
+    
     if (!MstSys::fileExists(outputPath)) {
         MstSys::cmkdir(outputPath);
     }
@@ -100,10 +102,13 @@ int main (int argc, char *argv[]) {
     }
 
     // Scorer
-    FragmentParams fParams(2, true);
-    rmsdParams rParams(1.2, 15, 1);
-    contactParams cParams;
-    StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, configFilePath);
+    StructureCompatibilityScorer *scorer = nullptr;
+    if (shouldScore) {
+        FragmentParams fParams(2, true);
+        rmsdParams rParams(1.2, 15, 1);
+        contactParams cParams;
+        scorer = new StructureCompatibilityScorer(&target, fParams, rParams, cParams, configFilePath);
+    }
 
     int numPaths = opts.getInt("numPaths", 1000);
     
@@ -116,6 +121,9 @@ int main (int argc, char *argv[]) {
     ClusterTree* overlapTree;
     StructureCache* cache;
     SeedGraph* seedG;
+    
+    // Handle configuration options separately for each input type, since different
+    // sets of options may be available
     if (opts.isGiven("overlaps")) {
         cout << "Loading cluster tree..." << endl;
         fetcher = new SingleFragmentFetcher(&seedFile, 3, seedChain);
@@ -124,24 +132,34 @@ int main (int argc, char *argv[]) {
         
         // Stringent: 3-residue overlaps, 0.75A cutoff
         // Permissive: 3-residue overlaps, 1.25A cutoff
-        sampler = new PathSampler(&target, fetcher, overlapTree, 3, 1.25, fetcher->getAllResidues());
+        ClusterTreePathSampler *cSampler = new ClusterTreePathSampler(&target, fetcher, overlapTree, 3, 1.25, fetcher->getAllResidues());
+        if (opts.isGiven("ss")) {
+            cSampler->preferredSecondaryStructure = new string(opts.getString("ss"));
+        }
+        if (opts.isGiven("req_seed")) {
+            MstUtils::error("req_seed parameter not implemented for cluster tree path sampling");
+        }
+        
+        sampler = cSampler;
+        
     } else if (opts.isGiven("seedGraph")) {
         cout << "Loading graph.." << endl;
         cache = new StructureCache(&seedFile);
         seedG = new SeedGraph(false,cache);
         
-        sampler = new PathSampler(&target,seedG);
+        SeedGraphPathSampler *gSampler = new SeedGraphPathSampler(&target,seedG);
+        if (opts.isGiven("ss")) {
+            gSampler->preferredSecondaryStructure = new string(opts.getString("ss"));
+        }
+        if (opts.isGiven("req_seed")) {
+            string reqSeedName = opts.getString("req_seed");
+            Structure* reqSeed = cache->getStructure(reqSeedName);
+            gSampler->setStartingSeed(reqSeed,seedChain);
+        }
+
+        sampler = gSampler;
     }
     
-    if (opts.isGiven("ss")) {
-        sampler->preferredSecondaryStructure = new string(opts.getString("ss"));
-    }
-    if (opts.isGiven("req_seed")) {
-        string reqSeedName = opts.getString("req_seed");
-        Structure* reqSeed = cache->getStructure(reqSeedName);
-        sampler->setStartingSeed(reqSeed,seedChain);
-    }
-
     ofstream out(MstSystemExtension::join(outputPath, "fused_paths.csv"), ios::out);
     if (!out.is_open())
         MstUtils::error("Could not open file stream");
@@ -168,11 +186,14 @@ int main (int argc, char *argv[]) {
             fusedFile.appendStructure(&fused);
             Structure &fullFused = path.getFusedStructure();
 
-            mstreal totalScore;
-            int numContacts;
-            int numDesignable;
-            scorer.score(&fused, totalScore, numContacts, numDesignable);
-            cout << "Score: " << totalScore << endl;
+            // Write zeros for scores if scoring is disabled (speeds up performance)
+            mstreal totalScore = 0.0;
+            int numContacts = 0;
+            int numDesignable = 0;
+            if (shouldScore) {
+                scorer->score(&fused, totalScore, numContacts, numDesignable);
+                cout << "Score: " << totalScore << endl;
+            }
             out << totalScore << "," << numContacts << "," << numDesignable << "," << corroborationScore(path, 2) << endl;
             pathIndex++;
         }
@@ -186,6 +207,8 @@ int main (int argc, char *argv[]) {
         delete seedG;
     }
     delete sampler;
+    if (shouldScore)
+        delete scorer;
 
     cout << "Done" << endl;
     out.close();
