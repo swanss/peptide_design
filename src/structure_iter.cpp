@@ -185,7 +185,7 @@ void StructuresBinaryFile::detectFileVersion() {
 
 pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metadata) {
     //if beginning of file, advance past the version
-    if (fs.tellg() == 0) {
+    if ((_version == 2) && (fs.tellg() == 0)) {
         string version; MstUtils::readBin(fs, version);
     }
     Structure* S = new Structure();
@@ -236,6 +236,7 @@ void StructureCache::preloadFromBinaryFile() {
         Structure *s = binaryFile->next();
         cache.push_front(s);
         cachePointers[s->getName()] = cache.begin();
+        cout << "loaded structure: " << s->getName() << endl;
     }
     cout << "preload: load factor " << cachePointers.load_factor() << ", max " << cachePointers.max_load_factor() << endl;
 }
@@ -491,12 +492,14 @@ void BatchPairStructureIterator::makeNextResult() {
 
     // First make sure we're on the correct first index
     if (firstIndex <= secondIndex || !binaryFile->hasNext()) {
-        if (numRows % 2 != 0 && firstIndex == numRows / 2) // special case for midpoint of odd number of rows
-            firstIndex = numRows - firstIndex + numWorkers - 1;
-        else if ((float)firstIndex < (float)numRows / 2.0f && (float)(firstIndex + numWorkers) >= (float)numRows / 2.0f)
-            firstIndex = numRows - firstIndex - 1;
-        else
-            firstIndex += numWorkers;
+        //this condition checks if firstIndex would cross the halfway point (numRows / 2)
+        //in this iteration of the loop
+        if (firstIndex < numRows / 2 && (firstIndex + numWorkers) >= numRows / 2) {
+            //If the halfway point will be crossed, the order of assigning batches is flipped.
+            //The next line looks at the distance to the halfway point and treats it like a mirror.
+            firstIndex = firstIndex + 2 * (numRows / 2 - firstIndex) - 1;
+        }
+        else firstIndex += numWorkers;
         // Jump to the position in the file and load currentFirst
         cout << "Jumping to row " << firstIndex << endl;
         binaryFile->jumpToStructureIndex(firstIndex * batchSize);
