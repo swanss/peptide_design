@@ -20,7 +20,7 @@ void OverlapFinder<Hasher>::insertStructures(const vector<Structure *> &structur
 }
 
 template <class Hasher>
-vector<FuseCandidate> OverlapFinder<Hasher>::findOverlaps(const vector<Structure *> &testStructures) const {
+vector<FuseCandidate> OverlapFinder<Hasher>::findOverlaps(const vector<Structure *> &testStructures, bool constrainOrder) const {
     
     vector<FuseCandidate> results;
     
@@ -35,12 +35,7 @@ vector<FuseCandidate> OverlapFinder<Hasher>::findOverlaps(const vector<Structure
                 continue;
             
             auto residues = c.getResidues();
-            
-            // Iterate over all segments of length _segmentLength
-            int pos = 0;
-            for (auto it = residues.begin(); it != residues.begin() + residues.size() - _segmentLength + 1; ++it) {
-                findOverlaps(it, it + _segmentLength, pos++, results);
-            }
+            findOverlaps(residues, results, constrainOrder);
         }
     }
     
@@ -48,7 +43,7 @@ vector<FuseCandidate> OverlapFinder<Hasher>::findOverlaps(const vector<Structure
 }
 
 template <class Hasher>
-void OverlapFinder<Hasher>::findOverlaps(const vector<Structure *> &testStructures, FuseCandidateFile &outFile) const {
+void OverlapFinder<Hasher>::findOverlaps(const vector<Structure *> &testStructures, FuseCandidateFile &outFile, bool constrainOrder) const {
     
     int numResults = 0;
     
@@ -57,42 +52,37 @@ void OverlapFinder<Hasher>::findOverlaps(const vector<Structure *> &testStructur
         if (i % (testStructures.size() / 100) == 0)
             cout << (i / (testStructures.size() / 100)) << "% complete (" << i << "/" << testStructures.size() << ") - " << numResults << " overlaps" << endl;
         Structure *s = testStructures[i];
+        
+        vector<FuseCandidate> results;
         for (int chainIdx = 0; chainIdx < s->chainSize(); ++chainIdx) {
             Chain &c = s->getChain(chainIdx);
             if (!_seedChain.empty() && c.getID() != _seedChain)
                 continue;
             
             auto residues = c.getResidues();
-            
-            // Iterate over all segments of length _segmentLength
-            int pos = 0;
-            vector<FuseCandidate> results;
-            for (auto it = residues.begin(); it != residues.begin() + residues.size() - _segmentLength + 1; ++it) {
-                findOverlaps(it, it + _segmentLength, pos++, results);
-            }
-            numResults += results.size();
-            
-            // Write results to file
-            outFile.write(results, "");
+            findOverlaps(residues, results, constrainOrder);
         }
+        numResults += results.size();
+        
+        // Write results to file
+        outFile.write(results, "");
     }
 }
 
 template <class Hasher>
-void OverlapFinder<Hasher>::findOverlaps(vector<Residue *>::iterator begin, vector<Residue *>::iterator end, int firstOffset, vector<FuseCandidate> &results) const {
+void OverlapFinder<Hasher>::findOverlaps(vector<Residue *> &source, vector<FuseCandidate> &results, bool constrainOrder) const {
     
     // Add overlap segment candidates for each residue in the segment
-    vector<vector<OverlapSegment>> candidates;
+    vector<vector<OverlapCandidate>> candidates;
     // Keep a list of pointers to the beginning of each vector (for later)
-    typedef vector<OverlapSegment>::const_iterator Cursor;
+    typedef vector<OverlapCandidate>::const_iterator Cursor;
     vector<Cursor> cursors;
     
     int segmentIndex = 0;
-    for (auto it = begin; it != end; ++it) {
+    for (Residue *res: source) {
         candidates.emplace_back();
-        vector<OverlapSegment> &positionCandidates = candidates.back();
+        vector<OverlapCandidate> &positionCandidates = candidates.back();
         
-        Residue *res = *it;
         Structure *parentStructure = res->getStructure();
         
         vector<typename Hasher::hash_type> region = _hasher.region(res, _cutoff);
@@ -102,32 +92,25 @@ void OverlapFinder<Hasher>::findOverlaps(vector<Residue *>::iterator begin, vect
                 continue;
             
             for (const pair<Residue *, int> &candidate: _hashMap.at(hashValue)) {
-                // Exclude residues from the same structure, and from structures that
-                // have pointer addresses less than the reference. Since we assume all
+                // Exclude residues from the same structure. If we're constraining the
+                // order so duplicate overlaps aren't returned, simply check the order
+                // of the structures' pointer addresses. Since we assume all
                 // structures will use the same addresses throughout the program, this
                 // is an unambiguous ordering.
                 Residue *candRes = candidate.first;
                 Structure *candStructure = candRes->getStructure();
-                if (candStructure <= parentStructure)
+                if (candStructure == parentStructure || (constrainOrder && candStructure < parentStructure))
                     continue;
-                
-                int offset = candidate.second - segmentIndex;
-                // If the offset needed for this overlap is negative, we won't be
-                // able to form a long enough overlap anyway
-                if (offset < 0)
-                    continue;
-                
-                positionCandidates.emplace_back(candStructure, candRes->getParent()->getID(), offset);
+
+                positionCandidates.emplace_back(candStructure, candRes->getParent()->getID(), candidate.second);
             }
+            if (positionCandidates.size() >= 1000)
+                break;
         }
-        
-        // If there are no candidates for any one position, there can be no overlaps
-        if (positionCandidates.empty())
-            return;
         
         // The algorithm depends on the candidates for each position being sorted
         // in a consistent way.
-        sort(positionCandidates.begin(), positionCandidates.end(), OverlapSegment::compare);
+        sort(positionCandidates.begin(), positionCandidates.end(), OverlapCandidate::compare);
         
         cursors.push_back(positionCandidates.begin());
         
@@ -138,70 +121,91 @@ void OverlapFinder<Hasher>::findOverlaps(vector<Residue *>::iterator begin, vect
     if (candidates.empty())
         return;
     
-    // Now, iterate jointly through all lists of candidates and look for occurrences of
-    // the same overlap segment in *all* candidate lists. This is akin to a set
-    // intersection operation.
+    // Now, iterate through all lists of candidates and look for occurrences of
+    // the same overlap segment in a contiguous sequence.
     while (true) {
-        // Compare all current cursor positions to the first one (they all need to be
-        // equal)
-        const OverlapSegment &referenceItem = *cursors[0];
-        bool matched = true;
-        for (const Cursor &cursor: cursors) {
-            if (*cursor != referenceItem) {
-                matched = false;
-                break;
+        // The only overlap we consider in each iteration is the segment with the "min"
+        // value, since it's guaranteed that we won't see that segment ever again.
+        const OverlapCandidate *minElement = nullptr;
+        for (int i = 0; i < candidates.size(); i++) {
+            if (cursors[i] == candidates[i].end()) continue;
+            if (minElement == nullptr || OverlapCandidate::compare(*cursors[i], *minElement)) {
+                minElement = &(*cursors[i]);
+            }
+            
+        }
+        
+        vector<Cursor> overlapPositions;
+        // Keep track of whether there are still contiguous segments with available overlaps
+        int contiguousSection = 0;
+        bool hasContiguousSegment = false;
+        
+        // Look for sets of positions that match minElement with consecutive residue indexes
+        for (int i = 0; i < candidates.size(); i++) {
+            if (cursors[i] == candidates[i].end()) {
+                contiguousSection = 0;
+                continue;
+            }
+            contiguousSection++;
+            if (contiguousSection >= _segmentLength)
+                hasContiguousSegment = true;
+            
+            // If the current position doesn't match the min element, reset and skip this position
+            if (!cursors[i]->fromSameChain(*minElement)) {
+                overlapPositions.clear();
+                continue;
+            }
+            
+            // If the current position is noncontiguous, ignore it
+            if (!overlapPositions.empty() && cursors[i]->offset != overlapPositions.back()->offset + 1) {
+                overlapPositions.clear();
+            }
+            
+            overlapPositions.push_back(cursors[i]);
+            if (overlapPositions.size() >= _segmentLength) {
+                // A possible overlap!
+                const OverlapCandidate &startPosition = *overlapPositions[overlapPositions.size() - _segmentLength];
+
+                if (_verifier == nullptr || checkOverlap(source.begin() + i + 1 - _segmentLength, source.begin() + i + 1, startPosition)) {
+                    // Build a fuse candidate object
+                    FuseCandidate fuseCandidate;
+                    fuseCandidate.overlapSize = _segmentLength;
+                    Residue *firstRes = source[i + 1 - _segmentLength];
+                    fuseCandidate.setStructure1(firstRes->getStructure(), firstRes->getParent()->getID());
+                    fuseCandidate.overlapPosition1 = i + 1 - _segmentLength;
+                    fuseCandidate.setStructure2(startPosition.structure, startPosition.chainID);
+                    fuseCandidate.overlapPosition2 = startPosition.offset;
+                    
+                    // Don't store RMSD in this implementation
+                    fuseCandidate.rmsd = 0.0;
+                    results.push_back(fuseCandidate);
+                }
             }
         }
         
-        if (matched) {
-            // Great - a potential overlap! Verify it and add it to the list
-            
-            if (_verifier == nullptr || checkOverlap(begin, end, referenceItem)) {
-                // Build a fuse candidate object
-                FuseCandidate fuseCandidate;
-                fuseCandidate.overlapSize = _segmentLength;
-                Residue *firstRes = *begin;
-                fuseCandidate.setStructure1(firstRes->getStructure(), firstRes->getParent()->getID());
-                fuseCandidate.overlapPosition1 = firstOffset;
-                fuseCandidate.setStructure2(referenceItem.structure, referenceItem.chainID);
-                fuseCandidate.overlapPosition2 = referenceItem.offset;
-                
-                // Don't store RMSD in this implementation
-                fuseCandidate.rmsd = 0.0;
-                results.push_back(fuseCandidate);
-            }
-            
-            // Advance all of the iterators
-            bool terminate = false;
-            for (int i = 0; i < cursors.size(); i++) {
+        // If there is no stretch of _segmentLength positions that still has candidates available,
+        // there can be no more overlaps
+        if (!hasContiguousSegment)
+            break;
+        
+        bool foundCursor = false;
+        for (int i = 0; i < candidates.size(); i++) {
+            if (cursors[i] == candidates[i].end()) continue;
+            if ((*cursors[i]).fromSameChain(*minElement)) {
                 cursors[i]++;
-                
-                // Stop the whole loop when any one iterator reaches the end
-                if (cursors[i] == candidates[i].end()) {
-                    terminate = true;
-                    break;
-                }
             }
-            
-            if (terminate)
-                break;
-            
-        } else {
-            // Not an overlap - advance the cursor that points to the minimum sorted value
-            int minIndex = min_element(cursors.begin(), cursors.end(), +[](const Cursor &c1, const Cursor &c2) {
-                return OverlapSegment::compare(*c1, *c2);
-            }) - cursors.begin();
-            cursors[minIndex]++;
-            
-            // Stop the whole loop when any one iterator reaches the end
-            if (cursors[minIndex] == candidates[minIndex].end())
-                break;
+            if (cursors[i] != candidates[i].end())
+                foundCursor = true;
         }
+        
+        // If all cursors have reached the end, we're done
+        if (!foundCursor)
+            break;
     }
 }
 
 template <class Hasher>
-bool OverlapFinder<Hasher>::checkOverlap(vector<Residue *>::iterator begin, vector<Residue *>::iterator end, const OverlapSegment &candidate) const {
+bool OverlapFinder<Hasher>::checkOverlap(vector<Residue *>::iterator begin, vector<Residue *>::iterator end, const OverlapCandidate &candidate) const {
     if (!_verifier)
         return true;
                 

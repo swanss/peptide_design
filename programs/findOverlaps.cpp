@@ -103,7 +103,7 @@ int main (int argc, char *argv[]) {
                     
                     // Compare to all structures
                     for (Structure *s2: batch.second) {
-                        if (s2 <= s1) continue;
+                        if (s2 == s1) continue;
                         
                         Chain *c2 = s2->getChainByID("0");
                         if (!c2)
@@ -160,7 +160,11 @@ int main (int argc, char *argv[]) {
             OverlapFinder<CAResidueHasher<>> overlapFinder(hasher, maxDeviation, numResOverlap, "0", verifier);
             
             overlapFinder.insertStructures(batch.first);
-            overlapFinder.findOverlaps(batch.second, outFile);
+            // Tell the overlap finder whether to avoid double-counting symmetric overlaps
+            bool symmetricBatch = firstStructures[0]->getName() == secondStructures[0]->getName();
+            if (symmetricBatch) cout << "Symmetric batch" << endl;
+
+            overlapFinder.findOverlaps(batch.second, outFile, symmetricBatch);
         }
     }
     // Search for overlaps

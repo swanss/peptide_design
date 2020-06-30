@@ -145,19 +145,21 @@ private:
 
 
 /**
- A helper structure that represents a segment within a structure for possible overlap.
+ A helper data type that represents a position in a structure for possible overlap.
  */
-struct OverlapSegment {
+struct OverlapCandidate {
     Structure *structure;
     string chainID;
     int offset;
     
-    OverlapSegment(Structure *s, string c, int o): structure(s), chainID(c), offset(o) {};
+    OverlapCandidate(Structure *s, string c, int o): structure(s), chainID(c), offset(o) {};
     
     /**
-     Compares two overlap segments to produce a deterministic ordering.
+     Compares two overlap candidates to produce a deterministic ordering.
+     
+     @return true if the overlap candidates are in increasing order
      */
-    static bool compare(const OverlapSegment &s1, const OverlapSegment &s2) {
+    static bool compare(const OverlapCandidate &s1, const OverlapCandidate &s2) {
         if (s1.structure != s2.structure)
             return s1.structure < s2.structure;
         if (s1.chainID != s2.chainID)
@@ -166,15 +168,22 @@ struct OverlapSegment {
     }
     
     /**
-     Compares two overlap segments for equality.
+     @return true if the two candidates come from the same structure and chain
      */
-    bool operator== (const OverlapSegment &other) const {
+    bool fromSameChain(const OverlapCandidate &other) const {
+        return structure == other.structure && chainID == other.chainID;
+    }
+    
+    /**
+     Compares two overlap candidates for equality.
+     */
+    bool operator== (const OverlapCandidate &other) const {
         return (structure == other.structure &&
                 chainID == other.chainID &&
                 offset == other.offset);
     }
 
-    bool operator!= (const OverlapSegment &other) const { return !(*this == other); }
+    bool operator!= (const OverlapCandidate &other) const { return !(*this == other); }
 };
 
 /**
@@ -223,20 +232,33 @@ public:
     /**
      Tests for overlaps between the given list of structures and the
      structures already present in the hash map.
+     
+     @param testStructures the structures to use as the "first structures" in
+        an overlap
+     @param constrainOrder Pass true if the testStructures and originally-hashed
+        structures are the same set. This will avoid unnecessarily doubling
+        returned overlaps
      */
-    vector<FuseCandidate> findOverlaps(const vector<MST::Structure *> &testStructures) const;
+    vector<FuseCandidate> findOverlaps(const vector<MST::Structure *> &testStructures, bool constrainOrder = false) const;
     
     /**
      Tests for overlaps using the same logic as the above call signature, but writes the
      results directly to a file.
+
+     @param testStructures the structures to use as the "first structures" in
+        an overlap
+     @param outFile a file into which to write the results
+     @param constrainOrder Pass true if the testStructures and originally-hashed
+        structures are the same set. This will avoid unnecessarily doubling
+        returned overlaps
      */
-    void findOverlaps(const vector<MST::Structure *> &testStructures, FuseCandidateFile &outFile) const;
+    void findOverlaps(const vector<MST::Structure *> &testStructures, FuseCandidateFile &outFile, bool constrainOrder = false) const;
     
     /**
-     Finds overlaps with the given iterable section of residues, and inserts them into the
+     Finds overlaps with the given source of residues, and inserts them into the
      given results vector.
      */
-    void findOverlaps(vector<MST::Residue *>::iterator begin, vector<MST::Residue *>::iterator end, int firstOffset, vector<FuseCandidate> &results) const;
+    void findOverlaps(vector<MST::Residue *> &source, vector<FuseCandidate> &results, bool constrainOrder = false) const;
     
     /**
      Clears the current hash map contents.
@@ -254,10 +276,10 @@ private:
     unordered_map<typename Hasher::hash_type, vector<pair<MST::Residue *, int>>> _hashMap;
         
     /**
-     Determines whether the given candidate overlap segment is an overlap, using the
+     Determines whether the given overlap candidate is a real overlap, using the
      verifier if provided. If the overlap finder has no verifier, returns true.
      */
-    bool checkOverlap(vector<MST::Residue *>::iterator begin, vector<MST::Residue *>::iterator end, const OverlapSegment &candidate) const;
+    bool checkOverlap(vector<MST::Residue *>::iterator begin, vector<MST::Residue *>::iterator end, const OverlapCandidate &candidate) const;
 };
 
 // This includes the template method implementations for OverlapFinder

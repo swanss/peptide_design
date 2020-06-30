@@ -491,16 +491,17 @@ void BatchPairStructureIterator::makeNextResult() {
 
     // First make sure we're on the correct first index
     if (firstIndex <= secondIndex || !binaryFile->hasNext()) {
-        //this condition checks if firstIndex would cross the halfway point (numRows / 2)
-        //in this iteration of the loop
-        if (firstIndex < numRows / 2 && (firstIndex + numWorkers) >= numRows / 2) {
-            //If the halfway point will be crossed, the order of assigning batches is flipped.
-            //The next line looks at the distance to the halfway point and treats it like a mirror.
+        // this condition checks if firstIndex would cross the halfway point (numRows / 2)
+        // in this iteration of the loop (only applicable if there aren't enough workers to
+        // cover all rows)
+        if (numWorkers < numRows / 2 && firstIndex < numRows / 2 && (firstIndex + numWorkers) >= numRows / 2) {
+            // If the halfway point will be crossed, the order of assigning batches is flipped.
+            // The next line looks at the distance to the halfway point and treats it like a mirror.
             firstIndex = firstIndex + 2 * (numRows / 2 - firstIndex) - 1;
         }
         else firstIndex += numWorkers;
+        
         // Jump to the position in the file and load currentFirst
-        cout << "Starting work row " << firstIndex + 1 << "/" << numRows << endl;
         binaryFile->jumpToStructureIndex(firstIndex * batchSize);
         for (Structure *s: currentFirst)
             delete s;
@@ -516,6 +517,8 @@ void BatchPairStructureIterator::makeNextResult() {
         if (currentFirst.empty())
             return;
 
+        cout << "Starting work row " << firstIndex + 1 << "/" << numRows << endl;
+        
         // Reset second index and move file handle to beginning
         secondIndex = -1;
         binaryFile->reset();
