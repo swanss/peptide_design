@@ -26,7 +26,7 @@ vector<FuseCandidate> OverlapFinder<Hasher>::findOverlaps(const vector<Structure
     
     // Loop over appropriate chains in all structures to test
     for (int i = 0; i < testStructures.size(); i++) {
-        if (i % (testStructures.size() / 100) == 0)
+        if (verbose && i % (testStructures.size() / 100) == 0)
             cout << (i / (testStructures.size() / 100)) << "% complete (" << i << "/" << testStructures.size() << ") - " << results.size() << " overlaps" << endl;
         Structure *s = testStructures[i];
         for (int chainIdx = 0; chainIdx < s->chainSize(); ++chainIdx) {
@@ -49,7 +49,7 @@ void OverlapFinder<Hasher>::findOverlaps(const vector<Structure *> &testStructur
     
     // Loop over appropriate chains in all structures to test
     for (int i = 0; i < testStructures.size(); i++) {
-        if (i % (testStructures.size() / 100) == 0)
+        if (verbose && i % (testStructures.size() / 100) == 0)
             cout << (i / (testStructures.size() / 100)) << "% complete (" << i << "/" << testStructures.size() << ") - " << numResults << " overlaps" << endl;
         Structure *s = testStructures[i];
         

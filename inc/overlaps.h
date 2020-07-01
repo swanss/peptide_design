@@ -265,6 +265,9 @@ public:
      */
     void clear();
     
+    // Indicates whether to print progress to the console.
+    bool verbose = true;
+    
 private:
     int _segmentLength;
     typename Hasher::distance_metric _cutoff;
