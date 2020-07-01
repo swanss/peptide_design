@@ -120,7 +120,7 @@ int main (int argc, char *argv[]) {
   
   //fuse specified paths
   cout << "trying to fuse paths..." << endl;
-  PathSampler sampler(&target,seedG);
+  SeedGraphPathSampler sampler(&target,seedG);
   vector<PathResult> pathResults = sampler.fusePaths(path_specifiers);
   
   cout << "Score paths" << endl;

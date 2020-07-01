@@ -86,7 +86,7 @@ int main (int argc, char *argv[]) {
     if (!out.is_open())
         MstUtils::error("Could not open file stream");
 
-    PathSampler sampler(&target, &fetcher, &overlapTree, 3, 0.75, fetcher.getAllResidues()); // &graph, &cache);
+    ClusterTreePathSampler sampler(&target, &fetcher, &overlapTree, 3, 0.75, fetcher.getAllResidues()); // &graph, &cache);
     sampler.uniqueSeeds = true;
 
     int pathIndex = 0;
