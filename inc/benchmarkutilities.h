@@ -39,6 +39,17 @@ struct histogram {
     void readHistFile(string hist_file);
     
     void writeHistFile(string hist_file);
+    
+    void printInfo() {
+        cout << "lower_bound,upper_bound,value" << endl;
+        mstreal lower_bound = min_value;
+        mstreal upper_bound = min_value + bin_size;
+        for (mstreal value : bins) {
+            cout << lower_bound << "," << upper_bound << "," << value << endl;
+            lower_bound += bin_size;
+            upper_bound += bin_size;
+        }
+    };
 };
 
 
@@ -94,7 +105,7 @@ public:
 protected:
     // file should be formatted like lower_bound,upper_bound,count
     pair<mstreal,vector<int>> loadHistFile(string hist_file);
-    int getVal(mstreal value);
+    mstreal getVal(mstreal value);
 private:
     histogram hist;
 };

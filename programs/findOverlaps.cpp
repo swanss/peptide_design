@@ -81,6 +81,8 @@ int main (int argc, char *argv[]) {
             cout << "Batch: " << batch.first[0]->getName() << ", " << batch.second[0]->getName() << endl;
             continue;
         }
+      
+        cout << batch.first.size() << " " << batch.second.size() << endl;
         
         if (opts.isGiven("bruteForce")) {
             // All-to-all comparison
@@ -137,8 +139,10 @@ int main (int argc, char *argv[]) {
             auto it = firstStructures.begin();
             while (it != secondStructures.end()) {
                 Structure *seed = *it;
-                if (seed->residueSize() == 0)
-                    continue;
+                if (seed->residueSize() == 0) {
+                      cout << "seed has no residues" << endl;
+                      continue;
+                }
                 
                 mstreal ixlo, ixhi, iylo, iyhi, izlo, izhi;
                 ProximitySearch::calculateExtent(*seed, ixlo, iylo, izlo, ixhi, iyhi, izhi);

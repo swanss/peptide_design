@@ -126,6 +126,8 @@ seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstr
 
 rejectionSampler::rejectionSampler(string hist_file) {
     hist.readHistFile(hist_file);
+    cout << "loaded the following histogram: " << endl;
+    hist.printInfo();
 }
 
 bool rejectionSampler::accept(mstreal value) {
@@ -135,7 +137,7 @@ bool rejectionSampler::accept(mstreal value) {
     else return false;
 }
 
-int rejectionSampler::getVal(mstreal value) {
+mstreal rejectionSampler::getVal(mstreal value) {
     if ((value < hist.min_value) || (value > hist.max_value)) {
         string value_str = MstUtils::toString(value);
         string min_str = MstUtils::toString(hist.min_value);

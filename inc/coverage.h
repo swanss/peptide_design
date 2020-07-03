@@ -33,9 +33,10 @@ public:
     int res_idx;
     int res_length;
     mstreal rmsd;
+    mstreal alignment_cos_angle;
     
     seedSubstructureInfo() {};
-    seedSubstructureInfo(string name, string ID, int idx, int length, mstreal _rmsd) : structure_name(name), chain_ID(ID), res_idx(idx), res_length(length), rmsd(_rmsd) {};
+    seedSubstructureInfo(string name, string ID, int idx, int length, mstreal _rmsd, mstreal _alignment_cos_angle) : structure_name(name), chain_ID(ID), res_idx(idx), res_length(length), rmsd(_rmsd), alignment_cos_angle(_alignment_cos_angle) {};
     seedSubstructureInfo(const seedSubstructureInfo& other) : structure_name(other.structure_name), chain_ID(other.chain_ID), res_idx(other.res_idx), res_length(other.res_length), rmsd(other.rmsd) {};
     
     bool operator < (const seedSubstructureInfo& other) const {
@@ -106,7 +107,7 @@ public:
     
     //map seeds to peptide segments
     void findCoveringSeeds();
-    void mapSeedToChainSubsegments(vector<Atom*> seed_atoms);
+    void mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues);
     
     //report the results
     //Info pertaining to the peptide (which is to be covered)
@@ -140,8 +141,6 @@ protected:
         }
         return bb_atoms;
     };
-    
-    void mapSegmentToChainSubsegments(vector<Atom*> seed_segment, int seed_position, int length);
     
     set<pair<int,int>> getContacts(vector<Atom*> seed_segment, int peptide_position);
     

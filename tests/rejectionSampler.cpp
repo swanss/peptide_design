@@ -30,9 +30,11 @@ int main(int argc, char* argv[]) {
     while (!sampled) {
       //sample value
       val = MstUtils::randUnit() * 25;
+      cout << "sample: " << val << endl;
       //check if rejected
       sampled = rSampler.accept(val);
     }
+    cout << "accept: " << val << endl;
     out << i << "\t";
     out << val << endl;
   }

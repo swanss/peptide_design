@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
   op.addOption("bin_path", "path to a seed binary file.",true);
   op.addOption("pdb", "Structure file containing peptide chain and protein chain(s)", true);
   op.addOption("peptide", "Peptide chain ID", true);
-  op.addOption("max_rmsd", "The max RMSD threshold used when determining whether a seed aligns to the peptide or not.");
+  op.addOption("max_rmsd", "The max RMSD threshold used when determining whether a seed aligns to the peptide or not. (default 2.0)");
   op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
   op.addOption("hist","Path to the histogram file with the seed distance distribution that will be matched in the null model seeds",true);
   op.setOptions(argc, argv);
