@@ -717,7 +717,7 @@ vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* ma
         // use fragment name + extendedFragment number to construct a unique name
         num_extended_fragments++;
         string ext_frag_name = extendedFragmentName(RMSD);
-        cout << "Extended fragment with name: " << ext_frag_name << endl;
+//        cout << "Extended fragment with name: " << ext_frag_name << endl;
         extended_fragment->setName(ext_frag_name);
         
         // add to fragmenter seeds
