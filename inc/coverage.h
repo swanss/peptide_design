@@ -37,7 +37,7 @@ public:
     
     seedSubstructureInfo() {};
     seedSubstructureInfo(string name, string ID, int idx, int length, mstreal _rmsd, mstreal _alignment_cos_angle) : structure_name(name), chain_ID(ID), res_idx(idx), res_length(length), rmsd(_rmsd), alignment_cos_angle(_alignment_cos_angle) {};
-    seedSubstructureInfo(const seedSubstructureInfo& other) : structure_name(other.structure_name), chain_ID(other.chain_ID), res_idx(other.res_idx), res_length(other.res_length), rmsd(other.rmsd) {};
+//    seedSubstructureInfo(const seedSubstructureInfo& other) : structure_name(other.structure_name), chain_ID(other.chain_ID), res_idx(other.res_idx), res_length(other.res_length), rmsd(other.rmsd) {};
     
     bool operator < (const seedSubstructureInfo& other) const {
         return (rmsd < other.rmsd);

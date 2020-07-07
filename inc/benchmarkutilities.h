@@ -213,6 +213,8 @@ public:
      */
     void newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
     
+    void setClashChecking(bool _clash_check) {clash_check = _clash_check;}
+    
 protected:
     int transform(Structure* seed, structureBoundingBox& bounding_box, bool position, bool orientation, CartesianPoint new_centroid);
     
@@ -242,6 +244,7 @@ private:
     int max_attempts;
     mstreal distance;
     int neighbors;
+    bool clash_check;
 };
 
 /* --------- naiveSeedsfromDB --------- */

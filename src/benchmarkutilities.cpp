@@ -282,6 +282,7 @@ naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinar
     //  seed_PS = new ProximitySearch(seed_centroids,distance/2);
     neighbors = _neighbors;
     max_attempts = 50;
+    clash_check = true;
 }
 
 void naiveSeedsFromBin::newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site) {
@@ -438,9 +439,12 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
         sample_new_pose.apply(seed);
         
         //check if seed clashes
-        AtomPointerVector transformed_seed_atoms = seed->getAtoms();
-        seed_clash = isClash(*target_PS, target_BB_atoms, transformed_seed_atoms); //from structgen
-        if (attempts > max_attempts) seed_clash = false;
+        if (!clash_check) seed_clash = false;
+        else if (attempts > max_attempts) seed_clash = false;
+        else {
+            AtomPointerVector transformed_seed_atoms = seed->getAtoms();
+            seed_clash = isClash(*target_PS, target_BB_atoms, transformed_seed_atoms); //from structgen
+        }
         if (seed_clash) {
             //reset transformations
             sample_new_pose.makeIdentity();

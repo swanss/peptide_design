@@ -255,6 +255,7 @@ void interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vect
                     //compute the mean cosine angle between residue normal vectors
                     vector<Residue*> seed_residue_segment(seed_residues.begin()+seed_position,seed_residues.begin()+seed_position+segment_length);
                     mstreal alignment_cos_angle = generalUtilities::avgCosAngleBetweenSegments(seed_residue_segment,chainResidueSubsegments[segment_length-1][peptide_position]);
+                    cout << "rmsd: " << rmsd << " alignment_cos_angle: " << alignment_cos_angle << endl;
                     
                     seedSubstructureInfo info(structure_name,chain_ID,seed_position,segment_length,rmsd,alignment_cos_angle);
                     
