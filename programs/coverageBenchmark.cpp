@@ -175,6 +175,7 @@ int main(int argc, char *argv[]) {
             cout << "Write coverage to files..." << endl;
             IC.writePeptideResidues(path_to_covDir+"type1_");
             IC.writeContacts(path_to_covDir+"type1_");
+            IC.writeAllAlignedSeedsInfo(path_to_covDir+"type1_");
             IC.writeBestAlignedSeeds(path_to_covDir+"type1_",10);
         }
     }
@@ -198,6 +199,7 @@ int main(int argc, char *argv[]) {
             cout << "Write coverage to files..." << endl;
             IC.writePeptideResidues(path_to_covDir+"type2_");
             IC.writeContacts(path_to_covDir+"type2_");
+            IC.writeAllAlignedSeedsInfo(path_to_covDir+"type2_");
             IC.writeBestAlignedSeeds(path_to_covDir+"type2_",10);
         }
     }
