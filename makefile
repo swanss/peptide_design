@@ -65,15 +65,15 @@ clean:
 ######################
 
 uname := $(shell uname -s)
+PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
 ifeq ($(uname),Linux)
 	# TODO verify that this works on Linux
-	pythonExec := python
+	pythonExec := python3
 	PYLIB_PATH = $(shell $(pythonExec)-config --exec-prefix)/lib64
 	PYLIB = -L$(PYLIB_PATH) $(LIBFLAGS) -L$(LIB) -ldl -lboost_python$(PYTHON_SUFFIX) -lpeptide_design $(LDLIBS)
 else # MacOS
 	# Requires python 3.8
 	pythonExec := python3.8
-	PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
 	PYLIB_PATH = $(shell $(pythonExec) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'));")
 	PYLIB = -L$(PYLIB_PATH) $(LIBFLAGS) -L$(LIB) -ldl -framework CoreFoundation -undefined dynamic_lookup -lboost_python$(PYTHON_SUFFIX) -lpeptide_design $(LDLIBS)
 endif
