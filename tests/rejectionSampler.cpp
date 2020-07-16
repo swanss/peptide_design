@@ -38,11 +38,7 @@ int main(int argc, char* argv[]) {
     out << i << "\t";
     out << val << endl;
   }
-  
-  
-  
-  
-  
+
   cout << "Done" << endl;
   return 1;
 }

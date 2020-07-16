@@ -115,10 +115,10 @@ seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstr
         }
     }
     
-    //build histogram (normalized by bin with highest count)
-    int max_value = 0;
-    for (int val : bin_counts) if (val > max_value) max_value = val;
-    for (int val : bin_counts) hist.bins.push_back(mstreal(val)/mstreal(max_value));
+    //build histogram (properly normalized)
+    int total_counts = 0;
+    for (int val : bin_counts) total_counts += val;
+    for (int val : bin_counts) hist.bins.push_back(mstreal(val)/(hist.bin_size * mstreal(total_counts)));
 }
 
 
@@ -283,6 +283,7 @@ naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinar
     neighbors = _neighbors;
     max_attempts = 50;
     clash_check = true;
+    rejection_sample = true;
 }
 
 void naiveSeedsFromBin::newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site) {
@@ -412,11 +413,15 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
             mstreal x_pos;
             mstreal y_pos;
             mstreal z_pos;
+            
             bool accept = false;
             while (!accept) {
                 x_pos = bounding_box.xlo + (MstUtils::randUnit() * (bounding_box.xhi - bounding_box.xlo));
                 y_pos = bounding_box.ylo + (MstUtils::randUnit() * (bounding_box.yhi - bounding_box.ylo));
                 z_pos = bounding_box.zlo + (MstUtils::randUnit() * (bounding_box.zhi - bounding_box.zlo));
+                if (!rejection_sample) {
+                    break;
+                }
                 CartesianPoint new_centroid(x_pos,y_pos,z_pos);
                 mstreal distance = stat.point2NearestProteinAtom(new_centroid);
                 accept = sampler.accept(distance);
