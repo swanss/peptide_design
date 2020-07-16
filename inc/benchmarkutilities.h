@@ -21,7 +21,6 @@ class seedStatistics;
 
 /* --------- histogram --------- */
 struct histogram {
-    //histogram is normalized such that the bin with the highest count has a value of 1.0
     
     vector<mstreal> bins;
     mstreal min_value;
@@ -58,7 +57,7 @@ struct histogram {
 class seedCentroidDistance {
     /*
      This class loads the seeds from multiple binary files, subsample them, averages
-     their centroid distance from the protein, and uses this to construct a histogram
+     their centroid distance from the protein, and uses this to construct a normalized histogram
      */
 public:
     seedCentroidDistance(string list, mstreal min_value, mstreal max_value, int num_bins);
@@ -70,7 +69,7 @@ protected:
     }
 private:
     vector<string> seedbin_paths; //absolute paths to the seed binary files
-    int sample_n = 10000; //the maximum number of seeds sampled, per binary file
+    int sample_n = 100000; //the maximum number of seeds sampled, per binary file
     string s_cid = "0";
     
     vector<int> bin_counts;
@@ -214,6 +213,7 @@ public:
     void newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
     
     void setClashChecking(bool _clash_check) {clash_check = _clash_check;}
+    void setRejectionSampling(bool _rejection_sample) {rejection_sample = _rejection_sample;}
     
 protected:
     int transform(Structure* seed, structureBoundingBox& bounding_box, bool position, bool orientation, CartesianPoint new_centroid);
@@ -245,6 +245,7 @@ private:
     mstreal distance;
     int neighbors;
     bool clash_check;
+    bool rejection_sample;
 };
 
 /* --------- naiveSeedsfromDB --------- */

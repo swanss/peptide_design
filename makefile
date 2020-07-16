@@ -66,6 +66,7 @@ clean:
 
 PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
 uname := $(shell uname -s)
+PYTHON_SUFFIX = $(shell $(pythonExec) -c "import sys; print(''.join(map(str,sys.version_info[0:2])));")
 ifeq ($(uname),Linux)
 	# TODO verify that this works on Linux
 	pythonExec := python3
