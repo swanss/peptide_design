@@ -353,7 +353,7 @@ void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLib
 		Residue* resA = conts.residueA(i);
 		Residue* resB = conts.residueB(i);
 		int numIncluded = toCheck.count(resA) + toCheck.count(resB);
-		if (numIncluded == 1 || (numIncluded == 2 && intra)) {
+		if ((!intra && numIncluded == 1) || (intra && numIncluded == 2)) {
 			ssConts.addContact(resA, resB, conts.degree(i));
 		}
 	}
@@ -363,11 +363,14 @@ void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLib
 	for (int i = 0; i < conts.size(); i++) {
 		Residue* resA = conts.residueA(i); // side chain from A to BB of B
 		Residue* resB = conts.residueB(i);
-		if (toCheck.count(resA) == 1 && (toCheck.count(resB) == 0 || intra)) {
+        //the "source" residues is the one whose sidechain interferes with the others backbone
+        bool sourceIsInToCheck = toCheck.count(resA) == 1; //the source is in the residues to be designed
+        int numIncluded = toCheck.count(resA) + toCheck.count(resB);
+        if (!sourceIsInToCheck) { // BB of toCheck
+            if (!intra) bsConts.addContact(resA, resB, conts.degree(i)); // side chain coming from existing (target) region
+        }
+		else if ((intra && numIncluded == 2) || (!intra && numIncluded == 1)) {
 			sbConts.addContact(resA, resB, conts.degree(i)); // side chain from toCheck
-		}
-		if (toCheck.count(resB) == 1 && toCheck.count(resA) == 0) { // BB of toCheck
-			bsConts.addContact(resA, resB, conts.degree(i)); // side chain coming from existing (target) region
 		}
 	}
 
@@ -376,7 +379,7 @@ void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLib
 		Residue* resA = conts.residueA(i);
 		Residue* resB = conts.residueB(i);
 		int numIncluded = toCheck.count(resA) + toCheck.count(resB);
-		if (numIncluded == 1 || (numIncluded == 2 && intra)) { // exaclty one residue must be from the loop region - could think about allowing two for intra
+		if ((!intra && numIncluded == 1) || (intra && numIncluded == 2)) { // exaclty one residue must be from the loop region - could think about allowing two for intra
 			bbConts.addContact(resA, resB, conts.degree(i));
 		}
 	}

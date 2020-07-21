@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     op.addOption("peptide", "peptide chain ID. Only necessary if the provided .pdb file contains a peptide chain");
     op.addOption("sel","a selection string that specifies the protein residues to generate seeds around. Necessary if the provided PDB file does not include peptide chains");
     op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
-    op.addOption("flanking_res","The number of residues flanking a contact to include when creating a fragment.");
+    op.addOption("flanking_res","The number of residues flanking a contact to include when creating a fragment (default 2).");
     op.addOption("match_req", "The fragmenter will attempt to create the largest (ranked by number of residues) fragments that have at least this many matches. During TERM Extension, even if the fragment has more than this number match_num_req matches, only this number will be used to generate seeds.  If not defined, defaults to CEN_RES.");
     op.setOptions(argc, argv);
     

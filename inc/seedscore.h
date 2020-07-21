@@ -89,7 +89,7 @@ public:
      @return true if the combined structure was created, and false if there was
      a steric clash
      */
-    bool prepareCombinedStructure(Structure *seed);
+    bool prepareCombinedStructure(Structure *seed, bool ignore_clash = false);
     /**
      Removes the seed chain from targetStructBB.
      */
@@ -335,14 +335,20 @@ private:
  This score is essentially the number of designable contacts per residue in the
  seed chain - in this implementation, higher is better. If a residue has a non-
  designable fragment, its score is set to -infinity.
+ 
+ note: if scoreAll is set to true, then non-designable contacts are not added
+ to the final score.
  */
 class StructureCompatibilityScorer: public FASSTScorer {
 public:
     /**
      For descriptions of parameters, see initializer for
      SequenceCompatibilityScorer.
+     
+     option added by sebastian on 20/07/19
+     @param scoreAll search all contacts, regardless if some are found to be non-designable
      */
-  StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity = 0.4, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 0.7);
+  StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity = 0.4, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 0.7, bool scoreAll = false);
     
     /**
      This currently only supports seeds with a single chain.
@@ -353,9 +359,16 @@ public:
      */
     unordered_map<Residue *, mstreal> score(Structure *seed) override;
     
-    void score(Structure *seed, mstreal &totalScore, int &numContacts, int &numDesignable);
+    /*
+     Option added by sebastian 20/07/19
+     @param intra when true, defines contacts between residues of the path
+     */
+    
+    void score(Structure *seed, mstreal &totalScore, int &numContacts, int &numDesignable, bool intra = false, bool score_all = false);
 
     bool clashes(Structure *seed);
+    
+    void setScoreAll(bool _scoreAll) { scoreAll = _scoreAll;}
 
     /**
      The workhorse of this class - this method counts the number of designable
@@ -377,6 +390,7 @@ private:
     double vdwRadius;
     int minNumMatches;
     bool mustContact = true;
+    bool scoreAll;
 
     // Statistics for current seed
     int _numDesignable = 0;

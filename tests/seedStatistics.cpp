@@ -43,8 +43,8 @@ int main(int argc, char *argv[]) {
   Structure S(pdb_path);
   
   //report statistics
-  seedStatistics stats(S, p_id);
-  stats.writeStatisticstoFile(bin_in, outDir, out_prefix, seed_num);
+  seedStatistics stats(S, p_id, bin_in);
+  stats.writeStatisticstoFile(outDir, out_prefix, seed_num);
   
   return 0;
 }

@@ -56,97 +56,86 @@ void histogram::writeHistFile(string hist_file) {
     info_file.close();
 }
 
-/* --------- seedCentroidDistance --------- */
-
-seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstreal _max_value, int num_bins) : min_value(_min_value), max_value(_max_value) {
-    bin_counts.resize(num_bins);
-    fill(bin_counts.begin(),bin_counts.end(),0);
-    
-    bin_size = (max_value - min_value) / num_bins;
-    cout << "bin size: " << bin_size << endl;
-    
-    hist.min_value = min_value;
-    hist.max_value = min_value + (bin_size*num_bins);
-    hist.bin_size = bin_size;
-    
-    //get the list of binary files/structures
-    //e.g. path/to/binary path/to/structure
-    vector<string> files = MstUtils::fileToArray(list);
-    cout << "there are " << files.size() << " sets of seeds" << endl;
-    
-    if (files.size() * sample_n > INT_MAX) MstUtils::error("Note: it is possible that the counts in a single bin could exceed the maximum possible value of an 'int'. If this occurs, consider sampling less seeds or refactoring");
-    
-    for (string file_name : files) {
-        cout << file_name << endl;
-        vector<string> split = MstUtils::split(file_name);
-        string bin_path = split[0];
-        string struct_path = split[1];
-        
-        //get the peptide chain name
-        split = MstUtils::split(struct_path,"_");
-        string p_id = split[split.size() - 3]; //should get the peptide chain id
-        
-        cout << "pdb path: " << struct_path << " bin path: " << bin_path << " peptide chain ID: " << p_id << endl;
-        
-        //sample seeds from binary file and record distance from protein
-        Structure complex(struct_path);
-        seedStatistics stat(complex,p_id);
-        
-        StructuresBinaryFile bin(bin_path,true);
-        size_t num_seeds = bin.structureCount();
-        bin.reset();
-        
-        mstreal sample_prob = min(1.0,mstreal(sample_n)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled
-        Structure* extfrag;
-        while (bin.hasNext()) {
-            if (MstUtils::randUnit() < sample_prob) extfrag = bin.next();
-            else {
-                bin.skip();
-                continue;
-            }
-            Chain* C = extfrag->getChainByID("0");
-            Structure* seed = new Structure(*C);
-            mstreal distance = stat.centroid2NearestProteinAtom(seed);
-            
-            bin_counts[getBin(distance)] += 1;
-            
-            delete extfrag;
-            delete seed;
-        }
+mstreal histogram::getVal(mstreal value) {
+    if ((value < min_value) || (value > max_value)) {
+        MstUtils::error("Provided value ("+MstUtils::toString(value)+") not in histogram range: ["+MstUtils::toString(min_value)+","+MstUtils::toString(max_value)+"]","histogram::getVal()");
     }
-    
-    //build histogram (properly normalized)
-    int total_counts = 0;
-    for (int val : bin_counts) total_counts += val;
-    for (int val : bin_counts) hist.bins.push_back(mstreal(val)/(hist.bin_size * mstreal(total_counts)));
+    int bin_id = floor((value - min_value) / bin_size);
+    return bins[bin_id];
 }
 
-
-/* --------- rejectionSampler --------- */
-
-rejectionSampler::rejectionSampler(string hist_file) {
-    hist.readHistFile(hist_file);
-    cout << "loaded the following histogram: " << endl;
-    hist.printInfo();
-}
-
-bool rejectionSampler::accept(mstreal value) {
-    mstreal accept_prob = getVal(value);
-    mstreal sampled_value = MstUtils::randUnit();
-    if (sampled_value <= accept_prob) return true;
-    else return false;
-}
-
-mstreal rejectionSampler::getVal(mstreal value) {
-    if ((value < hist.min_value) || (value > hist.max_value)) {
-        string value_str = MstUtils::toString(value);
-        string min_str = MstUtils::toString(hist.min_value);
-        string max_str = MstUtils::toString(hist.max_value);
-        MstUtils::error("Provided value ("+value_str+") not in rejection sampler range: ["+min_str+","+max_str+"]","rejectionSampler::getCount()");
+mstreal histogram::getVal(int bin_id) {
+    if ((bin_id < 0) || (bin_id > bins.size())) {
+        MstUtils::error("Provided value ("+MstUtils::toString(bin_id)+") not in bins range: ["+MstUtils::toString(0)+","+MstUtils::toString(bins.size())+"]","histogram::getVal()");
     }
-    int bin_id = floor((value - hist.min_value) / hist.bin_size);
-    return hist.bins[bin_id];
+    return bins[bin_id];
 }
+
+///* --------- seedCentroidDistance --------- */
+//
+//seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstreal _max_value, int num_bins) : min_value(_min_value), max_value(_max_value) {
+//    bin_counts.resize(num_bins);
+//    fill(bin_counts.begin(),bin_counts.end(),0);
+//
+//    bin_size = (max_value - min_value) / num_bins;
+//    cout << "bin size: " << bin_size << endl;
+//
+//    hist.min_value = min_value;
+//    hist.max_value = min_value + (bin_size*num_bins);
+//    hist.bin_size = bin_size;
+//
+//    //get the list of binary files/structures
+//    //e.g. path/to/binary path/to/structure
+//    vector<string> files = MstUtils::fileToArray(list);
+//    cout << "there are " << files.size() << " sets of seeds" << endl;
+//
+//    if (files.size() * sample_n > INT_MAX) MstUtils::error("Note: it is possible that the counts in a single bin could exceed the maximum possible value of an 'int'. If this occurs, consider sampling less seeds or refactoring");
+//
+//    for (string file_name : files) {
+//        cout << file_name << endl;
+//        vector<string> split = MstUtils::split(file_name);
+//        string bin_path = split[0];
+//        string struct_path = split[1];
+//
+//        //get the peptide chain name
+//        split = MstUtils::split(struct_path,"_");
+//        string p_id = split[split.size() - 3]; //should get the peptide chain id
+//
+//        cout << "pdb path: " << struct_path << " bin path: " << bin_path << " peptide chain ID: " << p_id << endl;
+//
+//        //sample seeds from binary file and record distance from protein
+//        Structure complex(struct_path);
+//        seedStatistics stat(complex,p_id);
+//
+//        StructuresBinaryFile bin(bin_path,true);
+//        size_t num_seeds = bin.structureCount();
+//        bin.reset();
+//
+//        mstreal sample_prob = min(1.0,mstreal(sample_n)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled
+//        Structure* extfrag;
+//        while (bin.hasNext()) {
+//            if (MstUtils::randUnit() < sample_prob) extfrag = bin.next();
+//            else {
+//                bin.skip();
+//                continue;
+//            }
+//            Chain* C = extfrag->getChainByID("0");
+//            Structure* seed = new Structure(*C);
+//            mstreal distance = stat.centroid2NearestProteinAtom(seed);
+//
+//            bin_counts[getBin(distance)] += 1;
+//
+//            delete extfrag;
+//            delete seed;
+//        }
+//    }
+//
+//    //build histogram (properly normalized)
+//    int total_counts = 0;
+//    for (int val : bin_counts) total_counts += val;
+//    for (int val : bin_counts) hist.bins.push_back(mstreal(val)/(hist.bin_size * mstreal(total_counts)));
+//}
+
 
 /* --------- generateRandomSeed --------- */
 
@@ -255,12 +244,23 @@ void structureBoundingBox::construct_structureBoundingBox(AtomPointerVector atom
 }
 
 /* --------- naiveSeedsfromBin --------- */
-naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, string sampler_path, mstreal _distance, int _neighbors) : complex(S), seeds(seedBinaryPath_in), sampler(sampler_path), stat(S,p_id) {
+naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, string rotLibPath, rejectionSampler* _sampler) : complex(S), seeds(seedBinaryPath_in), stat(S,p_id,seedBinaryPath_in) {
+    sampler = _sampler;
+    
     //get target structure
     peptide = complex.getChainByID(p_id);
     vector<Residue*> target_residues;
     for (Residue* R : complex.getResidues()) if (R->getChainID() != p_id) target_residues.push_back(R);
     target = Structure(target_residues);
+    
+    //get residues of the peptide that contact the protein
+    ConFind C(rotLibPath,complex); mstreal cd_threshold = 0.01;
+    vector<Residue*> peptide_residues = peptide->getResidues();
+    contactList contacts = generalUtilities::getContactsWith(peptide_residues, C, cd_threshold, "contact");
+    for (int i = 0; i < contacts.size(); i++) {
+        Residue* R = contacts.residueA(i);
+        if (find(peptide_interface_residues.begin(),peptide_interface_residues.end(),R) == peptide_interface_residues.end()) peptide_interface_residues.push_back(R);
+    }
     
     //generate proximity search for target backbone
     cout << "Extracting target backbone to construct a promixity search object..." << endl;
@@ -278,9 +278,6 @@ naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinar
     int_properties = seeds.getPropertyNamesInt();
     real_properties = seeds.getPropertyNamesReal();
     
-    distance = _distance;
-    //  seed_PS = new ProximitySearch(seed_centroids,distance/2);
-    neighbors = _neighbors;
     max_attempts = 50;
     clash_check = true;
     rejection_sample = true;
@@ -295,7 +292,9 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
     cout << endl;
     
     //construct bounding box
-    structureBoundingBox bounding_box = structureBoundingBox(peptide); //only use if position is randomized
+//  structureBoundingBox bounding_box = structureBoundingBox(peptide);
+    structureBoundingBox bounding_box = structureBoundingBox(peptide_interface_residues); //only use if position is randomized
+
     
     //prepare for writing new seed binary file
     string seedBinaryPath_out = output_path + out_name + ".bin";
@@ -376,91 +375,77 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
     //final transform
     Transform sample_new_pose;
     
+    //the outer loop continues until a seed is accepted
     int attempts = 0;
-    bool seed_clash = true;
-    while (seed_clash) {
-        if (attempts > 0) {
-            generalUtilities::copyAtomCoordinates(seed, original_seed_atoms_copy);
-        }
-        attempts++;
-        
-        if (orientation) {
-            //generate a random rotation
-            mstreal x_angle = MstUtils::randUnit() * 360;
-            mstreal y_angle = MstUtils::randUnit() * 360;
-            mstreal z_angle = MstUtils::randUnit() * 360;
-            rotate_around_x = tf.rotateAroundX(x_angle);
-            rotate_around_y = tf.rotateAroundY(y_angle);
-            rotate_around_z = tf.rotateAroundZ(z_angle);
-        }
-        
-        //generate the translation
-        if (position) {
-            //      // sample and check if near seeds
-            //      mstreal x_pos;
-            //      mstreal y_pos;
-            //      mstreal z_pos;
-            //      bool near_seeds = false;
-            //      while (!near_seeds) {
-            //        x_pos = bounding_box.xlo + (MstUtils::randUnit() * (bounding_box.xhi - bounding_box.xlo));
-            //        y_pos = bounding_box.ylo + (MstUtils::randUnit() * (bounding_box.yhi - bounding_box.ylo));
-            //        z_pos = bounding_box.zlo + (MstUtils::randUnit() * (bounding_box.zhi - bounding_box.zlo));
-            //        CartesianPoint new_centroid(x_pos,y_pos,z_pos);
-            //        vector<int> near_points = seed_PS->getPointsWithin(new_centroid, 0.0, distance);
-            //        if (near_points.size() > neighbors) near_seeds = true;
-            //      }
-            // sample until position is accepted
-            mstreal x_pos;
-            mstreal y_pos;
-            mstreal z_pos;
+    bool accept = false;
+    while (!accept) {
+        bool seed_clash = true;
+        //the inner loop continues until a seed is sampled that does not clash
+        while (seed_clash) {
+            if (attempts > 0) {
+                //reset seed coordinates
+                generalUtilities::copyAtomCoordinates(seed, original_seed_atoms_copy);
+                
+                //reset transformations
+                sample_new_pose.makeIdentity();
+                if (orientation) {
+                    rotate_around_x.makeIdentity(); rotate_around_y.makeIdentity(); rotate_around_z.makeIdentity();
+                }
+                if (position) {
+                    translate_to_bounding_box_origin.makeIdentity(); translate_into_box.makeIdentity();
+                } else {
+                    translate_to_centroid.makeIdentity();
+                }
+            }
+            attempts++;
             
-            bool accept = false;
-            while (!accept) {
+            if (orientation) {
+                //generate a random rotation
+                mstreal x_angle = MstUtils::randUnit() * 360;
+                mstreal y_angle = MstUtils::randUnit() * 360;
+                mstreal z_angle = MstUtils::randUnit() * 360;
+                rotate_around_x = tf.rotateAroundX(x_angle);
+                rotate_around_y = tf.rotateAroundY(y_angle);
+                rotate_around_z = tf.rotateAroundZ(z_angle);
+            }
+            
+            //generate the translation
+            if (position) {
+                mstreal x_pos;
+                mstreal y_pos;
+                mstreal z_pos;
                 x_pos = bounding_box.xlo + (MstUtils::randUnit() * (bounding_box.xhi - bounding_box.xlo));
                 y_pos = bounding_box.ylo + (MstUtils::randUnit() * (bounding_box.yhi - bounding_box.ylo));
                 z_pos = bounding_box.zlo + (MstUtils::randUnit() * (bounding_box.zhi - bounding_box.zlo));
-                if (!rejection_sample) {
-                    break;
-                }
-                CartesianPoint new_centroid(x_pos,y_pos,z_pos);
-                mstreal distance = stat.point2NearestProteinAtom(new_centroid);
-                accept = sampler.accept(distance);
+                
+                translate_into_box = tf.translate(x_pos,y_pos,z_pos);
+            } else {
+                //to the provided centroid
+                translate_to_centroid = tf.translate(new_centroid);
             }
             
-            translate_into_box = tf.translate(x_pos,y_pos,z_pos);
-        } else {
-            //to the provided centroid
-            translate_to_centroid = tf.translate(new_centroid);
+            //combine all transformations
+            if (position && orientation) {
+                sample_new_pose = translate_into_box * translate_to_bounding_box_origin * rotate_around_z * rotate_around_y * rotate_around_x * translate_to_origin; //matrix multiplication progresses right to left.... right? lol
+            } else if (!position && orientation) {
+                sample_new_pose = translate_to_centroid * rotate_around_z * rotate_around_y * rotate_around_x * translate_to_origin;
+            } else if (position && !orientation) {
+                sample_new_pose = translate_into_box * translate_to_bounding_box_origin * translate_to_origin;
+            }
+            sample_new_pose.apply(seed);
+            
+            //check if seed clashes
+            if (!clash_check) seed_clash = false;
+            else if (attempts > max_attempts) seed_clash = false;
+            else {
+                AtomPointerVector transformed_seed_atoms = seed->getAtoms();
+                seed_clash = isClash(*target_PS, target_BB_atoms, transformed_seed_atoms); //from structgen
+            }
         }
-        
-        //combine all transformations
-        if (position && orientation) {
-            sample_new_pose = translate_into_box * translate_to_bounding_box_origin * rotate_around_z * rotate_around_y * rotate_around_x * translate_to_origin; //matrix multiplication progresses right to left.... right? lol
-        } else if (!position && orientation) {
-            sample_new_pose = translate_to_centroid * rotate_around_z * rotate_around_y * rotate_around_x * translate_to_origin;
-        } else if (position && !orientation) {
-            sample_new_pose = translate_into_box * translate_to_bounding_box_origin * translate_to_origin;
-        }
-        sample_new_pose.apply(seed);
-        
-        //check if seed clashes
-        if (!clash_check) seed_clash = false;
-        else if (attempts > max_attempts) seed_clash = false;
+        if (!rejection_sample || sampler == nullptr) accept = true;
         else {
-            AtomPointerVector transformed_seed_atoms = seed->getAtoms();
-            seed_clash = isClash(*target_PS, target_BB_atoms, transformed_seed_atoms); //from structgen
-        }
-        if (seed_clash) {
-            //reset transformations
-            sample_new_pose.makeIdentity();
-            if (orientation) {
-                rotate_around_x.makeIdentity(); rotate_around_y.makeIdentity(); rotate_around_z.makeIdentity();
-            }
-            if (position) {
-                translate_to_bounding_box_origin.makeIdentity(); translate_into_box.makeIdentity();
-            } else {
-                translate_to_centroid.makeIdentity();
-            }
+            mstreal distance = stat.centroid2NearestProteinAtom(seed);
+            accept = sampler->accept(distance);
         }
     }
     for (Atom* A_copy : original_seed_atoms_copy) delete A_copy; //the atom copies are no longer necessary
@@ -479,7 +464,9 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
     cout << endl;
     
     //construct bounding box
-    structureBoundingBox bounding_box = structureBoundingBox(peptide);
+//    structureBoundingBox bounding_box = structureBoundingBox(peptide);
+    structureBoundingBox bounding_box = structureBoundingBox(peptide_interface_residues);
+
     
     //open new seed binary file
     string seedBinaryPath_out = output_path + out_name + ".bin";
@@ -547,7 +534,9 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
 
 /* --------- seedStatistics --------- */
 
-seedStatistics::seedStatistics(Structure& S, string p_id) : complex(S) {
+seedStatistics::seedStatistics(Structure& S, string p_id, string seedBinaryPath) : complex(S) {
+    if (seedBinaryPath != "") bin_file = new StructuresBinaryFile(seedBinaryPath);
+    else bin_file = nullptr;
     neigborhood = 10.0;
     
     //get target structure
@@ -564,8 +553,8 @@ seedStatistics::seedStatistics(Structure& S, string p_id) : complex(S) {
     target_PS = new ProximitySearch(target_BB_atoms, neigborhood/2);
 }
 
-void seedStatistics::writeStatisticstoFile(string seedBinaryPath_in, string output_path, string output_name, int num_final_seeds) {
-    
+void seedStatistics::writeStatisticstoFile(string output_path, string output_name, int num_final_seeds) {
+    if (bin_file == nullptr) MstUtils::error("a StructuresBinaryFile with seeds must be provided.");
     //open seed info file
     string seed_info = output_path + output_name + "_statistics.info";
     fstream seed_out;
@@ -573,21 +562,18 @@ void seedStatistics::writeStatisticstoFile(string seedBinaryPath_in, string outp
     //header
     seed_out << "name\tbounding_sphere_radius\tmin_distance_centroid_protein\tseed_length" << endl;
     
-    StructuresBinaryFile bin_file(seedBinaryPath_in,true);
-    
-    long num_seeds = bin_file.structureCount();
+    long num_seeds = bin_file->structureCount();
     mstreal skip_probability = 1 - min(mstreal(1),mstreal(num_final_seeds)/num_seeds);
     cout << "There are " << num_seeds << " seeds in the input binary file. Skip probability is " << skip_probability << endl;
     
-    
     int count = 0;
-    while (bin_file.hasNext() == true) {
+    while (bin_file->hasNext() == true) {
         mstreal sampled_value = MstUtils::randUnit();
         if (sampled_value <= skip_probability) {
-            bin_file.skip();
+            bin_file->skip();
             continue;
         }
-        Structure* extfrag = bin_file.next();
+        Structure* extfrag = bin_file->next();
         Chain* seed_C = extfrag->getChainByID("0");
         Structure* seed = new Structure(*seed_C);
         mstreal bounding_sphere_radius = boundingSphereRadius(seed);
@@ -599,6 +585,44 @@ void seedStatistics::writeStatisticstoFile(string seedBinaryPath_in, string outp
     }
     cout << "In the end, wrote the info for " << count << " seeds" << endl;
     seed_out.close();
+    bin_file->reset();
+}
+
+histogram seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal max_value, int num_bins, int sampled_seeds) {
+    if (bin_file == nullptr) MstUtils::error("a StructuresBinaryFile with seeds must be provided.");
+    
+    histogram distances(min_value,max_value,num_bins);
+    
+    vector<int> bin_counts;
+    bin_counts.resize(num_bins);
+    fill(bin_counts.begin(),bin_counts.end(),0);
+    
+    size_t num_seeds = bin_file->structureCount();
+    bin_file->reset();
+    mstreal sample_prob = min(1.0,mstreal(sampled_seeds)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled
+    Structure* extfrag;
+    while (bin_file->hasNext()) {
+        if (MstUtils::randUnit() < sample_prob) extfrag = bin_file->next();
+        else {
+            bin_file->skip();
+            continue;
+        }
+        Chain* C = extfrag->getChainByID("0");
+        Structure* seed = new Structure(*C);
+        mstreal distance = centroid2NearestProteinAtom(seed);
+        
+        bin_counts[int((distance - min_value) / distances.getBinSize())] += 1;
+        
+        delete extfrag;
+        delete seed;
+    }
+    
+    //build histogram (properly normalized)
+    int total_counts = 0;
+    for (int val : bin_counts) total_counts += val;
+    for (int i = 0; i < bin_counts.size(); i++) distances.setBinVal(i,bin_counts[i]/(distances.getBinSize() * mstreal(total_counts)));
+    
+    return distances;
 }
 
 mstreal seedStatistics::boundingSphereRadius(Structure *seed) {
@@ -625,7 +649,7 @@ mstreal seedStatistics::point2NearestProteinAtom(CartesianPoint point) {
     while (closest_points.empty()) {
         closest_points = target_PS->getPointsWithin(point,0.0,max_d);
         max_d = max_d*2;
-        if (max_d > 80.0) MstUtils::error("Dude this seed is nowhere near the protein...");
+        if (max_d > 80.0) MstUtils::error("Dude this seed is nowhere near the protein...","seedStatistics::point2NearestProteinAtom");
     }
     
     //find the closest one;

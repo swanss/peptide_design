@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
     
     // Variables set at the time of compilation
     int max_seed_length = 10; //this limits the length of kmers that are compared between the peptide and a seed
-    int num_sampled = 10000; //this is approximately the number of seeds that will be sampled when writing line clouds
+    int num_sampled = 100000; //this is approximately the number of seeds that will be sampled when writing line clouds
     
     // Variables provided by user
     string extfrag_bin = op.getString("bin_path");
@@ -67,19 +67,26 @@ int main(int argc, char *argv[]) {
     //Randomize seeds
     /*
      Two types of randomized seeds
-     Type 1) randomized orientation, position sampled from previous seed
-     Type 2) randomized position and orientation
+     Type 1 randomized orientation, position sampled from previous seed
+     Type 2 randomized position and orientation
+     
+     To generate type 2, there are two steps:
+     1) Generate proposal distribution: sample seeds from the DB and record centroid distance distribution after clash filtering
+     2) Sample seeds using rejection sampling: repeat step 1, but accept/reject s.t. the target distribution is recapitulated.
      */
     string type1_name = "type1_seeds";
-    string type1_bin = outDir + "type1_seeds.bin";
+    string type1_bin = outDir + type1_name + ".bin";
+    string type2_proposal_name = "type2_proposal_seeds"; //note: the proposal distribution is generated without rejection sampling
+    string type2_proposal_bin = outDir + type2_proposal_name + ".bin";
     string type2_name = "type2_seeds";
-    string type2_bin = outDir + "type2_seeds.bin";
+    string type2_bin = outDir + type2_name + ".bin";
     bool position = false;
     bool orientation = true;
     
     cout << "Generating null model seeds..." << endl;
     
-    naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin, hist_path);
+    //generate type 1 seeds
+    naiveSeedsFromDB naiveSeeds(complex, p_cid, extfrag_bin, config.getDB(), config.getRL());
     if (op.isGiven("no_clash_check")) naiveSeeds.setClashChecking(false);
     
     timer.start();
@@ -87,7 +94,24 @@ int main(int argc, char *argv[]) {
     timer.stop();
     cout << "Generated type 1 seeds in " << timer.getDuration() << " seconds" << endl;
     
+    //generate type 2 seeds and find distance distribution
     position = true;
+    timer.start();
+    naiveSeeds.newPose(outDir, type2_proposal_name, position, orientation);
+    timer.stop();
+    cout << "Generated type 2 seeds (to find proposal distribution) in " << timer.getDuration() << " seconds" << endl;
+    
+    //generate a proposal histogram
+    seedStatistics stats(complex, p_cid, type2_proposal_bin);
+    stats.writeStatisticstoFile(outDir, type2_proposal_name, num_sampled);
+    histogram proposal = stats.generateDistanceHistogram();
+    string proposal_hist_path = outDir + "seed_centroid_distance_proposal.csv";
+    proposal.writeHistFile(proposal_hist_path);
+    
+    //generate type 2 null model seeds with rejection sampling
+    histogram target(hist_path);
+    rejectionSampler rSampler(proposal,target);
+    naiveSeeds.setRejectionSampler(&rSampler);
     timer.start();
     naiveSeeds.newPose(outDir, type2_name, position, orientation);
     timer.stop();
@@ -95,10 +119,14 @@ int main(int argc, char *argv[]) {
     
     
     //Write statistics
-    seedStatistics stats(complex, p_cid);
-    stats.writeStatisticstoFile(extfrag_bin, outDir, "extended_fragments", num_sampled);
-    stats.writeStatisticstoFile(type1_bin, outDir, type1_name, num_sampled);
-    stats.writeStatisticstoFile(type2_bin, outDir, type2_name, num_sampled);
+    stats.setBinaryFile(extfrag_bin);
+    stats.writeStatisticstoFile(outDir, "extended_fragments", num_sampled);
+    
+    stats.setBinaryFile(type1_bin);
+    stats.writeStatisticstoFile(outDir, type1_name, num_sampled);
+    
+    stats.setBinaryFile(type2_bin);
+    stats.writeStatisticstoFile(outDir, type2_name, num_sampled);
     
     string lcloud_out;
     cout << "Writing a line cloud file (TERM Extension) for visualization" << endl;

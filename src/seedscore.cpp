@@ -86,7 +86,7 @@ void FASSTScorer::loadFromTarget(string fasstDB) {
     //cout << "Memory usage: " << MstSys::memUsage() << endl;
 }
 
-bool FASSTScorer::prepareCombinedStructure(Structure *seed) {
+bool FASSTScorer::prepareCombinedStructure(Structure *seed, bool ignore_clash) {
     // Clean up the seed
     Structure tmpStructure(*seed);
     Structure pose;
@@ -97,7 +97,7 @@ bool FASSTScorer::prepareCombinedStructure(Structure *seed) {
     int adjustNum = 0;
     
     //cout << "Checking for clash..." << endl;
-    if (isClash(ps, psTargetAPV, poseAPV, vdwRadius)) {
+    if ((!ignore_clash) & (isClash(ps, psTargetAPV, poseAPV, vdwRadius))) {
         cout << "pose clashes with target" << endl;
         return false;
     }
@@ -509,7 +509,7 @@ mstreal SequenceCompatibilityScorer::contactScore(Residue *seedRes, Residue *tar
 
 #pragma mark - StructureCompatibilityScorer
 
-StructureCompatibilityScorer::StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), fragParams(fragParams), rParams(rParams), contParams(contParams), minNumMatches(minNumMatches) {}
+StructureCompatibilityScorer::StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity, int minNumMatches, int maxNumMatches, double vdwRadius, bool _scoreAll): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), fragParams(fragParams), rParams(rParams), contParams(contParams), minNumMatches(minNumMatches), scoreAll(_scoreAll) {}
 
 unordered_map<Residue*, mstreal> StructureCompatibilityScorer::score(Structure *seed) {
     _numDesignable = 0;
@@ -558,7 +558,7 @@ bool StructureCompatibilityScorer::clashes(Structure *seed) {
     return false;
 }
 
-void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, int &numContacts, int &numDesignable) {
+void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, int &numContacts, int &numDesignable, bool intra, bool score_all) {
     _numDesignable = 0;
     numContacts = 0;
     numDesignable = 0;
@@ -577,9 +577,11 @@ void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, i
     contactList bbConts; contactList sbConts; contactList bsConts; contactList ssConts;
     // note from craig: switched bsConts and sbConts here as we want sb to be SC from target
     // normal order bbConts, bsConts, sbConts, ssConts
-    splitContacts(targetStructBB, poseResidues, rl, contParams, false, bbConts, sbConts, bsConts, ssConts);
+    splitContacts(targetStructBB, poseResidues, rl, contParams, intra, bbConts, sbConts, bsConts, ssConts);
     contactList conts = contactListUnion({bbConts, sbConts, bsConts, ssConts});
     numContacts = conts.size();
+    
+    totalScore = 0.0;
     
     if (mustContact && conts.size() == 0) {
         // doesn't contact the correct regions of the target
@@ -590,10 +592,13 @@ void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, i
   
     // Compute designability score using the list of contacts
     unordered_map<Residue *, mstreal> tempResult = designabilityScore(targetStructBB, conts, poseResidues);
-    totalScore = 0.0;
     for (auto item: tempResult) {
         totalScore += item.second;
     }
+    /* Added by sebastian on 20/07/20:
+     total score should be normalized by number of residues
+    */
+    totalScore /= poseResidues.size();
     numDesignable = _numDesignable;
 
     // Clean up target structure
@@ -644,16 +649,19 @@ unordered_map<Residue*, mstreal> StructureCompatibilityScorer::designabilityScor
         //cout << "Done searching" << endl;
         
         if (fasst->numMatches() < minNumMatches) {
-            // Set the seed residue score to infinity
-            for (Residue *res: residuesToScore) {
-                result[res] = DBL_MAX;
+            if (!scoreAll) {
+                // Set the seed residue score to infinity
+                for (Residue *res: residuesToScore) {
+                    result[res] = DBL_MAX;
+                }
+                break;
             }
-            break;
         }
-        
-        _numDesignable++;
-        for (Residue *res: residuesToScore) {
-            result[res] += 1;
+        else {
+            _numDesignable++;
+            for (Residue *res: residuesToScore) {
+                result[res] += 1;
+            }
         }
     }
     

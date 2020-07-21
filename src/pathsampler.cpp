@@ -19,7 +19,7 @@ void printPath(vector<Residue *> &path) {
 // ============= PathSampler (parent class) =============
 
 
-bool PathSampler::emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results) {
+bool PathSampler::emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results, bool ignore_clashes) {
     // From mstfuser.cpp: we require that every residue in the path has these four atoms
     static vector<string> bba = {"N", "CA", "C", "O"};
 
@@ -39,11 +39,15 @@ bool PathSampler::emplacePathFromResidues(vector<Residue *> path, vector<PathRes
 
     Structure fused;
     int seedStartIdx = fusePath(path, fused);
-    if (pathClashes(fused, seedStartIdx))
-        return false;
+    bool interchain_clash = false; bool intrachain_clash = false;
+    bool has_clash = pathClashes(fused, seedStartIdx, interchain_clash, intrachain_clash);
+    
+    if (has_clash && !ignore_clashes) return false;
 
-    results.emplace_back(path, fused, seedStartIdx);
-    return true;
+    results.emplace_back(path, fused, seedStartIdx, interchain_clash, intrachain_clash);
+    
+    if (has_clash) return false;
+    else return true;
 }
 
 AtomPointerVector PathSampler::buildAPV(const vector<Residue *>::const_iterator &begin, const vector<Residue *>::const_iterator &end) {
@@ -183,7 +187,7 @@ int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPat
     return seedStartIdx;
 }
 
-bool PathSampler::pathClashes(const Structure &path, int seedStartIdx) {
+bool PathSampler::pathClashes(const Structure &path, int seedStartIdx, bool &interchain_clash, bool &intrachain_clash) {
     Structure pathOnly;
     Chain *c = new Chain;
     for (int i = seedStartIdx; i < path.residueSize(); i++) {
@@ -192,15 +196,15 @@ bool PathSampler::pathClashes(const Structure &path, int seedStartIdx) {
     pathOnly.appendChain(c);
 
     AtomPointerVector pathAPV(pathOnly.getAtoms());
-    if (isClash(ps, targetAPV, pathAPV, 0.7)) {
-        return true;
-    }
+    
+    interchain_clash = isClash(ps, targetAPV, pathAPV, 0.7);
+    if (interchain_clash) cout << "Path clashes with protein" << endl;
+    
     ProximitySearch pathPS(pathAPV, 10.0);
-  //not clear where this
-//    if (isClashSingleStructure(pathPS, pathAPV, 0.7)) {
-//        return true;
-//    }
-    return false;
+    intrachain_clash = isClashSingleStructure(pathPS, pathAPV, 0.7);
+    if (intrachain_clash) cout << "Path clashes with self" << endl;
+    if (interchain_clash || intrachain_clash) return true;
+    else return false;
 }
 
 
@@ -297,25 +301,29 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
 }
 
 vector<PathResult> SeedGraphPathSampler::fusePaths(const vector<string>& path_specifiers) {
-  vector<PathResult> results;
-
-  for (string path_spec : path_specifiers) {
-    vector<Residue*> path = pathResiduesFromSpecifier(path_spec);
-    bool path_clash = emplacePathFromResidues(path, results);
-    if (path_clash) cout << "Path " << results.size() << " has a clash" << endl;
-  }
-  return results;
+    vector<PathResult> results;
+    
+    int path_count = 0;
+    for (string path_spec : path_specifiers) {
+        path_count++;
+        vector<Residue*> path = pathResiduesFromSpecifier(path_spec);
+        if (path.empty()) MstUtils::error("Path has no residues");
+        bool ignore_clashes = true;
+        bool no_clash = emplacePathFromResidues(path, results, ignore_clashes);
+        if (!no_clash) cout << "Path " << path_count << " has a clash (or is missing atoms)" << endl;
+    }
+    return results;
 }
 
 vector<Residue*> SeedGraphPathSampler::pathResiduesFromSpecifier(string path_spec) {
-  vector<Residue*> path;
-  //split name into SeedGraph residue_names
-  vector<string> residue_names = MstUtils::split(path_spec,",");
-  for (string residue_name : residue_names) {
-    Residue* R = _graph->getResidueFromFile(residue_name);
-    path.push_back(R);
+    vector<Residue*> path;
+    //split name into SeedGraph residue_names
+    vector<string> residue_names = MstUtils::split(path_spec,";");
+    for (string residue_name : residue_names) {
+        Residue* R = _graph->getResidueFromFile(residue_name);
+        path.push_back(R);
     }
-  return path;
+    return path;
 }
 
 

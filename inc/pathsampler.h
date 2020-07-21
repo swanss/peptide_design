@@ -41,12 +41,17 @@ public:
         }
         ret.appendChain(c);
     }
-    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx) {}
+    bool hasIntrachainClash() {return _intrachain_clash;}
+    bool hasInterchainClash() {return _interchain_clash;}
+    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, bool interchain_clash = false, bool intrachain_clash = false): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _interchain_clash(interchain_clash), _intrachain_clash(intrachain_clash) {}
 
 private:
     vector<Residue *> _originalResidues;
     Structure _fusedPath;
     int _seedStartIdx;
+    bool _interchain_clash;
+    bool _intrachain_clash;
+    
 };
 
 class PathSampler {
@@ -71,7 +76,7 @@ protected:
      * Generates a PathResult by fusing the given path together, making
      * sure it is valid, and checking for clashes.
      */
-    bool emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results);
+    bool emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results, bool ignore_clashes = false);
 
     AtomPointerVector buildAPV(const vector<Residue *>::const_iterator &begin, const vector<Residue *>::const_iterator &end);
 
@@ -97,7 +102,7 @@ protected:
      */
     pair<vector<Residue *>, vector<int>> getMappedMatchResidues(const Structure &seedStructure, const unordered_map<pair<string, int>, int, pair_hash> &targetPositions);
     int fusePath(const vector<Residue *> &residues, Structure &fusedPath);
-    bool pathClashes(const Structure &path, int seedStartIdx);
+    bool pathClashes(const Structure &path, int seedStartIdx, bool &interchain_clash, bool &intrachain_clash);
 };
 
 /**

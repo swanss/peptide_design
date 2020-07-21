@@ -20,12 +20,28 @@
 class seedStatistics;
 
 /* --------- histogram --------- */
-struct histogram {
+class histogram {
+public:
+    histogram();
+    histogram(mstreal _min_value, mstreal _max_value, int num_bins) : min_value(_min_value), max_value(_max_value) {
+        bin_size = (max_value - min_value) / num_bins;
+        bins.resize(num_bins);
+    }
+    histogram(string hist_file) {readHistFile(hist_file);}
     
-    vector<mstreal> bins;
-    mstreal min_value;
-    mstreal max_value;
-    mstreal bin_size;
+    mstreal getMaxVal() {return max_value;}
+    mstreal getMinVal() {return min_value;}
+    mstreal getBinSize() {return bin_size;}
+    mstreal getNumBins() {return bins.size();}
+    
+    //get the bin corresponding to the passed value and return its height
+    mstreal getVal(mstreal value);
+    mstreal getVal(int bin_id);
+    
+    void setBinVal(int bin_id, mstreal value) {
+        if ((value < 0) || (value > bins.size())) MstUtils::error("Passed bin index outside of range for histogram: "+MstUtils::toString(bin_id)+" with max: "+MstUtils::toString(bins.size()));
+        bins[bin_id] = value;
+    }
     
     /*
      The format is:
@@ -49,64 +65,59 @@ struct histogram {
             upper_bound += bin_size;
         }
     };
-};
-
-
-/* --------- seedCentroidDistance --------- */
-
-class seedCentroidDistance {
-    /*
-     This class loads the seeds from multiple binary files, subsample them, averages
-     their centroid distance from the protein, and uses this to construct a normalized histogram
-     */
-public:
-    seedCentroidDistance(string list, mstreal min_value, mstreal max_value, int num_bins);
     
-    histogram getHist() {return hist;}
-protected:
-    int getBin(mstreal value) {
-        return int((value - min_value) / bin_size);
-    }
 private:
-    vector<string> seedbin_paths; //absolute paths to the seed binary files
-    int sample_n = 100000; //the maximum number of seeds sampled, per binary file
-    string s_cid = "0";
+    vector<mstreal> bins;
+    mstreal min_value;
+    mstreal max_value;
+    mstreal bin_size;
     
-    vector<int> bin_counts;
-    mstreal min_value,max_value,bin_size;
-    
-    histogram hist;
 };
-
 
 /* --------- rejectionSampler --------- */
 
 class rejectionSampler {
     
     /*
-     Rejection sampling allows us to sample from a non-parametric probability density. The first
-     step is to sample uniformly, and the second step is to accept or reject. The probability of
-     acceptance is ratio of the density at the sampled value and the maximum density.
+     Rejection sampling allows us to sample from a non-parametric probability density (the target
+     distribution) by first sampling from an easy-to-sample-from distribution (the proposal distribution)
+     and then accept or rejecting, based on the relative density of the two distributions at the
+     sampled value.
      
      For more info, check out:
      https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/lectures/lecture17.pdf
      */
     
 public:
-    rejectionSampler(histogram _hist) : hist(_hist) {};
-    rejectionSampler(string hist_file);
+    rejectionSampler(histogram _proposal_hist, histogram _target_hist) : proposal_hist(_proposal_hist), target_hist(_target_hist) {
+        if (target_hist.getNumBins() != proposal_hist.getNumBins()) MstUtils::error("Provided proposal and target histograms have a different number of bins");
+        if (target_hist.getMinVal() != proposal_hist.getMinVal()) MstUtils::error("Provided proposal and target histograms have a different minimum values");
+        if (target_hist.getBinSize() != proposal_hist.getBinSize()) MstUtils::error("Provided proposal and target histograms have a different bin widths");
+        
+        /* Checks if the values in the proposal histogram are always greater than the target histogram.
+         If not, defines a constant, M, which scales the proposal histogram up. This ensures that the
+         acceptance probability (target_prob / (M * proposal_prob)) is at most 1.
+         */
+        M = 1.0;
+        for (int i = 0; i < proposal_hist.getNumBins(); i++) {
+            mstreal fraction = target_hist.getVal(i)/proposal_hist.getVal(i);
+            if (fraction > M) M = fraction;
+        }
+        cout << "scaling the proposal distribution up by a factor of " << M << endl;
+    };
     
-    //  rejectionSampler(const rejectionSampler& sampler) {
-    //    hist = sampler.hist;
-    //  }
-    
-    bool accept(mstreal value);
+    bool accept(mstreal value) {
+        mstreal accept_prob = target_hist.getVal(value) / (proposal_hist.getVal(value) * M);
+        mstreal sampled_value = MstUtils::randUnit();
+        if (sampled_value <= accept_prob) return true;
+        else return false;
+    }
 protected:
-    // file should be formatted like lower_bound,upper_bound,count
-    pair<mstreal,vector<int>> loadHistFile(string hist_file);
     mstreal getVal(mstreal value);
 private:
-    histogram hist;
+    histogram proposal_hist;
+    histogram target_hist;
+    mstreal M; //the constant by which the proposal histogram should be multiplied by so it "envelopes" the target hist
 };
 
 
@@ -167,9 +178,16 @@ private:
 
 class seedStatistics {
 public:
-    seedStatistics(Structure& S, string p_id);
+    seedStatistics(Structure& S, string p_id, string seedBinaryPath = "");
     
-    void writeStatisticstoFile(string seedBinaryPath_in, string output_path, string output_name, int num_final_seeds);
+    void setBinaryFile(string seedBinaryPath) {
+        delete bin_file;
+        bin_file = new StructuresBinaryFile(seedBinaryPath);
+    }
+    
+    void writeStatisticstoFile(string output_path, string output_name, int num_final_seeds);
+    
+    histogram generateDistanceHistogram(mstreal min_value = 0, mstreal max_value = 50, int num_bins = 150, int sampled_seeds = 1000000);
     
     mstreal boundingSphereRadius(Structure* seed);
     mstreal centroid2NearestProteinAtom(Structure* seed);
@@ -180,6 +198,8 @@ private:
     Structure& complex;
     Structure target;
     Chain* peptide;
+    
+    StructuresBinaryFile* bin_file;
     
     // variables stored for identifying seeds with clashes during randomization
     Structure target_BB_structure;
@@ -198,7 +218,7 @@ class naiveSeedsFromBin {
      seedBinaryFile.
      */
 public:
-    naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, string sampler_path, mstreal distance = 1.0, int neighbors = 1);
+    naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, string rotLibPath, rejectionSampler* sampler = nullptr);
     
     ~naiveSeedsFromBin() {
         delete target_PS;
@@ -212,8 +232,13 @@ public:
      */
     void newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
     
+    void setRejectionSampler(rejectionSampler* _sampler) {sampler = _sampler;}
+    
     void setClashChecking(bool _clash_check) {clash_check = _clash_check;}
-    void setRejectionSampling(bool _rejection_sample) {rejection_sample = _rejection_sample;}
+    void setRejectionSampling(bool _rejection_sample) {
+        rejection_sample = _rejection_sample;
+        rejection_sample = true;
+    }
     
 protected:
     int transform(Structure* seed, structureBoundingBox& bounding_box, bool position, bool orientation, CartesianPoint new_centroid);
@@ -222,6 +247,7 @@ private:
     Structure& complex;
     Structure target;
     Chain* peptide;
+    vector<Residue*> peptide_interface_residues;
     string seed_chain_id = "0";
     
     StructuresBinaryFile seeds;
@@ -238,7 +264,7 @@ private:
     //  ProximitySearch* seed_PS;
     
     // for sampling centroid positions
-    rejectionSampler sampler;
+    rejectionSampler* sampler;
     seedStatistics stat;
     
     int max_attempts;
@@ -252,7 +278,7 @@ private:
 
 class naiveSeedsFromDB : public naiveSeedsFromBin {
 public:
-    naiveSeedsFromDB(Structure& S, string p_id, const string& dbFile, string seedBinaryPath_in, string sampler_path, mstreal distance = 1.0, int max_len = 50) : naiveSeedsFromBin(S,p_id,seedBinaryPath_in,sampler_path,distance), seedSampler(dbFile,max_len) {};
+    naiveSeedsFromDB(Structure& S, string p_id, string seedBinaryPath_in, const string& dbFile, string rotLibPath, rejectionSampler* sampler = nullptr, int max_len = 50) : naiveSeedsFromBin(S,p_id,seedBinaryPath_in,rotLibPath,sampler), seedSampler(dbFile,max_len) {};
     
     /*
      Loads each seed from an existing seedBinaryFile, finds its residue length, and samples a new one

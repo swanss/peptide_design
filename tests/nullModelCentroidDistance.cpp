@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
     
     cout << "Generating null model seeds..." << endl;
     
-    naiveSeedsFromDB naiveSeeds(complex, p_cid, config.getDB(), extfrag_bin, hist_path);
+    naiveSeedsFromDB naiveSeeds(complex, p_cid, extfrag_bin, config.getDB(), config.getRL());
     if (op.isGiven("no_clash_check")) naiveSeeds.setClashChecking(false);
     if (op.isGiven("no_rejection_sampling")) naiveSeeds.setRejectionSampling(false);
     
@@ -71,9 +71,11 @@ int main(int argc, char *argv[]) {
     
     
     //Write statistics
-    seedStatistics stats(complex, p_cid);
-    stats.writeStatisticstoFile(extfrag_bin, outDir, "extended_fragments", num_sampled);
-    stats.writeStatisticstoFile(type2_bin, outDir, type2_name, num_sampled);
+    seedStatistics stats(complex, p_cid, extfrag_bin); //construct with term seeds
+    stats.writeStatisticstoFile(outDir, "extended_fragments", num_sampled);
+    
+    stats.setBinaryFile(type2_bin); //set to type 2 seeds
+    stats.writeStatisticstoFile(outDir, type2_name, num_sampled);
     
     cout << "done" << endl;
     return 0;
