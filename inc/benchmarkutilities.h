@@ -100,8 +100,13 @@ public:
          */
         M = 1.0;
         for (int i = 0; i < proposal_hist.getNumBins(); i++) {
+            if (target_hist.getVal(i) < min_value) target_hist.setBinVal(i,0.0);
             mstreal fraction = target_hist.getVal(i)/proposal_hist.getVal(i);
             if (fraction > M) M = fraction;
+            if (M == std::numeric_limits<double>::max()) {
+                string bin_num(MstUtils::toString(i));
+                MstUtils::error("Proposal distribution scaling factor set to inf at bin  "+bin_num,"rejectionSampler::rejectionSampler");
+            }
         }
         cout << "scaling the proposal distribution up by a factor of " << M << endl;
     };
@@ -118,6 +123,7 @@ private:
     histogram proposal_hist;
     histogram target_hist;
     mstreal M; //the constant by which the proposal histogram should be multiplied by so it "envelopes" the target hist
+    mstreal min_value = 0.000001; //any bin with a value below this in the target distribution is set to 0
 };
 
 
@@ -187,7 +193,7 @@ public:
     
     void writeStatisticstoFile(string output_path, string output_name, int num_final_seeds);
     
-    histogram generateDistanceHistogram(mstreal min_value = 0, mstreal max_value = 50, int num_bins = 150, int sampled_seeds = 1000000);
+    histogram generateDistanceHistogram(mstreal min_value = 0, mstreal max_value = 25, int num_bins = 100, int sampled_seeds = 1000000);
     
     mstreal boundingSphereRadius(Structure* seed);
     mstreal centroid2NearestProteinAtom(Structure* seed);

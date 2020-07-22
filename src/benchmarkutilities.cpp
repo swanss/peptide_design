@@ -599,22 +599,28 @@ histogram seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal m
     
     size_t num_seeds = bin_file->structureCount();
     bin_file->reset();
-    mstreal sample_prob = min(1.0,mstreal(sampled_seeds)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled
+
+    mstreal proportion = mstreal(sampled_seeds)/mstreal(num_seeds);
+    int cycles = ceil(proportion);
+    mstreal sample_prob = min(1.0,proportion); //such that, on avg, sample_n seeds are sampled per loop
     Structure* extfrag;
-    while (bin_file->hasNext()) {
-        if (MstUtils::randUnit() < sample_prob) extfrag = bin_file->next();
-        else {
-            bin_file->skip();
-            continue;
+    for (int i = 0; i < cycles; i++) {
+        while (bin_file->hasNext()) {
+            if (MstUtils::randUnit() < sample_prob) extfrag = bin_file->next();
+            else {
+                bin_file->skip();
+                continue;
+            }
+            Chain* C = extfrag->getChainByID("0");
+            Structure* seed = new Structure(*C);
+            mstreal distance = centroid2NearestProteinAtom(seed);
+            
+            bin_counts[int((distance - min_value) / distances.getBinSize())] += 1;
+            
+            delete extfrag;
+            delete seed;
         }
-        Chain* C = extfrag->getChainByID("0");
-        Structure* seed = new Structure(*C);
-        mstreal distance = centroid2NearestProteinAtom(seed);
-        
-        bin_counts[int((distance - min_value) / distances.getBinSize())] += 1;
-        
-        delete extfrag;
-        delete seed;
+        bin_file->reset();
     }
     
     //build histogram (properly normalized)
