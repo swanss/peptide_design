@@ -250,7 +250,7 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
      chance to sample a seed from any position. In the case where we read through the whole file, it
      doesn't matter, until the final read through, at which point we need to subsample like before. */
     long bin_seeds = seeds.structureCount();
-    if (num_seeds = 0) {
+    if (num_seeds == 0) {
         num_seeds = bin_seeds;
     }
     mstreal skip_prob = max(0.0, 1.0 - mstreal(num_seeds)/mstreal(bin_seeds));
@@ -444,7 +444,7 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
      chance to sample a seed from any position. In the case where we read through the whole file, it
      doesn't matter, until the final read through, at which point we need to subsample like before. */
     long bin_seeds = seeds.structureCount();
-    if (num_seeds = 0) {
+    if (num_seeds == 0) {
         num_seeds = bin_seeds;
     }
     mstreal skip_prob = max(0.0, 1.0 - mstreal(num_seeds)/mstreal(bin_seeds));
