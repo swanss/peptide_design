@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
         summary_hist.setBinVal(i,bin_mean);
     }
     
-    summary_hist.writeHistFile("seed_centroid_distance.csv");
+    summary_hist.writeHistFile("seed_centroid_distance_normalized.csv");
     
     return 1;
 }

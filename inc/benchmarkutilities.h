@@ -100,10 +100,10 @@ public:
          */
         M = 1.0;
         for (int i = 0; i < proposal_hist.getNumBins(); i++) {
-            if (target_hist.getVal(i) < min_value) target_hist.setBinVal(i,0.0);
+            if (proposal_hist.getVal(i) == 0.0) continue; //don't divide by zero
             mstreal fraction = target_hist.getVal(i)/proposal_hist.getVal(i);
             if (fraction > M) M = fraction;
-            if (M == std::numeric_limits<double>::max()) {
+            if (isinf(M)) {
                 string bin_num(MstUtils::toString(i));
                 MstUtils::error("Proposal distribution scaling factor set to inf at bin  "+bin_num,"rejectionSampler::rejectionSampler");
             }
@@ -111,7 +111,14 @@ public:
         cout << "scaling the proposal distribution up by a factor of " << M << endl;
     };
     
+    /*
+     Note: if the value falls in a bin where the proposal distribution is set to zero, then it
+     will always be rejected. Theoretically this is an issue because it means we cannot recapitulate
+     the target distribution tails (bins with non-zero values will not be sampled), but in practice this
+     shouldn't be a huge issue.
+     */
     bool accept(mstreal value) {
+        if (proposal_hist.getVal(value) == 0.0) return false;
         mstreal accept_prob = target_hist.getVal(value) / (proposal_hist.getVal(value) * M);
         mstreal sampled_value = MstUtils::randUnit();
         if (sampled_value <= accept_prob) return true;
@@ -123,7 +130,6 @@ private:
     histogram proposal_hist;
     histogram target_hist;
     mstreal M; //the constant by which the proposal histogram should be multiplied by so it "envelopes" the target hist
-    mstreal min_value = 0.000001; //any bin with a value below this in the target distribution is set to 0
 };
 
 
@@ -235,8 +241,10 @@ public:
      repositioning the seeds are placed within a bounding volume determined based on the original seed
      centroid distribution. If the seed placement results in clash, a new position/orientation are sampled,
      until there is no clash.
+     
+     if num_seeds = 0, then will generate the same number of seeds in as input binary file
      */
-    void newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
+    void newPose(string output_path, string out_name, bool position, bool orientation, int num_seeds = 0);
     
     void setRejectionSampler(rejectionSampler* _sampler) {sampler = _sampler;}
     
@@ -291,8 +299,10 @@ public:
      from the DB and randomizes its position/orientation. During repositioning the seeds are placed
      within a bounding volume determined based on the original seed centroid distribution. If the seed
      placement results in clash, a new position/orientation are sampled, until there is no clash.
+     
+     if num_seeds = 0, then will generate the same number of seeds in as input binary file
      */
-    void newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site = {});
+    void newPose(string output_path, string out_name, bool position, bool orientation, int num_seeds = 0);
     
     
 private:

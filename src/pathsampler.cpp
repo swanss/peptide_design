@@ -321,6 +321,7 @@ vector<Residue*> SeedGraphPathSampler::pathResiduesFromSpecifier(string path_spe
     vector<string> residue_names = MstUtils::split(path_spec,";");
     for (string residue_name : residue_names) {
         Residue* R = _graph->getResidueFromFile(residue_name);
+        if (R == nullptr) MstUtils::error("Residue not found in seed binary file","SeedGraphPathSampler::pathResiduesFromSpecifier");
         path.push_back(R);
     }
     return path;

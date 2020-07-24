@@ -71,71 +71,6 @@ mstreal histogram::getVal(int bin_id) {
     return bins[bin_id];
 }
 
-///* --------- seedCentroidDistance --------- */
-//
-//seedCentroidDistance::seedCentroidDistance(string list, mstreal _min_value, mstreal _max_value, int num_bins) : min_value(_min_value), max_value(_max_value) {
-//    bin_counts.resize(num_bins);
-//    fill(bin_counts.begin(),bin_counts.end(),0);
-//
-//    bin_size = (max_value - min_value) / num_bins;
-//    cout << "bin size: " << bin_size << endl;
-//
-//    hist.min_value = min_value;
-//    hist.max_value = min_value + (bin_size*num_bins);
-//    hist.bin_size = bin_size;
-//
-//    //get the list of binary files/structures
-//    //e.g. path/to/binary path/to/structure
-//    vector<string> files = MstUtils::fileToArray(list);
-//    cout << "there are " << files.size() << " sets of seeds" << endl;
-//
-//    if (files.size() * sample_n > INT_MAX) MstUtils::error("Note: it is possible that the counts in a single bin could exceed the maximum possible value of an 'int'. If this occurs, consider sampling less seeds or refactoring");
-//
-//    for (string file_name : files) {
-//        cout << file_name << endl;
-//        vector<string> split = MstUtils::split(file_name);
-//        string bin_path = split[0];
-//        string struct_path = split[1];
-//
-//        //get the peptide chain name
-//        split = MstUtils::split(struct_path,"_");
-//        string p_id = split[split.size() - 3]; //should get the peptide chain id
-//
-//        cout << "pdb path: " << struct_path << " bin path: " << bin_path << " peptide chain ID: " << p_id << endl;
-//
-//        //sample seeds from binary file and record distance from protein
-//        Structure complex(struct_path);
-//        seedStatistics stat(complex,p_id);
-//
-//        StructuresBinaryFile bin(bin_path,true);
-//        size_t num_seeds = bin.structureCount();
-//        bin.reset();
-//
-//        mstreal sample_prob = min(1.0,mstreal(sample_n)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled
-//        Structure* extfrag;
-//        while (bin.hasNext()) {
-//            if (MstUtils::randUnit() < sample_prob) extfrag = bin.next();
-//            else {
-//                bin.skip();
-//                continue;
-//            }
-//            Chain* C = extfrag->getChainByID("0");
-//            Structure* seed = new Structure(*C);
-//            mstreal distance = stat.centroid2NearestProteinAtom(seed);
-//
-//            bin_counts[getBin(distance)] += 1;
-//
-//            delete extfrag;
-//            delete seed;
-//        }
-//    }
-//
-//    //build histogram (properly normalized)
-//    int total_counts = 0;
-//    for (int val : bin_counts) total_counts += val;
-//    for (int val : bin_counts) hist.bins.push_back(mstreal(val)/(hist.bin_size * mstreal(total_counts)));
-//}
-
 
 /* --------- generateRandomSeed --------- */
 
@@ -283,7 +218,7 @@ naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinar
     rejection_sample = true;
 }
 
-void naiveSeedsFromBin::newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site) {
+void naiveSeedsFromBin::newPose(string output_path, string out_name, bool position, bool orientation, int num_seeds) {
     
     if ((position == false) && (orientation == false)) MstUtils::error("Neither position or orientation have been selected to be randomized. Nothing to do!");
     cout << "Will randomize: ";
@@ -308,41 +243,57 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
     //header
     retry_out << "name\tattempts" << endl;
     
+    //Decide on file skip probability
+    /* The idea is that we want to generate a specific number of seeds, so either we will subsample
+     the seed binary file, or read through it multiple times. If we subsample, we want to do it
+     evenly. Similar seeds are next to one another in the file, so we want to ensure that we have a
+     chance to sample a seed from any position. In the case where we read through the whole file, it
+     doesn't matter, until the final read through, at which point we need to subsample like before. */
+    long bin_seeds = seeds.structureCount();
+    if (num_seeds = 0) {
+        num_seeds = bin_seeds;
+    }
+    mstreal skip_prob = max(0.0, 1.0 - mstreal(num_seeds)/mstreal(bin_seeds));
+    
     //randomize seeds and write to file
     int count = 0;
-    seeds.reset();
-    while (seeds.hasNext()) {
-        Structure* extended_fragment = seeds.next();
-        Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
-        Structure* seed_structure = new Structure(*seed_C);
-        CartesianPoint seed_centroid = AtomPointerVector(seed_structure->getAtoms()).getGeometricCenter();
-        
-        //randomize position/orientation
-        int attempts = transform(seed_structure, bounding_box, position, orientation, seed_centroid);
-        
-        //write transformed seed to binary file (including meta-data)
-        //structure
-        seeds_out.appendStructure(seed_structure);
-        //meta-data
-        for (string prop_name : int_properties) {
-            int value = seeds.getStructurePropertyInt(prop_name,extended_fragment->getName());
-            seeds_out.appendStructurePropertyInt(prop_name,value);
+    while (count < num_seeds) {
+        //if looping through the file a final time, set skip prob so that seeds are sampled evenly
+        if (count + bin_seeds > num_seeds) skip_prob = mstreal(num_seeds - count)/mstreal(bin_seeds);
+        while (seeds.hasNext()) {
+            count++;
+            if (count >= num_seeds) break;
+            if (MstUtils::randUnit() <= skip_prob) continue;
+            Structure* extended_fragment = seeds.next();
+            Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
+            Structure* seed_structure = new Structure(*seed_C);
+            CartesianPoint seed_centroid = AtomPointerVector(seed_structure->getAtoms()).getGeometricCenter();
+            
+            //randomize position/orientation
+            int attempts = transform(seed_structure, bounding_box, position, orientation, seed_centroid);
+            
+            //write transformed seed to binary file (including meta-data)
+            //structure
+            seeds_out.appendStructure(seed_structure);
+            //meta-data
+            for (string prop_name : int_properties) {
+                int value = seeds.getStructurePropertyInt(prop_name,extended_fragment->getName());
+                seeds_out.appendStructurePropertyInt(prop_name,value);
+            }
+            for (string prop_name : real_properties) {
+                mstreal value = seeds.getStructurePropertyReal(prop_name,extended_fragment->getName());
+                seeds_out.appendStructurePropertyReal(prop_name,value);
+            }
+            
+            //write number of attempts to info file
+            retry_out << seed_structure->getName() << "\t" << attempts << endl;
+            
+            delete extended_fragment;
+            delete seed_structure;
         }
-        for (string prop_name : real_properties) {
-            mstreal value = seeds.getStructurePropertyReal(prop_name,extended_fragment->getName());
-            seeds_out.appendStructurePropertyReal(prop_name,value);
-        }
-        
-        //write number of attempts to info file
-        retry_out << seed_structure->getName() << "\t" << attempts << endl;
-        
-        delete extended_fragment;
-        delete seed_structure;
-        count++;
+        seeds.reset();
     }
-    seeds.reset();
-    int num_seeds = seeds.structureCount();
-    cout << "There are " << num_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
+    cout << "There are " << bin_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
     retry_out.close();
 }
 
@@ -436,7 +387,7 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
             
             //check if seed clashes
             if (!clash_check) seed_clash = false;
-            else if (attempts > max_attempts) seed_clash = false;
+            else if (!position && attempts > max_attempts) seed_clash = false;
             else {
                 AtomPointerVector transformed_seed_atoms = seed->getAtoms();
                 seed_clash = isClash(*target_PS, target_BB_atoms, transformed_seed_atoms); //from structgen
@@ -455,7 +406,7 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
 
 /* --------- naiveSeedsfromDB --------- */
 
-void naiveSeedsFromDB::newPose(string output_path, string out_name, bool position, bool orientation, vector<Residue*> binding_site) {
+void naiveSeedsFromDB::newPose(string output_path, string out_name, bool position, bool orientation, int num_seeds) {
     
     if ((position == false) && (orientation == false)) MstUtils::error("Neither position or orientation have been selected to be randomized. Nothing to do!");
     cout << "Will randomize: ";
@@ -486,48 +437,66 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
     //header
     secstruct_out << "name\tsecondary_structure" << endl;
     
+    //Decide on file skip probability
+    /* The idea is that we want to generate a specific number of seeds, so either we will subsample
+     the seed binary file, or read through it multiple times. If we subsample, we want to do it
+     evenly. Similar seeds are next to one another in the file, so we want to ensure that we have a
+     chance to sample a seed from any position. In the case where we read through the whole file, it
+     doesn't matter, until the final read through, at which point we need to subsample like before. */
+    long bin_seeds = seeds.structureCount();
+    if (num_seeds = 0) {
+        num_seeds = bin_seeds;
+    }
+    mstreal skip_prob = max(0.0, 1.0 - mstreal(num_seeds)/mstreal(bin_seeds));
+    
     //randomize seeds and write to file
     int count = 0;
-    while (seeds.hasNext()) {
-        //read original seed from binary file
-        Structure* extended_fragment = seeds.next();
-        Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
-        CartesianPoint seed_original_centroid = AtomPointerVector(seed_C->getAtoms()).getGeometricCenter();
-        int seed_length = seed_C->residueSize();
-        
-        //sample new seed from DB
-        pair<Structure*,string> seed_data = seedSampler.getSeed(seed_length);
-        Structure* new_seed = seed_data.first;
-        
-        //randomize position/orientation
-        int attempts = transform(new_seed, bounding_box, position, orientation, seed_original_centroid);
-        
-        //write transformed seed to binary file (including meta-data)
-        //structure
-        seeds_out.appendStructure(new_seed);
-        //meta-data
-        for (string prop_name : int_properties) {
-            int value = seeds.getStructurePropertyInt(prop_name,extended_fragment->getName());
-            seeds_out.appendStructurePropertyInt(prop_name,value);
+    while (count < num_seeds) {
+        //if looping through the file a final time, set skip prob so that seeds are sampled evenly
+        if (count + bin_seeds > num_seeds) skip_prob = mstreal(num_seeds - count)/mstreal(bin_seeds);
+        while (seeds.hasNext()) {
+            count++;
+            if (count >= num_seeds) break;
+            if (MstUtils::randUnit() <= skip_prob) continue;
+            //read original seed from binary file
+            Structure* extended_fragment = seeds.next();
+            Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
+            CartesianPoint seed_original_centroid = AtomPointerVector(seed_C->getAtoms()).getGeometricCenter();
+            int seed_length = seed_C->residueSize();
+            
+            //sample new seed from DB
+            pair<Structure*,string> seed_data = seedSampler.getSeed(seed_length);
+            Structure* new_seed = seed_data.first;
+            
+            //randomize position/orientation
+            int attempts = transform(new_seed, bounding_box, position, orientation, seed_original_centroid);
+            
+            //write transformed seed to binary file (including meta-data)
+            //structure
+            seeds_out.appendStructure(new_seed);
+            //meta-data
+            for (string prop_name : int_properties) {
+                int value = seeds.getStructurePropertyInt(prop_name,extended_fragment->getName());
+                seeds_out.appendStructurePropertyInt(prop_name,value);
+            }
+            for (string prop_name : real_properties) {
+                mstreal value = seeds.getStructurePropertyReal(prop_name,extended_fragment->getName());
+                seeds_out.appendStructurePropertyReal(prop_name,value);
+            }
+            
+            //write attempts to info file
+            retry_out << new_seed->getName() << "\t" << attempts << endl;
+            
+            //write secondary structure
+            secstruct_out << new_seed->getName() << "\t" << seed_data.second << endl;
+            
+            delete extended_fragment;
+            delete new_seed;
+            count++;
         }
-        for (string prop_name : real_properties) {
-            mstreal value = seeds.getStructurePropertyReal(prop_name,extended_fragment->getName());
-            seeds_out.appendStructurePropertyReal(prop_name,value);
-        }
-        
-        //write attempts to info file
-        retry_out << new_seed->getName() << "\t" << attempts << endl;
-        
-        //write secondary structure
-        secstruct_out << new_seed->getName() << "\t" << seed_data.second << endl;
-        
-        delete extended_fragment;
-        delete new_seed;
-        count++;
-    }
     seeds.reset();
-    int num_seeds = seeds.structureCount();
-    cout << "There are " << num_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
+    }
+    cout << "There are " << bin_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
     retry_out.close();
     secstruct_out.close();
 };
@@ -600,28 +569,30 @@ histogram seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal m
     size_t num_seeds = bin_file->structureCount();
     bin_file->reset();
 
-    mstreal proportion = mstreal(sampled_seeds)/mstreal(num_seeds);
-    int cycles = ceil(proportion);
-    mstreal sample_prob = min(1.0,proportion); //such that, on avg, sample_n seeds are sampled per loop
+    mstreal sample_prob = min(1.0,mstreal(sampled_seeds)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled per loop
     Structure* extfrag;
-    for (int i = 0; i < cycles; i++) {
-        while (bin_file->hasNext()) {
-            if (MstUtils::randUnit() < sample_prob) extfrag = bin_file->next();
-            else {
-                bin_file->skip();
-                continue;
-            }
-            Chain* C = extfrag->getChainByID("0");
-            Structure* seed = new Structure(*C);
-            mstreal distance = centroid2NearestProteinAtom(seed);
-            
-            bin_counts[int((distance - min_value) / distances.getBinSize())] += 1;
-            
-            delete extfrag;
-            delete seed;
+    
+    cout << "Probability of sampling a seed: " << sample_prob << endl;
+    
+    int total_sampled = 0;
+    while (bin_file->hasNext()) {
+        if (MstUtils::randUnit() < sample_prob) extfrag = bin_file->next();
+        else {
+            bin_file->skip();
+            continue;
         }
-        bin_file->reset();
+        total_sampled++;
+        Chain* C = extfrag->getChainByID("0");
+        Structure* seed = new Structure(*C);
+        mstreal distance = centroid2NearestProteinAtom(seed);
+        
+        bin_counts[int((distance - min_value) / distances.getBinSize())] += 1;
+        
+        delete extfrag;
+        delete seed;
     }
+    bin_file->reset();
+    cout << "in the end, sampled " << total_sampled << " seeds" << endl;
     
     //build histogram (properly normalized)
     int total_counts = 0;
