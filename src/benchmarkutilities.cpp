@@ -98,6 +98,10 @@ generateRandomSeed::generateRandomSeed(const string& dbFile, int _max_len) : cla
             }
         }
     }
+    //set all positions for all lengths in num_sampled to 0
+    for (int l = 1; l <= max_len; l++) {
+        num_sampled[l].resize(windows[l].size(),0);
+    }
 };
 
 pair<Structure*,string> generateRandomSeed::getSeed(int len) {
@@ -106,6 +110,9 @@ pair<Structure*,string> generateRandomSeed::getSeed(int len) {
     int window_id = MstUtils::randInt(windows[len].size());
     int target_id = windows[len][window_id].first;
     int nterm_res_id = windows[len][window_id].second;
+    
+    //keep track of the number of times this window has been sampled
+    num_sampled[len][window_id]++;
     
     //copy the residues from the target protein
     Structure* target = getTarget(target_id);
@@ -122,8 +129,8 @@ pair<Structure*,string> generateRandomSeed::getSeed(int len) {
     string sec_structure = classifier.classifyResInStruct(target,res_idx);
     
     //name the new seed
-    //targetid_resid_length
-    string seed_name = MstUtils::toString(target_id) + "_" + MstUtils::toString(nterm_res_id) + "_" + MstUtils::toString(len);
+    //targetid_resid_length_nsampled
+    string seed_name = MstUtils::toString(target_id) + "_" + MstUtils::toString(nterm_res_id) + "_" + MstUtils::toString(len) + "_" + MstUtils::toString(num_sampled[len][window_id]);
     seed->setName(seed_name);
     
     return make_pair(seed,sec_structure);
@@ -262,9 +269,8 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
         //if looping through the file a final time, set skip prob so that seeds are sampled evenly
         if (count + bin_seeds > num_seeds) skip_prob = mstreal(num_seeds - count)/mstreal(bin_seeds);
         while (seeds.hasNext()) {
-            count++;
             if (count >= num_seeds) break;
-            if (MstUtils::randUnit() <= skip_prob) {
+            if (MstUtils::randUnit() < skip_prob) {
                 seeds.skip();
                 continue;
             }
@@ -294,6 +300,7 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
             
             delete extended_fragment;
             delete seed_structure;
+            count++;
         }
         seeds.reset();
     }
@@ -419,7 +426,6 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
     cout << endl;
     
     //construct bounding box
-//    structureBoundingBox bounding_box = structureBoundingBox(peptide);
     structureBoundingBox bounding_box = structureBoundingBox(peptide_interface_residues);
 
     
@@ -453,16 +459,19 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
         num_seeds = bin_seeds;
     }
     mstreal skip_prob = max(0.0, 1.0 - mstreal(num_seeds)/mstreal(bin_seeds));
-    
+    cout << "seeds in bin: " << bin_seeds << " desired seeds: " << num_seeds << " skip probability: " << skip_prob << endl;
     //randomize seeds and write to file
-    int count = 0;
+    int count = 0; int loop = 0;
     while (count < num_seeds) {
+        cout << "count: " << count << " number of loops through bin: " << loop << endl;
         //if looping through the file a final time, set skip prob so that seeds are sampled evenly
-        if (count + bin_seeds > num_seeds) skip_prob = mstreal(num_seeds - count)/mstreal(bin_seeds);
+        if (count + bin_seeds > num_seeds) {
+            skip_prob = mstreal(num_seeds - count)/mstreal(bin_seeds);
+            cout << "new skip prob: " << skip_prob << endl;
+        }
         while (seeds.hasNext()) {
-            count++;
             if (count >= num_seeds) break;
-            if (MstUtils::randUnit() <= skip_prob) {
+            if (MstUtils::randUnit() < skip_prob) {
                 seeds.skip();
                 continue;
             }
@@ -502,7 +511,8 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
             delete new_seed;
             count++;
         }
-    seeds.reset();
+        loop++;
+        seeds.reset();
     }
     cout << "There are " << bin_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
     retry_out.close();
@@ -532,6 +542,8 @@ seedStatistics::seedStatistics(Structure& S, string p_id, string seedBinaryPath)
 
 void seedStatistics::writeStatisticstoFile(string output_path, string output_name, int num_final_seeds) {
     if (bin_file == nullptr) MstUtils::error("a StructuresBinaryFile with seeds must be provided.");
+    bin_file->reset();
+
     //open seed info file
     string seed_info = output_path + output_name + "_statistics.info";
     fstream seed_out;
@@ -540,12 +552,12 @@ void seedStatistics::writeStatisticstoFile(string output_path, string output_nam
     seed_out << "name\tbounding_sphere_radius\tmin_distance_centroid_protein\tseed_length" << endl;
     
     long num_seeds = bin_file->structureCount();
-    mstreal skip_probability = 1 - min(mstreal(1),mstreal(num_final_seeds)/num_seeds);
+    mstreal skip_probability = max(0.0, 1 - mstreal(num_final_seeds)/num_seeds);
     cout << "There are " << num_seeds << " seeds in the input binary file. Skip probability is " << skip_probability << endl;
     
     int count = 0;
     while (bin_file->hasNext()) {
-        if (MstUtils::randUnit() <= skip_probability) {
+        if (MstUtils::randUnit() < skip_probability) {
             bin_file->skip();
             continue;
         }
@@ -561,12 +573,12 @@ void seedStatistics::writeStatisticstoFile(string output_path, string output_nam
     }
     cout << "In the end, wrote the info for " << count << " seeds" << endl;
     seed_out.close();
-    bin_file->reset();
 }
 
 histogram seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal max_value, int num_bins, int sampled_seeds) {
     if (bin_file == nullptr) MstUtils::error("a StructuresBinaryFile with seeds must be provided.");
-    
+    bin_file->reset();
+
     histogram distances(min_value,max_value,num_bins);
     
     vector<int> bin_counts;
@@ -574,31 +586,29 @@ histogram seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal m
     fill(bin_counts.begin(),bin_counts.end(),0);
     
     size_t num_seeds = bin_file->structureCount();
-    bin_file->reset();
 
     mstreal skip_prob = max(0.0, 1.0 - mstreal(sampled_seeds)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled per loop
     
     cout << "Probability of skipping a seed: " << skip_prob << endl;
     
-    int total_sampled = 0;
     while (bin_file->hasNext()) {
-        if (MstUtils::randUnit() <= skip_prob) {
+        if (MstUtils::randUnit() < skip_prob) {
             bin_file->skip();
             continue;
         }
         Structure* extfrag = bin_file->next();
-        total_sampled++;
         Chain* C = extfrag->getChainByID("0");
+//        cout << "got chain 0 from ext frag: " << C->residueSize() << " res and " << C->atomSize() << " atoms" << endl;
         Structure* seed = new Structure(*C);
         mstreal distance = centroid2NearestProteinAtom(seed);
+        
+        if ((distance > max_value) || (distance < min_value)) MstUtils::error("Seed centroid with distance outside of range: "+MstUtils::toString(distance),"seedStatistics::generateDistanceHistogram");
         
         bin_counts[int((distance - min_value) / distances.getBinSize())] += 1;
         
         delete extfrag;
         delete seed;
     }
-    bin_file->reset();
-    cout << "in the end, sampled " << total_sampled << " seeds" << endl;
     
     //build histogram (properly normalized)
     int total_counts = 0;

@@ -167,6 +167,12 @@ private:
      in the structures of the database).
      */
     map<int,vector<pair<int,int>>> windows;
+    
+    /*
+     num_sampled keeps track of how many times a window has been sampled. This is useful for ensuring
+     that the sampled seeds always have a unique name, which is important for other applications.
+     */
+    map<int,vector<int>> num_sampled;
 };
 
 /* --------- structureBoundingBox --------- */
@@ -199,7 +205,7 @@ public:
     
     void writeStatisticstoFile(string output_path, string output_name, int num_final_seeds);
     
-    histogram generateDistanceHistogram(mstreal min_value = 0, mstreal max_value = 25, int num_bins = 100, int sampled_seeds = 1000000);
+    histogram generateDistanceHistogram(mstreal min_value = 0, mstreal max_value = 50, int num_bins = 200, int sampled_seeds = 1000000);
     
     mstreal boundingSphereRadius(Structure* seed);
     mstreal centroid2NearestProteinAtom(Structure* seed);

@@ -19,8 +19,8 @@ int main(int argc, char* argv[]) {
     
     string list = op.getString("list");
     mstreal min_val = 0.0;
-    mstreal max_val = 25.0;
-    int num_bins = 100;
+    mstreal max_val = 50.0;
+    int num_bins = 200;
     int sample_n = 1000000;
     
     //get the list of binary files/structures
@@ -58,7 +58,8 @@ int main(int argc, char* argv[]) {
         summary_hist.setBinVal(i,bin_mean);
     }
     
-    summary_hist.writeHistFile("seed_centroid_distance_normalized.csv");
+    string name = "seed_centroid_distance_normalized_max" + MstUtils::toString(max_val) + "_bins" + MstUtils::toString(num_bins);
+    summary_hist.writeHistFile(name);
     
     return 1;
 }
