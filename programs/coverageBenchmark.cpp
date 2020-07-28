@@ -96,7 +96,8 @@ int main(int argc, char *argv[]) {
     
     //generate type 2 seeds and find distance distribution
     position = true;
-    int num_seeds = 1000000; //need to sample this many seeds to get a smooth distribution
+//    int num_seeds = 1000000; //need to sample this many seeds to get a smooth distribution
+    int num_seeds = 100000; //need to sample this many seeds to get a smooth distribution
     timer.start();
     naiveSeeds.newPose(outDir, type2_proposal_name, position, orientation, num_seeds);
     timer.stop();

@@ -24,7 +24,9 @@ int main(int argc, char *argv[]) {
     op.addOption("sel","a selection string that specifies the protein residues to generate seeds around. Necessary if the provided PDB file does not include peptide chains");
     op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
     op.addOption("flanking_res","The number of residues flanking a contact to include when creating a fragment (default 2).");
-    op.addOption("match_req", "The fragmenter will attempt to create the largest (ranked by number of residues) fragments that have at least this many matches. During TERM Extension, even if the fragment has more than this number match_num_req matches, only this number will be used to generate seeds.  If not defined, defaults to CEN_RES.");
+    op.addOption("match_req", "The fragmenter will attempt to create the largest (ranked by number of residues) fragments that have at least this many matches. During TERM Extension, even if the fragment has more than this number match_num_req matches, only this number will be used to generate seeds. If not defined, defaults to CEN_RES.");
+    op.addOption("match_rmsd", "Sets the max rmsd allowed when searching for matches to protein fragments.");
+    op.addOption("no_adaptive_rmsd","If provided, will not use adaptive RMSD cutoff.");
     op.setOptions(argc, argv);
     
     if (op.isGiven("peptide") == op.isGiven("sel")) MstUtils::error("Either a peptide chain ID or a selection string must be provided, but not both");
@@ -37,6 +39,8 @@ int main(int argc, char *argv[]) {
     string p_cid = op.getString("peptide","");
     string sel_str = op.getString("sel","");
     int flanking_res = op.getInt("flanking_res",2);
+    mstreal match_rmsd = op.getReal("match_rmsd",1.2);
+    bool adaptive_rmsd = !op.isGiven("no_adaptive_rmsd");
     
     // Make directories
     bool makeParents = true;
@@ -76,6 +80,8 @@ int main(int argc, char *argv[]) {
     
     TermExtension TE(config.getDB(), config.getRL(), bindingSiteRes);
     TE.setFlankingNumber(flanking_res);
+    TE.setMaxRMSD(match_rmsd);
+    TE.setAdaptiveRMSD(adaptive_rmsd);
     timer.start();
     if (op.isGiven("match_req")) {
         cout << "Match requirement: " << op.getInt("match_req") << endl;

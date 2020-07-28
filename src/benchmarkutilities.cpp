@@ -248,7 +248,8 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
      the seed binary file, or read through it multiple times. If we subsample, we want to do it
      evenly. Similar seeds are next to one another in the file, so we want to ensure that we have a
      chance to sample a seed from any position. In the case where we read through the whole file, it
-     doesn't matter, until the final read through, at which point we need to subsample like before. */
+     doesn't matter, until the final read through, at which point we need to subsample like previously
+     described. */
     long bin_seeds = seeds.structureCount();
     if (num_seeds == 0) {
         num_seeds = bin_seeds;
@@ -263,7 +264,10 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
         while (seeds.hasNext()) {
             count++;
             if (count >= num_seeds) break;
-            if (MstUtils::randUnit() <= skip_prob) continue;
+            if (MstUtils::randUnit() <= skip_prob) {
+                seeds.skip();
+                continue;
+            }
             Structure* extended_fragment = seeds.next();
             Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
             Structure* seed_structure = new Structure(*seed_C);
@@ -442,7 +446,8 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
      the seed binary file, or read through it multiple times. If we subsample, we want to do it
      evenly. Similar seeds are next to one another in the file, so we want to ensure that we have a
      chance to sample a seed from any position. In the case where we read through the whole file, it
-     doesn't matter, until the final read through, at which point we need to subsample like before. */
+     doesn't matter, until the final read through, at which point we need to subsample like previously
+     described. */
     long bin_seeds = seeds.structureCount();
     if (num_seeds == 0) {
         num_seeds = bin_seeds;
@@ -457,7 +462,10 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
         while (seeds.hasNext()) {
             count++;
             if (count >= num_seeds) break;
-            if (MstUtils::randUnit() <= skip_prob) continue;
+            if (MstUtils::randUnit() <= skip_prob) {
+                seeds.skip();
+                continue;
+            }
             //read original seed from binary file
             Structure* extended_fragment = seeds.next();
             Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
@@ -536,9 +544,8 @@ void seedStatistics::writeStatisticstoFile(string output_path, string output_nam
     cout << "There are " << num_seeds << " seeds in the input binary file. Skip probability is " << skip_probability << endl;
     
     int count = 0;
-    while (bin_file->hasNext() == true) {
-        mstreal sampled_value = MstUtils::randUnit();
-        if (sampled_value <= skip_probability) {
+    while (bin_file->hasNext()) {
+        if (MstUtils::randUnit() <= skip_probability) {
             bin_file->skip();
             continue;
         }
@@ -569,18 +576,17 @@ histogram seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal m
     size_t num_seeds = bin_file->structureCount();
     bin_file->reset();
 
-    mstreal sample_prob = min(1.0,mstreal(sampled_seeds)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled per loop
-    Structure* extfrag;
+    mstreal skip_prob = max(0.0, 1.0 - mstreal(sampled_seeds)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled per loop
     
-    cout << "Probability of sampling a seed: " << sample_prob << endl;
+    cout << "Probability of skipping a seed: " << skip_prob << endl;
     
     int total_sampled = 0;
     while (bin_file->hasNext()) {
-        if (MstUtils::randUnit() < sample_prob) extfrag = bin_file->next();
-        else {
+        if (MstUtils::randUnit() <= skip_prob) {
             bin_file->skip();
             continue;
         }
+        Structure* extfrag = bin_file->next();
         total_sampled++;
         Chain* C = extfrag->getChainByID("0");
         Structure* seed = new Structure(*C);
@@ -637,4 +643,239 @@ mstreal seedStatistics::point2NearestProteinAtom(CartesianPoint point) {
         if (new_distance < min_distance) min_distance = new_distance;
     }
     return min_distance;
+}
+
+/* --------- searchInterfaceFragments --------- */
+
+searchInterfaceFragments::searchInterfaceFragments(set<pair<Residue*,Residue*>> _contact_residues, string _fasstDBpath) : contact_residues(_contact_residues), fasstdbPath(_fasstDBpath) {
+    if (contact_residues.empty()) MstUtils::error("Must provide at least one interface contact","searchInterfaceFragments::searchInterfaceFragments");
+    //set up FASST
+    foptsBase = F.options();
+    F.setOptions(foptsBase);
+    F.options().setRedundancyProperty("sim");
+    cout << "Reading FASST database... ";
+    timer.start();
+    F.readDatabase(fasstdbPath,1); //only read backbone
+    timer.stop();
+    cout << "Reading the database took " << timer.getDuration() << " s... " << endl;
+    
+    complex = contact_residues.begin()->first->getStructure();
+    complex_name = MstSys::splitPath(complex->getName(),1);
+    peptide_cid = contact_residues.begin()->first->getChainID();
+    seed_cid = "0";
+    max_rmsd = 1.0;
+    top_N_matches = 1000;
+    flank = 2;
+    Chain* peptide_chain = complex->getChainByID(peptide_cid);
+    if (peptide_chain->residueSize() < 1 + (flank*2)) MstUtils::error("Chain is to short to generate flanking residues","searchInterfaceFragments::searchInterfaceFragments");
+}
+
+void searchInterfaceFragments::findMatches(string base_path) {
+    fstream info_out;
+    MstUtils::openFile(info_out,base_path+"matches_rmsd.info",fstream::out);
+    info_out << "name\tprotein_rmsd_before_realign\tprotein_rmsd_after_realign\tpeptide_rmsd_before_realign\tpeptide_rmsd_after_realign" << endl;
+    
+    //construct a fragment for each residue pair
+    cout << "construct interface fragments" << endl;
+    /*
+     Fragments must be two segments, 5 residues each, to match the Vanhee definition.
+     In the case where a residue is too close to the chain terminus to include the required number
+     of flanking residues, shift the window until there are enough residues to make a 5 residue segment
+     that includes the central residue.
+     */
+    for (auto contact : contact_residues) {
+        Residue* R_pep = contact.first;
+        Residue* R_prot = contact.second;
+        bool added = checkViableContact(R_pep,R_prot);
+        if (!added) cout << "Residues " << R_pep->getChainID() << R_pep->getNum() << " and " << R_prot->getChainID() << R_prot->getNum() << " already in set: not added" << endl;
+    }
+    cout << "There are " << interface_central_residues.size() << " pairs of residues to define fragments around" << endl;
+    
+    vector<interfaceFragment> interface_fragments; interface_fragments.resize(interface_central_residues.size());
+    int i = 0;
+    for (auto contact: interface_central_residues) {
+        interfaceFragment& f = interface_fragments[i];
+        Residue* R_pep = contact.first;
+        Residue* R_prot = contact.second;
+        f.contact = pair<Residue*,Residue*>(R_pep,R_prot);
+        
+        //generate the structure
+        int cenResIdx = TERMUtils::selectTERM({R_pep,R_prot}, f.s, flank, &(f.fragResIdx))[0];
+        
+        //name the chains to match the extended fragments (also get the protein atoms)
+        //peptide chain = 0, protein chains = original name
+        for (int i = 0; i < f.s.chainSize(); i++) {
+            Chain& C = f.s.getChain(i);
+            //get a residue from the chain in the fragment, find a corresponding residue in the original structure, and get its chain ID
+            string cid = complex->getResidue(f.fragResIdx[C.getResidue(C.residueSize()-1).getResidueIndex()]).getChainID();
+            vector<Atom*> segment_atoms = C.getAtoms();
+            if (cid == peptide_cid) {
+                f.cIDs.push_back(seed_cid);
+                f.peptide_atoms.insert(f.peptide_atoms.end(),segment_atoms.begin(),segment_atoms.end());
+            }
+            else {
+                f.cIDs.push_back(cid);
+                f.protein_atoms.insert(f.protein_atoms.end(),segment_atoms.begin(),segment_atoms.end());
+            }
+        }
+        
+        f.reportFragment();
+        
+        i++;
+    }
+
+    //search each fragment against the DB
+    cout << "search each fragment against the DB" << endl;
+    vector<fasstSolutionSet> fragment_matches; fragment_matches.resize(interface_fragments.size());
+    for (int i = 0; i < interface_fragments.size(); i++) {
+        Structure& fragment = interface_fragments[i].s;
+
+        F.setQuery(fragment);
+        F.setRMSDCutoff(max_rmsd);
+        
+        fragment_matches[i] = F.search();
+        
+        cout << "Fragment " << i << " has " << fragment_matches[i].size() << " matches" << endl;
+    }
+    
+    //write the matches to the seed binary file
+    cout << "write matches to a seed binary file" << endl;
+    string matches_path = base_path + "/interface_matches.bin";
+    string matches_repos_path = base_path + "/interface_matches_repositioned.bin";
+    StructuresBinaryFile matches(matches_path,false), matches_repos(matches_repos_path,false);
+    
+    int match_N;
+    for (int i = 0; i < fragment_matches.size(); i++) {
+        interfaceFragment& f = interface_fragments[i];
+        match_N = 0;
+        for (auto it = fragment_matches[i].begin(); it != fragment_matches[i].end(); it++) {
+            match_N++;
+            if (match_N > top_N_matches) continue;
+            const fasstSolution& sol = *it;
+            Structure match;
+            F.getMatchStructure(sol, match);
+            Structure split_chains = match.reassignChainsByConnectivity();
+            
+            //set structure name
+            /*
+             e.g. 1A1M_A_C_1_1-A59-A171A63A167-2_2-0.528887-1
+             structure name
+             central residue (protein)
+             contacting residue (peptide)
+             flanking residues (protein)
+             flanking residues (peptide)
+             rmsd of the match
+             match index
+             */
+            string name = getNamePrefix(f) + "-" + MstUtils::toString(sol.getRMSD()) + "-" + MstUtils::toString(i);
+            split_chains.setName(name);
+            
+            //change the chain names to match extended fragments
+            renameChains(split_chains,f);
+            //write to binary file
+            matches.appendStructure(&split_chains);
+            
+            //repeat superposition using the non-peptide chain only
+            mstreal prot_rmsd_before_realign, prot_rmsd_after_realign, pep_rmsd_before_realign, pep_rmsd_after_realign;
+            repositionMatch(split_chains,f,prot_rmsd_before_realign,prot_rmsd_after_realign,pep_rmsd_before_realign,pep_rmsd_after_realign);
+            matches_repos.appendStructure(&split_chains);
+            
+            //write to info file
+            info_out << split_chains.getName() << "\t" << prot_rmsd_before_realign << "\t" << prot_rmsd_after_realign;
+            info_out << "\t" << pep_rmsd_before_realign << "\t" << pep_rmsd_after_realign << endl;
+        }
+    }
+}
+
+bool searchInterfaceFragments::checkViableContact(Residue* R_pep, Residue* R_prot) {
+    Chain* pep_C = R_pep->getChain();
+    Chain* prot_C = R_prot->getChain();
+    vector<Residue*> peptide_res = pep_C->getResidues();
+    vector<Residue*> protein_res = prot_C->getResidues();
+    int pep_chain_begin = peptide_res.front()->getResidueIndex();
+    int pep_chain_end = peptide_res.back()->getResidueIndex();
+    int prot_chain_begin = protein_res.front()->getResidueIndex();
+    int prot_chain_end = protein_res.back()->getResidueIndex();
+    
+    //check peptide residue
+    int segment_n_term = R_pep->getResidueIndex() - flank;
+    int segment_c_term = R_pep->getResidueIndex() + flank;
+    
+    //check if flanking residues fall out of peptide range
+    if (segment_n_term < pep_chain_begin) {
+        R_pep = &complex->getResidue(pep_chain_begin+flank);
+    }
+    else if (segment_c_term > pep_chain_end) {
+        R_pep = &complex->getResidue(pep_chain_end-flank);
+    }
+    segment_n_term = R_prot->getResidueIndex() - flank;
+    segment_c_term = R_prot->getResidueIndex() + flank;
+    
+    //check if flanking residues fall out of protein range
+    if (segment_n_term < prot_chain_begin) {
+        R_prot = &complex->getResidue(prot_chain_begin+flank);
+    }
+    else if (segment_c_term > prot_chain_end) {
+        R_prot = &complex->getResidue(prot_chain_end-flank);
+    }
+    
+    //add to contacts (check if already added)
+    pair<Residue*,Residue*> contact(R_pep,R_prot);
+    auto ret = interface_central_residues.insert(contact);
+    return ret.second;
+}
+
+string searchInterfaceFragments::getNamePrefix(const interfaceFragment& f) {
+    /*
+     structure name
+     central residue (protein)
+     contacting residue (peptide)
+     flanking residues (protein)
+     flanking residues (peptide)
+     */
+    string name;
+    name += complex_name + "-";
+    name += f.contact.second->getChainID() + MstUtils::toString(f.contact.second->getNum()) + "-";
+    name += f.contact.first->getChainID() + MstUtils::toString(f.contact.first->getNum()) + "-";
+    name += MstUtils::toString(flank) + "_" + MstUtils::toString(flank);
+    return name;
+}
+
+void searchInterfaceFragments::renameChains(Structure& match, const interfaceFragment& f) {
+    for (int i = 0; i < match.chainSize(); i++) {
+        Chain* C = &match.getChain(i);
+        string cID = f.cIDs[i];
+        C->setID(cID);
+    }
+}
+
+void searchInterfaceFragments::repositionMatch(Structure& match, const interfaceFragment& f, mstreal& protein_rmsd_before_realign, mstreal& protein_rmsd_after_realign, mstreal& peptide_rmsd_before_realign, mstreal& peptide_rmsd_after_realign) {
+    RMSDCalculator rmsd;
+    //get the atoms aligned to the protein chain
+    vector<Atom*> match_atoms = match.getAtoms();
+    //optimally superimposed the subset of the atoms with correspondence to the protein
+    //apply transformation to whole
+    vector<Atom*> match_peptide_atoms;
+    vector<Atom*> match_protein_atoms = getProteinAlignedAtoms(match, f, match_peptide_atoms);
+    protein_rmsd_before_realign = rmsd.rmsd(match_protein_atoms,f.protein_atoms);
+    peptide_rmsd_before_realign = rmsd.rmsd(match_peptide_atoms,f.peptide_atoms);
+    bool succ = rmsd.align(match_protein_atoms,f.protein_atoms,match_atoms);
+    if (!succ) MstUtils::error("Unable to align match protein atoms","searchInterfaceFragments::repositionMatch");
+    protein_rmsd_after_realign = rmsd.rmsd(match_protein_atoms,f.protein_atoms);
+    peptide_rmsd_after_realign = rmsd.rmsd(match_peptide_atoms,f.peptide_atoms);
+}
+
+vector<Atom*> searchInterfaceFragments::getProteinAlignedAtoms(const Structure &match, const interfaceFragment &f, vector<Atom*>& match_peptide_atoms) {
+    vector<Atom*> match_protein_atoms;
+    for (int i = 0; i < match.chainSize(); i++) {
+        Chain& C = match.getChain(i);
+        vector<Atom*> segment_atoms = C.getAtoms();
+        if (f.cIDs[i] == seed_cid) {
+            match_peptide_atoms.insert(match_peptide_atoms.end(),segment_atoms.begin(),segment_atoms.end());
+        }
+        else {
+            match_protein_atoms.insert(match_protein_atoms.end(),segment_atoms.begin(),segment_atoms.end());
+        }
+    }
+    return match_protein_atoms;
 }

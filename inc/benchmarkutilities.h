@@ -309,3 +309,75 @@ private:
     generateRandomSeed seedSampler;
 };
 
+/* --------- searchInterfaceFragments --------- */
+
+/*
+ This class is modeled after the coverage algorithm described in Vanhee et al. 2009
+ */
+
+struct interfaceFragment {
+    Structure s;
+    pair<Residue*,Residue*> contact; //peptide,protein
+    vector<int> fragResIdx;
+    vector<string> cIDs; //the chain names of each chain in the fragment
+    vector<Atom*> protein_atoms;
+    vector<Atom*> peptide_atoms;
+    
+    void reportFragment() {
+        cout << "Structure has: " << s.chainSize() << " chains, " << s.residueSize() <<  " residues, and " << s.atomSize() << " atoms" << endl;
+        cout << "Centered on contact between " << contact.first->getChainID() << contact.first->getNum() << " and " << contact.second->getChainID() << contact.second->getNum() << endl;
+        cout << "Chain IDs: ";
+        for (string chain_id : cIDs) cout << " " << chain_id;
+        cout << endl;
+        cout << "Protein atoms: " << protein_atoms.size() << endl;
+        cout << "Peptide atoms: " << peptide_atoms.size() << endl;
+    }
+};
+
+class searchInterfaceFragments {
+public:
+    searchInterfaceFragments(set<pair<Residue*,Residue*>> contact_residues, string fasstDBpath);
+    
+    void findMatches(string base_path);
+    
+    void setFlankingResidues(int _flank) {flank = _flank;}
+    
+protected:
+    /*
+     Checks if the given residues have enough flanking residues to create a proper fragment
+     {5,5}. If not, the pointer is reassigned to a new residue that has sufficient flanking residues
+     (but is still close enough to contain the passed residues in the final fragment). Next checks
+     if the peptide/protein residue have already been added to the set, if not, adds and returns
+     "true"
+     */
+    bool checkViableContact(Residue* R_pep, Residue* R_prot);
+    
+    string getNamePrefix(const interfaceFragment& f);
+    
+    void renameChains(Structure& match, const interfaceFragment& f);
+    
+    void repositionMatch(Structure& match, const interfaceFragment& f, mstreal& protein_rmsd_before_realign, mstreal& protein_rmsd_after_realign, mstreal& peptide_rmsd_before_realign, mstreal& peptide_rmsd_after_realign);
+    
+    vector<Atom*> getProteinAlignedAtoms(const Structure& match, const interfaceFragment& f, vector<Atom*>& peptide_aligned_atoms);
+    
+private:
+    // Main variables and parameters
+    Structure* complex;
+    string complex_name;
+    set<pair<Residue*,Residue*>> contact_residues; //peptide,protein
+    set<pair<Residue*,Residue*>> interface_central_residues; //subset of contact_residues used to define fragments
+    string peptide_cid;
+    string seed_cid;
+    
+    // Fragment definition
+    int flank;
+    
+    // Search parameters
+    FASST F;
+    fasstSearchOptions foptsBase; // base FASST options that will be used with every search
+    string fasstdbPath;
+    mstreal max_rmsd;
+    int top_N_matches;
+
+    MstTimer timer;
+};

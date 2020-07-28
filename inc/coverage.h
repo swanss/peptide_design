@@ -121,6 +121,7 @@ public:
     
     Structure* getTargetStructure() {return target;}
     vector<Residue*> getBindingSiteRes() {return bindingSiteRes;}
+    set<pair<Residue*,Residue*>> getContactingResidues() {return contact_residues;}
     
     void resetBins();
     

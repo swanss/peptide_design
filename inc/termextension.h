@@ -46,7 +46,7 @@ class seedTERM {
 public:
     /* Constructor */
     seedTERM();
-    seedTERM(TermExtension* Fragmenter, vector<Residue*> all_res, bool search, bool seq_const);
+    seedTERM(TermExtension* Fragmenter, vector<Residue*> all_res, bool search);
     /*
      To do: fix copying Seeds. Currently, the pointers are copied, so if the parent object is deleted
      the pointers in the child object would be null.
@@ -204,6 +204,7 @@ public:
     void setFlankingNumber(int _flank) {flanking_res = _flank;}
     void setMinSeedLength(int len) {minimum_seed_length = len;}
     void setMaxRMSD(mstreal _max_rmsd) {max_rmsd = _max_rmsd;}
+    void setAdaptiveRMSD(bool _adaptive_rmsd) {adaptive_rmsd = _adaptive_rmsd;}
     void setSeqConst(bool _seq_const) {seq_const = _seq_const;}
     
     void resetFragments() {

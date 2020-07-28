@@ -124,7 +124,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
         
         /* CEN_RES */
         if (option == CEN_RES) {
-            seedTERM* frag = new seedTERM(this, {cenRes}, search, seq_const);
+            seedTERM* frag = new seedTERM(this, {cenRes}, search);
             all_fragments.push_back(frag);
             
             /* CONTACT */
@@ -134,7 +134,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
             vector<Residue*> allRes = generalUtilities::getContactingResidues(conts);
             // place center residue at the front of the vector of all residues
             allRes.insert(allRes.begin(), cenRes);
-            seedTERM* frag = new seedTERM(this, allRes, search, seq_const);
+            seedTERM* frag = new seedTERM(this, allRes, search);
             all_fragments.push_back(frag);
             
             /* ALL_COMBINATIONS */
@@ -156,7 +156,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                 all_res.reserve(contacting_res.size() + 1);
                 all_res.insert(all_res.end(), bindingSiteRes[cenResID]);
                 all_res.insert(all_res.end(), contacting_res.begin(), contacting_res.end());
-                seedTERM* frag = new seedTERM(this,all_res,search,seq_const);
+                seedTERM* frag = new seedTERM(this,all_res,search);
                 all_fragments.push_back(frag);
             }
             /* MATCH_GUIDED */
@@ -176,7 +176,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
             if (verbose) cout << "Generate fragment(s) centered on residue " << *(bindingSiteRes[cenResID]) << endl;
             
             // Begin by making a fragment with the binding site residue alone
-            seedTERM* self_f = new seedTERM(this,{cenRes},search,seq_const);
+            seedTERM* self_f = new seedTERM(this,{cenRes},search);
             
             // get the residues that contact the central residue
             vector<pair<Residue*,Residue*>> conts = generalUtilities::getContactsWith({cenRes}, C, 0, cd_threshold, int_threshold, bbInteraction_cutoff, verbose);
@@ -201,7 +201,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                     if (verbose) cout << "Try adding contact " << *R << "..." << endl;
                     vector<Residue*> new_res = current_fragment->getInteractingRes();
                     new_res.push_back(R);
-                    seedTERM* new_f = new seedTERM(this,new_res,search,seq_const);
+                    seedTERM* new_f = new seedTERM(this,new_res,search);
                     
                     // If fragment has at least the minimum number of matches AND more res than current, keep
                     if (new_f->getNumMatches() >= match_req && new_f->getNumRes() > current_fragment->getNumRes()) {
@@ -597,7 +597,7 @@ seedTERM::seedTERM() {
     // compiler error thrown unless I include this
 }
 
-seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _search, bool seq_const) {
+seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _search) {
     MstTimer timer;
     timer.start();
     
@@ -638,7 +638,7 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _
         
         FragmenterObj->F.options().unsetSequenceConstraints();
         //if seq_const is true, apply
-        if (seq_const) {
+        if (parent->seq_const) {
             Structure splitQuery = FragmenterObj->F.getQuery();
             fasstSeqConstSimple seqConst(splitQuery.chainSize());
             const Residue& res = fragmentStructure.getResidue(cenResIdx);
