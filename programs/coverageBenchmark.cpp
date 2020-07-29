@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
     op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
     op.addOption("hist","Path to the histogram file with the seed distance distribution that will be matched in the null model seeds",true);
     op.addOption("no_clash_check", "Filter seed poses by clashes to the protein");
+    op.addOption("no_param_scan", "Skip applying filters and consider all seeds when assesssing coverage");
     op.setOptions(argc, argv);
     
     MstTimer timer;
@@ -158,80 +159,112 @@ int main(int argc, char *argv[]) {
      - sequence constraint. When applied, only matches with the same residue at the central position are accepted
      */
     
-    vector<mstreal> match_rmsds = {0.2,0.4,0.6,0.8,1.0,1.2};
-    vector<bool> seq_consts = {false,true};
-    
-    IC.setSeeds(extfrag_bin);
-    cout << "Search for segments of seed chains (TERM Extension) that map to the peptide..." << endl;
-    for (mstreal match_rmsd : match_rmsds) {
-        for (bool seq_const : seq_consts) {
-            cout << "sequence constraint: " << seq_const << endl;
-            cout << "match_rmsd_cutoff: " << match_rmsd << endl;
-            //make directory for this output
-            string dir_name = "params_"+MstUtils::toString(match_rmsd)+"_"+MstUtils::toString(seq_const)+"/";
-            string path_to_covDir = covDir+dir_name;
-            MstSys::cmkdir(path_to_covDir);
-            
-            IC.setSeqConst(seq_const);
-            IC.setMatchRMSDConst(match_rmsd);
-            
-            IC.findCoveringSeeds();
-            cout << "Write coverage to files..." << endl;
-            IC.writePeptideResidues(path_to_covDir+"termext_");
-            IC.writeContacts(path_to_covDir+"termext_");
-            IC.writeAllAlignedSeedsInfo(path_to_covDir+"termext_");
-            IC.writeBestAlignedSeeds(path_to_covDir+"termext_",10);
-            
+    if (op.isGiven("no_param_scan")) {
+        IC.setSeeds(extfrag_bin);
+        cout << "Search for segments of seed chains (TERM Extension) that map to the peptide..." << endl;
+        IC.findCoveringSeeds();
+        cout << "Write coverage to files..." << endl;
+        IC.writePeptideResidues(covDir+"termext_");
+        IC.writeContacts(covDir+"termext_");
+        IC.writeAllAlignedSeedsInfo(covDir+"termext_");
+        IC.writeBestAlignedSeeds(covDir+"termext_",1);
+        
+        IC.setSeeds(type1_bin);
+        cout << "Search for segments of seed chains (type 1) that map to the peptide..." << endl;
+        IC.findCoveringSeeds();
+        cout << "Write coverage to files..." << endl;
+        IC.writePeptideResidues(covDir+"type1_");
+        IC.writeContacts(covDir+"type1_");
+        IC.writeAllAlignedSeedsInfo(covDir+"type1_");
+        IC.writeBestAlignedSeeds(covDir+"type1_",1);
+        
+        IC.setSeeds(type2_bin);
+        cout << "Search for segments of seed chains (type 2) that map to the peptide..." << endl;
+        IC.findCoveringSeeds();
+        cout << "Write coverage to files..." << endl;
+        IC.writePeptideResidues(covDir+"type2_");
+        IC.writeContacts(covDir+"type2_");
+        IC.writeAllAlignedSeedsInfo(covDir+"type2_");
+        IC.writeBestAlignedSeeds(covDir+"type2_",1);
+        
+    } else {
+        vector<mstreal> match_rmsds = {0.2,0.4,0.6,0.8,1.0,1.2};
+        vector<bool> seq_consts = {false,true};
+        
+        IC.setSeeds(extfrag_bin);
+        cout << "Search for segments of seed chains (TERM Extension) that map to the peptide..." << endl;
+        for (mstreal match_rmsd : match_rmsds) {
+            for (bool seq_const : seq_consts) {
+                cout << "sequence constraint: " << seq_const << endl;
+                cout << "match_rmsd_cutoff: " << match_rmsd << endl;
+                //make directory for this output
+                string dir_name = "params_"+MstUtils::toString(match_rmsd)+"_"+MstUtils::toString(seq_const)+"/";
+                string path_to_covDir = covDir+dir_name;
+                MstSys::cmkdir(path_to_covDir);
+                
+                IC.setSeqConst(seq_const);
+                IC.setMatchRMSDConst(match_rmsd);
+                
+                IC.findCoveringSeeds();
+                cout << "Write coverage to files..." << endl;
+                IC.writePeptideResidues(path_to_covDir+"termext_");
+                IC.writeContacts(path_to_covDir+"termext_");
+                IC.writeAllAlignedSeedsInfo(path_to_covDir+"termext_");
+                IC.writeBestAlignedSeeds(path_to_covDir+"termext_",1);
+                
+            }
+        }
+        
+        IC.setSeeds(type1_bin);
+        cout << "Search for segments of seed chains (type 1) that map to the peptide..." << endl;
+        for (mstreal match_rmsd : match_rmsds) {
+            for (bool seq_const : seq_consts) {
+                cout << "sequence constraint: " << seq_const << endl;
+                cout << "match_rmsd_cutoff: " << match_rmsd << endl;
+                //make directory for this output
+                string dir_name = "params_"+MstUtils::toString(match_rmsd)+"_"+MstUtils::toString(seq_const)+"/";
+                string path_to_covDir = covDir+dir_name;
+                MstSys::cmkdir(path_to_covDir);
+                
+                IC.setSeqConst(seq_const);
+                IC.setMatchRMSDConst(match_rmsd);
+                
+                //Type 1 seeds
+                IC.findCoveringSeeds();
+                cout << "Write coverage to files..." << endl;
+                IC.writePeptideResidues(path_to_covDir+"type1_");
+                IC.writeContacts(path_to_covDir+"type1_");
+                IC.writeAllAlignedSeedsInfo(path_to_covDir+"type1_");
+                IC.writeBestAlignedSeeds(path_to_covDir+"type1_",1);
+            }
+        }
+        
+        IC.setSeeds(type2_bin);
+        cout << "Search for segments of seed chains (type 2) that map to the peptide..." << endl;
+        for (mstreal match_rmsd : match_rmsds) {
+            for (bool seq_const : seq_consts) {
+                cout << "sequence constraint: " << seq_const << endl;
+                cout << "match_rmsd_cutoff: " << match_rmsd << endl;
+                //make directory for this output
+                string dir_name = "params_"+MstUtils::toString(match_rmsd)+"_"+MstUtils::toString(seq_const)+"/";
+                string path_to_covDir = covDir+dir_name;
+                MstSys::cmkdir(path_to_covDir);
+                
+                IC.setSeqConst(seq_const);
+                IC.setMatchRMSDConst(match_rmsd);
+                
+                //Type 2 seeds
+                IC.findCoveringSeeds();
+                cout << "Write coverage to files..." << endl;
+                IC.writePeptideResidues(path_to_covDir+"type2_");
+                IC.writeContacts(path_to_covDir+"type2_");
+                IC.writeAllAlignedSeedsInfo(path_to_covDir+"type2_");
+                IC.writeBestAlignedSeeds(path_to_covDir+"type2_",1);
+            }
         }
     }
     
-    IC.setSeeds(type1_bin);
-    cout << "Search for segments of seed chains (type 1) that map to the peptide..." << endl;
-    for (mstreal match_rmsd : match_rmsds) {
-        for (bool seq_const : seq_consts) {
-            cout << "sequence constraint: " << seq_const << endl;
-            cout << "match_rmsd_cutoff: " << match_rmsd << endl;
-            //make directory for this output
-            string dir_name = "params_"+MstUtils::toString(match_rmsd)+"_"+MstUtils::toString(seq_const)+"/";
-            string path_to_covDir = covDir+dir_name;
-            MstSys::cmkdir(path_to_covDir);
-            
-            IC.setSeqConst(seq_const);
-            IC.setMatchRMSDConst(match_rmsd);
-            
-            //Type 1 seeds
-            IC.findCoveringSeeds();
-            cout << "Write coverage to files..." << endl;
-            IC.writePeptideResidues(path_to_covDir+"type1_");
-            IC.writeContacts(path_to_covDir+"type1_");
-            IC.writeAllAlignedSeedsInfo(path_to_covDir+"type1_");
-            IC.writeBestAlignedSeeds(path_to_covDir+"type1_",10);
-        }
-    }
     
-    IC.setSeeds(type2_bin);
-    cout << "Search for segments of seed chains (type 2) that map to the peptide..." << endl;
-    for (mstreal match_rmsd : match_rmsds) {
-        for (bool seq_const : seq_consts) {
-            cout << "sequence constraint: " << seq_const << endl;
-            cout << "match_rmsd_cutoff: " << match_rmsd << endl;
-            //make directory for this output
-            string dir_name = "params_"+MstUtils::toString(match_rmsd)+"_"+MstUtils::toString(seq_const)+"/";
-            string path_to_covDir = covDir+dir_name;
-            MstSys::cmkdir(path_to_covDir);
-            
-            IC.setSeqConst(seq_const);
-            IC.setMatchRMSDConst(match_rmsd);
-            
-            //Type 2 seeds
-            IC.findCoveringSeeds();
-            cout << "Write coverage to files..." << endl;
-            IC.writePeptideResidues(path_to_covDir+"type2_");
-            IC.writeContacts(path_to_covDir+"type2_");
-            IC.writeAllAlignedSeedsInfo(path_to_covDir+"type2_");
-            IC.writeBestAlignedSeeds(path_to_covDir+"type2_",10);
-        }
-    }
     
     cout << "done" << endl;
     return 0;
