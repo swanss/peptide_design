@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
         summary_hist.setBinVal(i,bin_mean);
     }
     
-    string name = "seed_centroid_distance_normalized_max" + MstUtils::toString(max_val) + "_bins" + MstUtils::toString(num_bins);
+    string name = "seed_centroid_distance_normalized_max" + MstUtils::toString(max_val) + "_bins" + MstUtils::toString(num_bins) + ".csv";
     summary_hist.writeHistFile(name);
     
     return 1;

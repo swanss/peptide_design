@@ -598,7 +598,6 @@ histogram seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal m
         }
         Structure* extfrag = bin_file->next();
         Chain* C = extfrag->getChainByID("0");
-//        cout << "got chain 0 from ext frag: " << C->residueSize() << " res and " << C->atomSize() << " atoms" << endl;
         Structure* seed = new Structure(*C);
         mstreal distance = centroid2NearestProteinAtom(seed);
         
@@ -683,7 +682,7 @@ searchInterfaceFragments::searchInterfaceFragments(set<pair<Residue*,Residue*>> 
 void searchInterfaceFragments::findMatches(string base_path) {
     fstream info_out;
     MstUtils::openFile(info_out,base_path+"matches_rmsd.info",fstream::out);
-    info_out << "name\tprotein_rmsd_before_realign\tprotein_rmsd_after_realign\tpeptide_rmsd_before_realign\tpeptide_rmsd_after_realign" << endl;
+    info_out << "name\twhole_match_rmsd\tprotein_rmsd_before_realign\tprotein_rmsd_after_realign\tpeptide_rmsd_before_realign\tpeptide_rmsd_after_realign" << endl;
     
     //construct a fragment for each residue pair
     cout << "construct interface fragments" << endl;
@@ -791,8 +790,9 @@ void searchInterfaceFragments::findMatches(string base_path) {
             matches_repos.appendStructure(&split_chains);
             
             //write to info file
-            info_out << split_chains.getName() << "\t" << prot_rmsd_before_realign << "\t" << prot_rmsd_after_realign;
-            info_out << "\t" << pep_rmsd_before_realign << "\t" << pep_rmsd_after_realign << endl;
+            info_out << split_chains.getName() << "\t" << sol.getRMSD() << "\t";
+            info_out << prot_rmsd_before_realign << "\t" << prot_rmsd_after_realign << "\t";
+            info_out << pep_rmsd_before_realign << "\t" << pep_rmsd_after_realign << endl;
         }
     }
 }

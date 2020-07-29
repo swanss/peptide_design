@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
     
     // Variables set at the time of compilation
     int max_seed_length = 10; //this limits the length of kmers that are compared between the peptide and a seed
-    int num_sampled = 100000; //this is approximately the number of seeds that will be sampled when writing line clouds
+    int num_sampled = 10000; //this is approximately the number of seeds that will be sampled when writing line clouds
     
     // Variables provided by user
     string extfrag_bin = op.getString("bin_path");
@@ -96,8 +96,7 @@ int main(int argc, char *argv[]) {
     
     //generate type 2 seeds and find distance distribution
     position = true;
-//    int num_seeds = 1000000; //need to sample this many seeds to get a smooth distribution
-    int num_seeds = 100000; //need to sample this many seeds to get a smooth distribution
+    int num_seeds = 1000000; //need to sample this many seeds to get a smooth distribution
     timer.start();
     naiveSeeds.newPose(outDir, type2_proposal_name, position, orientation, num_seeds);
     timer.stop();
