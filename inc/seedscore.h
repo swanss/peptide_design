@@ -89,11 +89,16 @@ public:
      @return true if the combined structure was created, and false if there was
      a steric clash
      */
-    bool prepareCombinedStructure(Structure *seed, bool ignore_clash = false);
+    bool prepareCombinedStructure(Structure *seed);
     /**
      Removes the seed chain from targetStructBB.
      */
     void resetCombinedStructure();
+    
+    /*
+     Toggle whether the scorer allows clashes
+     */
+    void setIgnoreClash(bool _ignoreClash) {ignoreClash = _ignoreClash;}
     
 protected:
     configFile config;
@@ -104,6 +109,7 @@ protected:
     double fractionIdentity;
     int maxNumMatches;
     double vdwRadius;
+    bool ignoreClash = false;
     
     // Backbone-only target
     Structure targetStructBB;

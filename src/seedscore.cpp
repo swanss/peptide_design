@@ -86,7 +86,7 @@ void FASSTScorer::loadFromTarget(string fasstDB) {
     //cout << "Memory usage: " << MstSys::memUsage() << endl;
 }
 
-bool FASSTScorer::prepareCombinedStructure(Structure *seed, bool ignore_clash) {
+bool FASSTScorer::prepareCombinedStructure(Structure *seed) {
     // Clean up the seed
     Structure tmpStructure(*seed);
     Structure pose;
@@ -97,7 +97,7 @@ bool FASSTScorer::prepareCombinedStructure(Structure *seed, bool ignore_clash) {
     int adjustNum = 0;
     
     //cout << "Checking for clash..." << endl;
-    if ((!ignore_clash) & (isClash(ps, psTargetAPV, poseAPV, vdwRadius))) {
+    if ((!ignoreClash) & (isClash(ps, psTargetAPV, poseAPV, vdwRadius))) {
         cout << "pose clashes with target" << endl;
         return false;
     }
@@ -627,6 +627,8 @@ unordered_map<Residue*, mstreal> StructureCompatibilityScorer::designabilityScor
     fasst->setSufficientNumMatches(minNumMatches);
     
     int numFragsSearched = 0;
+    cout << "searching for matches to " << frags.size() << " fragments " << endl;
+    MstTimer timer; timer.start();
     for (Fragment frag: frags) {
         numFragsSearched++;
         //cout << "Fragment " << numFragsSearched << " of " << frags.size() << endl;
@@ -644,9 +646,9 @@ unordered_map<Residue*, mstreal> StructureCompatibilityScorer::designabilityScor
         fasst->setQuery(fragStructure);
         double rmsdCut = rParams.rmsdCutoff(fragStructure);
         fasst->setRMSDCutoff(rmsdCut);
-        //cout << "Searching, " << fragStructure.atomSize() << " atoms, " << fragStructure.residueSize() << " residues, RMSD " << rmsdCut << endl;
+//        cout << "Searching, " << fragStructure.atomSize() << " atoms, " << fragStructure.residueSize() << " residues, RMSD " << rmsdCut << endl;
         fasst->search();
-        //cout << "Done searching" << endl;
+//        cout << "Done searching. Found " << fasst->numMatches() << " matches. Took " << timer.getDuration() << "s" << endl;
         
         if (fasst->numMatches() < minNumMatches) {
             if (!scoreAll) {
@@ -664,7 +666,7 @@ unordered_map<Residue*, mstreal> StructureCompatibilityScorer::designabilityScor
             }
         }
     }
-    
+    cout << "took " << timer.getDuration() << " to find matches to all fragments" << endl;
     fasst->setSufficientNumMatches(prevSufficientNumMatches);
     return result;
 }

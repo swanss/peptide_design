@@ -279,9 +279,27 @@ bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& q
 // calls the above function without and excluded residues
 bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, double ratio = 0.75, int maxNumClashes = 0);
 
-// Added by venkats 1/28/20
-// Same as above, but operates on a single structure
-bool isClashSingleStructure(ProximitySearch& ps, AtomPointerVector& psAPV, double ratio = 0.7, int maxNumClashes = 0);
+// Added by sebastian 9/29/20
+// Moved the logic of isClash() into this function, which can be called directly if the user wants
+// to know how many clashes are counted.
+// if maxNumClashes is < 0, all clashes will be counted.
+// Note: This function has been modified such that the it reports the number of unique pairs of
+// residues with a clash
+int numClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, set<pair<Residue*, Residue*> >& exclude, double ratio = 0.75, int maxNumClashes = 0);
+
+/*
+ After looking through the function implementation, it's not clear to me that this function is
+ necessary. It appears that the same functionality can be achieved by calling with the above
+ function with the ProximitySearch, psAPV, and queryAPV all defined using the same atoms.
+ */
+//// Added by venkats 1/28/20
+//// Same as above, but operates on a single structure
+//bool isClashSingleStructure(ProximitySearch& ps, AtomPointerVector& psAPV, double ratio = 0.7, int maxNumClashes = 0);
+//
+//// Added by sebastian 9/29/20
+//// Same as numClash, but for single structure
+//// if maxNumClashes is < 0, all clashes will be counted
+//int numClashSingleStructure(ProximitySearch& ps, AtomPointerVector& psAPV, double ratio = 0.7, int maxNumClashes = 0);
 
 vector<int> effectiveSegLengths(Structure& s, vector<Residue*> subset, int minGapCont, int minSegLen = 3);
 

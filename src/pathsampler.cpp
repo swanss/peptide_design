@@ -19,7 +19,7 @@ void printPath(vector<Residue *> &path) {
 // ============= PathSampler (parent class) =============
 
 
-bool PathSampler::emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results, bool ignore_clashes) {
+bool PathSampler::emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results, set<Residue*> fixedResidues, bool ignore_clashes) {
     // From mstfuser.cpp: we require that every residue in the path has these four atoms
     static vector<string> bba = {"N", "CA", "C", "O"};
 
@@ -38,8 +38,8 @@ bool PathSampler::emplacePathFromResidues(vector<Residue *> path, vector<PathRes
         return false;
 
     Structure fused;
-    int seedStartIdx = fusePath(path, fused);
-    bool interchain_clash = false; bool intrachain_clash = false;
+    int seedStartIdx = fusePath(path, fused, fixedResidues);
+    int interchain_clash = 0; int intrachain_clash = 0;
     bool has_clash = pathClashes(fused, seedStartIdx, interchain_clash, intrachain_clash);
     
     if (has_clash && !ignore_clashes) return false;
@@ -109,7 +109,7 @@ pair<vector<Residue *>, vector<int>> PathSampler::getMappedMatchResidues(const S
     return make_pair(residues, indexes);
 }
 
-int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPath) {
+int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPath, set<Residue*> fixedResidues) {
     vector<Residue *> targetResidues = getTargetResidues(residues);
     fusionTopology topology(residues.size() + targetResidues.size());
 
@@ -178,7 +178,15 @@ int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPat
         allResidues.insert(allResidues.end(), seedResidues.begin(), seedResidues.end());
         vector<int> allIndexes(matchIndexes);
         allIndexes.insert(allIndexes.end(), seedIndexes.begin(), seedIndexes.end());
-        topology.addFragment(allResidues, allIndexes);
+        
+        //if residues from this seed are in fixed residues, up-weight the whole fragment
+        mstreal weight = 1.0;
+        if (fixedResidues.count(allResidues[allResidues.size()-1]) > 0) {
+            weight = 100000.0;
+            cout << "add residues from the peptide with higher weight" << endl;
+        }
+        
+        topology.addFragment(allResidues, allIndexes, weight);
         topologyIndex += seedRes.size();
     }
     
@@ -187,7 +195,7 @@ int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPat
     return seedStartIdx;
 }
 
-bool PathSampler::pathClashes(const Structure &path, int seedStartIdx, bool &interchain_clash, bool &intrachain_clash) {
+bool PathSampler::pathClashes(const Structure &path, int seedStartIdx, int &interchain_clash, int &intrachain_clash) {
     Structure pathOnly;
     Chain *c = new Chain;
     for (int i = seedStartIdx; i < path.residueSize(); i++) {
@@ -197,13 +205,15 @@ bool PathSampler::pathClashes(const Structure &path, int seedStartIdx, bool &int
 
     AtomPointerVector pathAPV(pathOnly.getAtoms());
     
-    interchain_clash = isClash(ps, targetAPV, pathAPV, 0.7);
-    if (interchain_clash) cout << "Path clashes with protein" << endl;
+    set<pair<Residue*, Residue*> > exclude;
+    interchain_clash = numClash(ps, targetAPV, pathAPV, exclude, 0.7, -1);
+    if (interchain_clash > 0) cout << "Path clashes with protein" << endl;
     
     ProximitySearch pathPS(pathAPV, 10.0);
-    intrachain_clash = isClashSingleStructure(pathPS, pathAPV, 0.7);
-    if (intrachain_clash) cout << "Path clashes with self" << endl;
-    if (interchain_clash || intrachain_clash) return true;
+    exclude.clear();
+    intrachain_clash = numClash(pathPS, pathAPV, pathAPV, exclude, 0.7, -1);
+    if (intrachain_clash > 0) cout << "Path clashes with self" << endl;
+    if (interchain_clash > 0 || intrachain_clash > 0) return true;
     else return false;
 }
 
@@ -309,7 +319,7 @@ vector<PathResult> SeedGraphPathSampler::fusePaths(const vector<string>& path_sp
         vector<Residue*> path = pathResiduesFromSpecifier(path_spec);
         if (path.empty()) MstUtils::error("Path has no residues");
         bool ignore_clashes = true;
-        bool no_clash = emplacePathFromResidues(path, results, ignore_clashes);
+        bool no_clash = emplacePathFromResidues(path, results, _fixedResidues, ignore_clashes);
         if (!no_clash) cout << "Path " << path_count << " has a clash (or is missing atoms)" << endl;
     }
     return results;

@@ -71,6 +71,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("seedChain", "Chain ID for the seed structures (default is '0')", false);
     opts.addOption("out", "Path to a directory into which the fused seed path structures and scores will be written", true);
     opts.addOption("paths","Path to a text file where each line specifies a path. Format: seed_A:residue_i;seed_B:residue_j;etc...",false);
+    opts.addOption("fixedSeed","The name of seed in the binary to 'fix' in fusion. If provided, any path that contains residues from this seed will always fix those positions in the topology",false);
     opts.addOption("config", "The path to a configfile",true);
     opts.setOptions(argc, argv);
     
@@ -79,6 +80,7 @@ int main (int argc, char *argv[]) {
     string seedGraphPath = opts.getString("seedGraph");
     string outputPath = opts.getString("out");
     string pathsPath = opts.getString("paths");
+    string fixedSeed = opts.getString("fixedSeed");
     string configFilePath = opts.getString("config");
     
     // Load target structure and remove native peptide
@@ -108,10 +110,12 @@ int main (int argc, char *argv[]) {
     
     // Scorer
     FragmentParams fParams(2, true);
-    rmsdParams rParams(1.2, 15, 1);
+//    rmsdParams rParams(1.2, 15, 1);
+    rmsdParams rParams(1.0, 15, 1);
     contactParams cParams;
     StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, configFilePath);
     scorer.setScoreAll(true);
+    scorer.setIgnoreClash(true);
     
     ofstream out(MstSystemExtension::join(outputPath, "fused_paths.csv"), ios::out);
     if (!out.is_open())
@@ -122,6 +126,7 @@ int main (int argc, char *argv[]) {
     //fuse specified paths
     cout << "trying to fuse " << path_specifiers.size() << " paths..." << endl;
     SeedGraphPathSampler sampler(&target,seedG);
+    sampler.addFixedSeed(fixedSeed);
     vector<PathResult> pathResults = sampler.fusePaths(path_specifiers);
     
     cout << "Score " << pathResults.size() << " fused paths" << endl;
@@ -136,7 +141,7 @@ int main (int argc, char *argv[]) {
         out << name << "," << path_specifiers[i] << "," << result.size() << ",";
         
         //report clashes
-        out << result.hasInterchainClash() << "," << result.hasIntrachainClash() << ",";
+        out << result.getInterchainClash() << "," << result.getIntrachainClash() << ",";
         
         //get the whole structure (including target-aligned residues) and path only
         Structure& whole = result.getFusedStructure();

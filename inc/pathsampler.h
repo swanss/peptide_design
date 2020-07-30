@@ -41,16 +41,16 @@ public:
         }
         ret.appendChain(c);
     }
-    bool hasIntrachainClash() {return _intrachain_clash;}
-    bool hasInterchainClash() {return _interchain_clash;}
-    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, bool interchain_clash = false, bool intrachain_clash = false): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _interchain_clash(interchain_clash), _intrachain_clash(intrachain_clash) {}
+    int getIntrachainClash() {return _intrachain_clash;}
+    int getInterchainClash() {return _interchain_clash;}
+    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, int interchain_clash = 0, int intrachain_clash = 0): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _interchain_clash(interchain_clash), _intrachain_clash(intrachain_clash) {}
 
 private:
     vector<Residue *> _originalResidues;
     Structure _fusedPath;
     int _seedStartIdx;
-    bool _interchain_clash;
-    bool _intrachain_clash;
+    int _interchain_clash;
+    int _intrachain_clash;
     
 };
 
@@ -76,7 +76,7 @@ protected:
      * Generates a PathResult by fusing the given path together, making
      * sure it is valid, and checking for clashes.
      */
-    bool emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results, bool ignore_clashes = false);
+    bool emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results, set<Residue*> fixedResidues = {}, bool ignore_clashes = false);
 
     AtomPointerVector buildAPV(const vector<Residue *>::const_iterator &begin, const vector<Residue *>::const_iterator &end);
 
@@ -101,8 +101,8 @@ protected:
      *  added
      */
     pair<vector<Residue *>, vector<int>> getMappedMatchResidues(const Structure &seedStructure, const unordered_map<pair<string, int>, int, pair_hash> &targetPositions);
-    int fusePath(const vector<Residue *> &residues, Structure &fusedPath);
-    bool pathClashes(const Structure &path, int seedStartIdx, bool &interchain_clash, bool &intrachain_clash);
+    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, set<Residue*> fixedResidues = {});
+    bool pathClashes(const Structure &path, int seedStartIdx, int &interchain_clash, int &intrachain_clash);
 };
 
 /**
@@ -151,6 +151,15 @@ public:
         _startingResidues = seed->getChainByID(seed_chain)->getResidues();
         MstUtils::assert((_startingResidues.empty()),"There are no residues in the specified chain");
     }
+    
+    //Adds the residues of a seed to the fixedResidues set, which is checked before fusing a path
+    void addFixedSeed(string seedName) {
+        Structure* fixedSeed = _graph->getStructureFromFile(seedName);
+        if (fixedSeed == nullptr) MstUtils::error(seedName+" not found in binary file","SeedGraphPathSampler::addFixedSeed");
+        vector<Residue*> fixedResidues = fixedSeed->getResidues();
+        for (Residue* R : fixedResidues) _fixedResidues.insert(R);
+        cout << "Added " << fixedResidues.size() << " fixed residues" << endl;
+    }
 
 private:
     SeedGraph *_graph = nullptr;
@@ -160,8 +169,14 @@ private:
   
     // Used only if starting_seed is provided
     vector<Residue*> _startingResidues;
+    
+    // If not empty, fusePath will check each path for these residues, and if they are
+    // found in the path, those positions will be fixed
+    set<Residue*> _fixedResidues;
   
     vector<Residue*> pathResiduesFromSpecifier(string path_spec);
+    
+    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, set<Residue*> fixedResidues);
 };
 
 /**

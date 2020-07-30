@@ -819,6 +819,18 @@ bool isClash(ProximitySearch& ps, AtomPointerVector& queryAPV, double clashDist,
 // maxNumClasshes is the maximum number of allowed clashes between queryAPV and psAPV (default = 0)
 // raddii comes from /home/ironfs/scratch/grigoryanlab/cmack2357/minCover/lists
 bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, set<pair<Residue*, Residue*> >& exclude, double ratio, int maxNumClashes) {
+    int numClashes = numClash(ps, psAPV, queryAPV, exclude, ratio, maxNumClashes);
+    if (numClashes >= maxNumClashes) return true;
+    else return false;
+}
+
+// calls the above function without and excluded residues
+bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, double ratio, int maxNumClashes) {
+    set<pair<Residue*, Residue*> > exclude;
+    return isClash(ps, psAPV, queryAPV, exclude, ratio, maxNumClashes);
+}
+
+int numClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, set<pair<Residue*, Residue*> >& exclude, double ratio, int maxNumClashes) {
     int numClashes = 0;
     
     // this should be passed in so that user can specify these - e.g. could include side chain atoms as well
@@ -830,50 +842,59 @@ bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& q
         for (int j = 0; j < tags.size(); j++) {
             int pi = tags[j];
             Residue* psRes = psAPV[pi]->getParent();
-            if (exclude.count(make_pair(psRes, qRes)) == 0) {
+            //check if either direction of residue clash is excluded
+            pair<Residue*,Residue*> psRes_qRes(psRes, qRes);
+            pair<Residue*,Residue*> qRes_psRes(qRes, psRes);
+            if ((exclude.count(psRes_qRes) < 1) && (exclude.count(qRes_psRes) < 1)) {
+                if (abs(qRes->getResidueIndex() - psRes->getResidueIndex()) <= 1) continue;
+                //if both directions were not in excluded, check if counts as clash
                 if (vdwRadii::clash(*psAPV[pi], *queryAPV[qi], ratio)) {
                     numClashes ++;
+                    //add to excluded so it is not counted again later
+                    exclude.insert(make_pair(psRes, qRes));
+                    exclude.insert(make_pair(qRes, psRes));
                 }
-                if (numClashes > maxNumClashes) {
-                    return true;
+                if ((maxNumClashes >= 0) & (numClashes > maxNumClashes)) {
+                    return numClashes;
                 }
             }
         }
     }
-    return false;
+    return numClashes;
 }
 
-// Added by venkats 1/28/20
-// Same as above, but operates on a single structure
-bool isClashSingleStructure(ProximitySearch& ps, AtomPointerVector& psAPV, double ratio, int maxNumClashes) {
-    int numClashes = 0;
-    
-    // this should be passed in so that user can specify these - e.g. could include side chain atoms as well
-    double maxDist = vdwRadii::maxSumRadii() * ratio;
-    
-    for (int qi = 0; qi < psAPV.size(); qi++) {
-        Residue* qRes = psAPV[qi]->getParent();
-        vector<int> tags = ps.getPointsWithin(psAPV[qi]->getCoor(), 0, maxDist); //, true);
-        for (int j = 0; j < tags.size(); j++) {
-            int pi = tags[j];
-            Residue* psRes = psAPV[pi]->getParent();
-            if (abs(qRes->getResidueIndex() - psRes->getResidueIndex()) <= 1)
-                continue;
-            if (vdwRadii::clash(*psAPV[pi], *psAPV[qi], ratio)) {
-                numClashes ++;
-            }
-            if (numClashes > maxNumClashes) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-// calls the above function without and excluded residues
-bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, double ratio, int maxNumClashes) {
-    set<pair<Residue*, Residue*> > exclude;
-    return isClash(ps, psAPV, queryAPV, exclude, ratio, maxNumClashes);
-}
+//// Added by venkats 1/28/20
+//// Same as above, but operates on a single structure
+//bool isClashSingleStructure(ProximitySearch& ps, AtomPointerVector& psAPV, double ratio, int maxNumClashes) {
+//    int numClashes = numClashSingleStructure(ps, psAPV, ratio, maxNumClashes);
+//    if (numClashes >= maxNumClashes) return true;
+//    else return false;
+//}
+//
+//int numClashSingleStructure(ProximitySearch& ps, AtomPointerVector& psAPV, double ratio, int maxNumClashes) {
+//    int numClashes = 0;
+//
+//    // this should be passed in so that user can specify these - e.g. could include side chain atoms as well
+//    double maxDist = vdwRadii::maxSumRadii() * ratio;
+//
+//    for (int qi = 0; qi < psAPV.size(); qi++) {
+//        Residue* qRes = psAPV[qi]->getParent();
+//        vector<int> tags = ps.getPointsWithin(psAPV[qi]->getCoor(), 0, maxDist); //, true);
+//        for (int j = 0; j < tags.size(); j++) {
+//            int pi = tags[j];
+//            Residue* psRes = psAPV[pi]->getParent();
+//            if (abs(qRes->getResidueIndex() - psRes->getResidueIndex()) <= 1)
+//                continue;
+//            if (vdwRadii::clash(*psAPV[pi], *psAPV[qi], ratio)) {
+//                numClashes ++;
+//            }
+//            if ((maxNumClashes >= 0) & (numClashes > maxNumClashes)) {
+//                return numClashes;
+//            }
+//        }
+//    }
+//    return numClashes;
+//}
 
 vector<int> effectiveSegLengths(Structure& s, vector<Residue*> subset, int minGapCont, int minSegLen) {
     vector<Residue*> residues = s.getResidues();

@@ -223,6 +223,14 @@ public:
      */
     Residue * getResidueFromFile(string residueID, bool loadIfNeeded = true);
     
+    /*
+     added by sebastian on 08/29/20
+     
+     Gets a structure by its name in the structureCache. If loadIfNeeded is true, loads the
+     structure if not already loaded. Otherwise, returns nullptr.
+     */
+    Structure * getStructureFromFile(string structureName, bool loadIfNeeded = true);
+    
     /**
      Assembles the _representativeResidues map so that every residue is mapped
      to a single residue in its overlap neighborhood.

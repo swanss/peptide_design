@@ -288,6 +288,14 @@ Residue* SeedGraph::getResidueFromFile(string residueID, bool loadIfNeeded) {
     return & structure->getResidue(atoi(comps[1].c_str()));
 }
 
+Structure* SeedGraph::getStructureFromFile(string structureName, bool loadIfNeeded) {
+    if (!loadIfNeeded && !structures->hasStructure(structureName)) return nullptr;
+    else {
+        Structure *structure = structures->getStructure(structureName);
+        return structure;
+    }
+}
+
 void SeedGraph::print() {
     cout << "{" << endl;
     for (auto elem: adjacencies) {
