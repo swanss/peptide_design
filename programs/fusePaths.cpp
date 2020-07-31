@@ -60,6 +60,7 @@ int corroborationScore(PathResult &path, int nearbyThreshold) {
 }
 
 int main (int argc, char *argv[]) {
+    MstTimer timer; timer.start();
     
     // Get command-line arguments
     MstOptions opts;
@@ -80,7 +81,7 @@ int main (int argc, char *argv[]) {
     string seedGraphPath = opts.getString("seedGraph");
     string outputPath = opts.getString("out");
     string pathsPath = opts.getString("paths");
-    string fixedSeed = opts.getString("fixedSeed");
+    string fixedSeed = opts.getString("fixedSeed","");
     string configFilePath = opts.getString("config");
     
     // Load target structure and remove native peptide
@@ -121,12 +122,12 @@ int main (int argc, char *argv[]) {
     if (!out.is_open())
         MstUtils::error("Could not open file stream");
     // CSV header
-    out << "name,path,path_len,interchain_clash,intrachain_clash,interchain_designability,num_interchain_contacts,num_designable_interchain_contacts,intrachain_designability,num_intrachain_contacts,num_designable_intrachain_contacts,corroboration" << endl;
+    out << "name,path,path_len,fuser_score,rmsd_score,total_rmsd_score,bond_score,angle_score,dihedral_score,interchain_clash,intrachain_clash,interchain_designability,num_interchain_contacts,num_designable_interchain_contacts,intrachain_designability,num_intrachain_contacts,num_designable_intrachain_contacts,corroboration" << endl;
     
     //fuse specified paths
     cout << "trying to fuse " << path_specifiers.size() << " paths..." << endl;
     SeedGraphPathSampler sampler(&target,seedG);
-    sampler.addFixedSeed(fixedSeed);
+    if (fixedSeed != "") sampler.addFixedSeed(fixedSeed);
     vector<PathResult> pathResults = sampler.fusePaths(path_specifiers);
     
     cout << "Score " << pathResults.size() << " fused paths" << endl;
@@ -139,6 +140,11 @@ int main (int argc, char *argv[]) {
         cout << "Scoring " << name << endl;
         
         out << name << "," << path_specifiers[i] << "," << result.size() << ",";
+        
+        //report the fusion score (and its individual components)
+        fusionOutput fuserScore = result.getFuserScore();
+        out << fuserScore.getScore() << "," << fuserScore.getRMSDScore() << "," << fuserScore.getTotRMSDScore() << ",";
+        out << fuserScore.getBondScore() << "," << fuserScore.getAngleScore() << "," << fuserScore.getDihedralScore() << ",";
         
         //report clashes
         out << result.getInterchainClash() << "," << result.getIntrachainClash() << ",";
@@ -170,7 +176,8 @@ int main (int argc, char *argv[]) {
         whole.setName(name_whole);
         whole.writePDB(MstSystemExtension::join(outputPath,name_whole+".pdb"));
     }
-    
+    timer.stop();
+    cout << "Took " << timer.getDuration() << " s" << endl;
     cout << "Done" << endl;
     out.close();
     

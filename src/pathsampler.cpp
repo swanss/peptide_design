@@ -37,14 +37,14 @@ bool PathSampler::emplacePathFromResidues(vector<Residue *> path, vector<PathRes
     if (!isValid)
         return false;
 
-    Structure fused;
-    int seedStartIdx = fusePath(path, fused, fixedResidues);
+    Structure fused; fusionOutput fuserScore;
+    int seedStartIdx = fusePath(path, fused, fuserScore, fixedResidues);
     int interchain_clash = 0; int intrachain_clash = 0;
     bool has_clash = pathClashes(fused, seedStartIdx, interchain_clash, intrachain_clash);
     
     if (has_clash && !ignore_clashes) return false;
 
-    results.emplace_back(path, fused, seedStartIdx, interchain_clash, intrachain_clash);
+    results.emplace_back(path, fused, seedStartIdx, fuserScore, interchain_clash, intrachain_clash);
     
     if (has_clash) return false;
     else return true;
@@ -109,7 +109,7 @@ pair<vector<Residue *>, vector<int>> PathSampler::getMappedMatchResidues(const S
     return make_pair(residues, indexes);
 }
 
-int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPath, set<Residue*> fixedResidues) {
+int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPath, fusionOutput& scores, set<Residue*> fixedResidues) {
     vector<Residue *> targetResidues = getTargetResidues(residues);
     fusionTopology topology(residues.size() + targetResidues.size());
 
@@ -190,7 +190,6 @@ int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPat
         topologyIndex += seedRes.size();
     }
     
-    fusionOutput scores;
     fusedPath = Fuser::fuse(topology, scores);
     return seedStartIdx;
 }

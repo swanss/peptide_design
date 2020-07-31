@@ -41,16 +41,18 @@ public:
         }
         ret.appendChain(c);
     }
-    int getIntrachainClash() {return _intrachain_clash;}
-    int getInterchainClash() {return _interchain_clash;}
-    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, int interchain_clash = 0, int intrachain_clash = 0): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _interchain_clash(interchain_clash), _intrachain_clash(intrachain_clash) {}
+    fusionOutput getFuserScore() {return _fuserScore;}
+    int getIntrachainClash() {return _intrachainClash;}
+    int getInterchainClash() {return _interchainClash;}
+    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, fusionOutput fuserScore, int interchainClash = 0, int intrachainClash = 0): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _fuserScore(fuserScore), _interchainClash(interchainClash), _intrachainClash(intrachainClash) {}
 
 private:
     vector<Residue *> _originalResidues;
     Structure _fusedPath;
     int _seedStartIdx;
-    int _interchain_clash;
-    int _intrachain_clash;
+    fusionOutput _fuserScore;
+    int _interchainClash;
+    int _intrachainClash;
     
 };
 
@@ -101,7 +103,7 @@ protected:
      *  added
      */
     pair<vector<Residue *>, vector<int>> getMappedMatchResidues(const Structure &seedStructure, const unordered_map<pair<string, int>, int, pair_hash> &targetPositions);
-    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, set<Residue*> fixedResidues = {});
+    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, fusionOutput& fuserScore, set<Residue*> fixedResidues = {});
     bool pathClashes(const Structure &path, int seedStartIdx, int &interchain_clash, int &intrachain_clash);
 };
 
@@ -176,7 +178,7 @@ private:
   
     vector<Residue*> pathResiduesFromSpecifier(string path_spec);
     
-    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, set<Residue*> fixedResidues);
+//    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, set<Residue*> fixedResidues, mstreal& fuserScore);
 };
 
 /**
