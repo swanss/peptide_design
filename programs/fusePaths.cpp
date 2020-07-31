@@ -71,6 +71,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("seedGraph","Path to a seed graph that contains the overlaps between seeds in the binary file",true);
     opts.addOption("seedChain", "Chain ID for the seed structures (default is '0')", false);
     opts.addOption("out", "Path to a directory into which the fused seed path structures and scores will be written", true);
+    opts.addOption("base", "The prefix that should be used in writing files",true);
     opts.addOption("paths","Path to a text file where each line specifies a path. Format: seed_A:residue_i;seed_B:residue_j;etc...",false);
     opts.addOption("fixedSeed","The name of seed in the binary to 'fix' in fusion. If provided, any path that contains residues from this seed will always fix those positions in the topology",false);
     opts.addOption("config", "The path to a configfile",true);
@@ -80,6 +81,7 @@ int main (int argc, char *argv[]) {
     string binaryFilePath = opts.getString("seeds");
     string seedGraphPath = opts.getString("seedGraph");
     string outputPath = opts.getString("out");
+    string baseName = opts.getString("base");
     string pathsPath = opts.getString("paths");
     string fixedSeed = opts.getString("fixedSeed","");
     string configFilePath = opts.getString("config");
@@ -118,7 +120,7 @@ int main (int argc, char *argv[]) {
     scorer.setScoreAll(true);
     scorer.setIgnoreClash(true);
     
-    ofstream out(MstSystemExtension::join(outputPath, "fused_paths.csv"), ios::out);
+    ofstream out(MstSystemExtension::join(outputPath, baseName + "_fused_paths.csv"), ios::out);
     if (!out.is_open())
         MstUtils::error("Could not open file stream");
     // CSV header
@@ -135,8 +137,8 @@ int main (int argc, char *argv[]) {
         PathResult& result = pathResults[i];
         
         //get name
-        string name = "fused_path_" + to_string(i);
-        string name_whole = "fused_path_and_context_" + to_string(i);
+        string name = baseName + "_" + "fused_path_" + to_string(i);
+        string name_whole = baseName + "_" + "fused_path_and_context_" + to_string(i);
         cout << "Scoring " << name << endl;
         
         out << name << "," << path_specifiers[i] << "," << result.size() << ",";
