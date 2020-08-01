@@ -128,7 +128,8 @@ int main (int argc, char *argv[]) {
     
     //fuse specified paths
     cout << "trying to fuse " << path_specifiers.size() << " paths..." << endl;
-    SeedGraphPathSampler sampler(&target,seedG);
+    int overlap_length = 1;
+    SeedGraphPathSampler sampler(&target,seedG,overlap_length);
     if (fixedSeed != "") sampler.addFixedSeed(fixedSeed);
     vector<PathResult> pathResults = sampler.fusePaths(path_specifiers);
     

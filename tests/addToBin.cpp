@@ -35,7 +35,9 @@ int main(int argc, char *argv[]) {
   C->setID("0");
   
   //open in write mode to add the structure
-  StructuresBinaryFile* bin = new StructuresBinaryFile(bin_path,false);
+  bool read = false;
+  bool append = true;
+  StructuresBinaryFile* bin = new StructuresBinaryFile(bin_path,read,append);
   
   bin->appendStructure(S);
   
