@@ -539,10 +539,10 @@ vector<int> TermExtension::getNonClashingResidueIdx(vector<int> seed_res_idx, co
     for (int i = 0; i < seed_res_idx.size(); i++) {
         Residue* R = &match_structure->getResidue(seed_res_idx[i]);
         AtomPointerVector R_bb_atoms = AtomPointerVector(RotamerLibrary::getBackbone(R));
-        bool clash = isClash(*target_PS, target_BB_atoms, R_bb_atoms); //from structgen
+        bool clash = isClash(*target_PS, target_BB_atoms, R_bb_atoms);
         if (!clash) filtered_res_idx.push_back(seed_res_idx[i]);
     }
-    //  if (verbose) cout << seed_res_idx.size() - filtered_res_idx.size()  << " residues removed due to clashes" << endl;
+      if (verbose) cout << seed_res_idx.size() - filtered_res_idx.size()  << " residues removed due to clashes" << endl;
     return filtered_res_idx;
 }
 

@@ -510,7 +510,6 @@ void interfaceCoverage::prepareForTERMExtension() {
     }
     
     for (Residue* R : binding_site) bindingSiteRes.push_back(&target->getResidue(complex2target[R]));
-    cout << endl;
 }
 
 

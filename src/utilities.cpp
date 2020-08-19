@@ -820,7 +820,7 @@ bool isClash(ProximitySearch& ps, AtomPointerVector& queryAPV, double clashDist,
 // raddii comes from /home/ironfs/scratch/grigoryanlab/cmack2357/minCover/lists
 bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, set<pair<Residue*, Residue*> >& exclude, double ratio, int maxNumClashes) {
     int numClashes = numClash(ps, psAPV, queryAPV, exclude, ratio, maxNumClashes);
-    if (numClashes >= maxNumClashes) return true;
+    if (numClashes > maxNumClashes) return true;
     else return false;
 }
 

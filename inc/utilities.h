@@ -276,14 +276,14 @@ bool isClash(ProximitySearch& ps, AtomPointerVector& queryAPV, double clashDist 
 // /home/ironfs/scratch/grigoryanlab/cmack2357/minCover/lists
 bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, set<pair<Residue*, Residue*> >& exclude, double ratio = 0.75, int maxNumClashes = 0);
 
-// calls the above function without and excluded residues
+// calls the above function without excluded residues
 bool isClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, double ratio = 0.75, int maxNumClashes = 0);
 
 // Added by sebastian 9/29/20
 // Moved the logic of isClash() into this function, which can be called directly if the user wants
 // to know how many clashes are counted.
 // if maxNumClashes is < 0, all clashes will be counted.
-// Note: This function has been modified such that the it reports the number of unique pairs of
+// Note: This function has been modified such that it reports the number of unique pairs of
 // residues with a clash
 int numClash(ProximitySearch& ps, AtomPointerVector& psAPV, AtomPointerVector& queryAPV, set<pair<Residue*, Residue*> >& exclude, double ratio = 0.75, int maxNumClashes = 0);
 

@@ -68,6 +68,7 @@ int main(int argc, char *argv[]) {
     if (bindingSiteRes.empty()) MstUtils::error("No residues selected for TERM Extension");
     cout << "The following residues were selected for TERM Extension: ";
     for (Residue* R : bindingSiteRes) cout << R->getChainID() << R->getNum() << " ";
+    cout << endl;
     
     // Write out the secondary structure of each residue in the original protein
     fstream out;

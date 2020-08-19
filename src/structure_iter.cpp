@@ -118,7 +118,7 @@ Structure * StructuresBinaryFile::getStructureNamed(string name) {
         scanFilePositions();
     }
     if (_filePositions.count(name) == 0) {
-        cout << "Structure doesn't exist" << endl;
+        cout << "Structure " << name << " doesn't exist" << endl;
         return nullptr;
     }
     fs.seekg(_filePositions[name], fs.beg);
