@@ -323,13 +323,15 @@ private:
 
 struct interfaceFragment {
     Structure s;
+    string name;
     pair<Residue*,Residue*> contact; //peptide,protein
     vector<int> fragResIdx;
     vector<string> cIDs; //the chain names of each chain in the fragment
     vector<Atom*> protein_atoms;
     vector<Atom*> peptide_atoms;
     
-    void reportFragment() {
+    void reportFragment(string base_path) {
+        cout<< "Name: " << name << endl;
         cout << "Structure has: " << s.chainSize() << " chains, " << s.residueSize() <<  " residues, and " << s.atomSize() << " atoms" << endl;
         cout << "Centered on contact between " << contact.first->getChainID() << contact.first->getNum() << " and " << contact.second->getChainID() << contact.second->getNum() << endl;
         cout << "Chain IDs: ";
@@ -337,6 +339,23 @@ struct interfaceFragment {
         cout << endl;
         cout << "Protein atoms: " << protein_atoms.size() << endl;
         cout << "Peptide atoms: " << peptide_atoms.size() << endl;
+        cout << "Writing fragment..." << endl;
+        s.writePDB(name+".pdb");
+    }
+    //set structure name
+    /*
+     e.g. 1A1M_A_C_1_1-A59-A171A63A167-2_2-0.528887-1
+     structure name
+     central residue (protein)
+     contacting residue (peptide)
+     flanking residues (protein)
+     flanking residues (peptide)
+     */
+    void setName(string complex_name, int flank) {
+        name += complex_name + "-";
+        name += contact.second->getChainID() + MstUtils::toString(contact.second->getNum()) + "-";
+        name += contact.first->getChainID() + MstUtils::toString(contact.first->getNum()) + "-";
+        name += MstUtils::toString(flank) + "_" + MstUtils::toString(flank);
     }
 };
 
@@ -365,6 +384,9 @@ protected:
     void repositionMatch(Structure& match, const interfaceFragment& f, mstreal& protein_rmsd_before_realign, mstreal& protein_rmsd_after_realign, mstreal& peptide_rmsd_before_realign, mstreal& peptide_rmsd_after_realign);
     
     vector<Atom*> getProteinAlignedAtoms(const Structure& match, const interfaceFragment& f, vector<Atom*>& peptide_aligned_atoms);
+    
+    /* Assumes that all fragments are two segment */
+    mstreal segmentCentroidDistances(const Structure& match_split);
     
 private:
     // Main variables and parameters

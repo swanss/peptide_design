@@ -129,6 +129,11 @@ public:
     
     static mstreal avgCosAngleBetweenSegments(const vector<Residue*> &seg1, const vector<Residue*> &seg2);
     
+    /*
+     Verifies that the residues are covalently bonded in the order that they are provided
+     */
+    static bool contiguousResidues(vector<Residue*> segment, mstreal maxPeptideBond = 2.0);
+    
 };
 
 // Miscellaneous useful functions

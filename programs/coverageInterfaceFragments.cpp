@@ -83,12 +83,14 @@ int main(int argc, char *argv[]) {
 
     IC.setMaxRMSD(max_rmsd);
     
+    IC.writePeptideResidues(covDir + interface_matches + "_");
+    IC.writeContacts(covDir + interface_matches + "_");
+    
     cout << "Search for segments of seed chains (interface fragment matches) that map to the peptide..." << endl;
     IC.setSeeds(outDir + interface_matches + ".bin");
     IC.findCoveringSeeds();
     cout << "Write coverage to files..." << endl;
-    IC.writePeptideResidues(covDir + interface_matches + "_");
-    IC.writeContacts(covDir + interface_matches + "_");
+
     IC.writeAllAlignedSeedsInfo(covDir + interface_matches + "_");
     IC.writeBestAlignedSeeds(covDir + interface_matches + "_",1);
     
@@ -96,8 +98,6 @@ int main(int argc, char *argv[]) {
     IC.setSeeds(outDir + interface_matches_realigned + ".bin");
     IC.findCoveringSeeds();
     cout << "Write coverage to files..." << endl;
-    IC.writePeptideResidues(covDir + interface_matches_realigned + "_");
-    IC.writeContacts(covDir + interface_matches_realigned + "_");
     IC.writeAllAlignedSeedsInfo(covDir + interface_matches_realigned + "_");
     IC.writeBestAlignedSeeds(covDir + interface_matches_realigned + "_",1);
     

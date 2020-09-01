@@ -682,7 +682,7 @@ searchInterfaceFragments::searchInterfaceFragments(set<pair<Residue*,Residue*>> 
 void searchInterfaceFragments::findMatches(string base_path) {
     fstream info_out;
     MstUtils::openFile(info_out,base_path+"matches_rmsd.info",fstream::out);
-    info_out << "name\twhole_match_rmsd\tprotein_rmsd_before_realign\tprotein_rmsd_after_realign\tpeptide_rmsd_before_realign\tpeptide_rmsd_after_realign" << endl;
+    info_out << "fragment_name\tmatch_name\twhole_match_rmsd\tprotein_rmsd_before_realign\tprotein_rmsd_after_realign\tpeptide_rmsd_before_realign\tpeptide_rmsd_after_realign\tcentroid_distance" << endl;
     
     //construct a fragment for each residue pair
     cout << "construct interface fragments" << endl;
@@ -727,8 +727,10 @@ void searchInterfaceFragments::findMatches(string base_path) {
                 f.protein_atoms.insert(f.protein_atoms.end(),segment_atoms.begin(),segment_atoms.end());
             }
         }
+
+        f.setName(complex_name,flank);
         
-        f.reportFragment();
+        f.reportFragment(base_path);
         
         i++;
     }
@@ -761,23 +763,35 @@ void searchInterfaceFragments::findMatches(string base_path) {
             match_N++;
             if (match_N > top_N_matches) continue;
             const fasstSolution& sol = *it;
-            Structure match;
-            F.getMatchStructure(sol, match);
+            Structure match = F.getMatchStructure(sol);
             Structure split_chains = match.reassignChainsByConnectivity();
             
             //set structure name
             /*
-             e.g. 1A1M_A_C_1_1-A59-A171A63A167-2_2-0.528887-1
-             structure name
-             central residue (protein)
-             contacting residue (peptide)
-             flanking residues (protein)
-             flanking residues (peptide)
+             fragment name
              rmsd of the match
              match index
              */
-            string name = getNamePrefix(f) + "-" + MstUtils::toString(sol.getRMSD()) + "-" + MstUtils::toString(i);
-            split_chains.setName(name);
+            string match_name = f.name + "-" + MstUtils::toString(sol.getRMSD()) + "-" + MstUtils::toString(i);
+            split_chains.setName(match_name);
+            
+            if (split_chains.chainSize() != 2) {
+                cout << "wrong number of chains in match" << endl;
+                cout << "Target ID: " << sol.getTargetIndex() << endl;
+                vector<int> alignments = sol.getAlignment();
+                vector<int> lengths = sol.getSegLengths();
+                for (int i = 0; i < alignments.size(); i++) cout << "alignment: " << alignments[i] << endl;
+                for (int i = 0; i < lengths.size(); i++) cout << "length: " << lengths[i] << endl;
+                cout << split_chains.getName() << endl;
+                cout << "chains: " << split_chains.chainSize() << endl;
+                cout << "residues: " << split_chains.residueSize() << endl;
+                cout << "atoms: " << split_chains.atomSize() << endl;
+                split_chains.writePDB(split_chains.getName()+".pdb");
+                continue;
+            }
+            
+            //compute the distance between the two segments
+            mstreal centroid_distance = segmentCentroidDistances(split_chains);
             
             //change the chain names to match extended fragments
             renameChains(split_chains,f);
@@ -789,10 +803,20 @@ void searchInterfaceFragments::findMatches(string base_path) {
             repositionMatch(split_chains,f,prot_rmsd_before_realign,prot_rmsd_after_realign,pep_rmsd_before_realign,pep_rmsd_after_realign);
             matches_repos.appendStructure(&split_chains);
             
+            matches.appendStructurePropertyInt("seq",1); //fix if you want to use this for analysis
+            matches.appendStructurePropertyReal("match_rmsd",prot_rmsd_before_realign);
+            matches.appendStructurePropertyReal("rmsd_adj",1.0);
+            
+            matches_repos.appendStructurePropertyInt("seq",1); //fix if you want to use this for analysis
+            matches_repos.appendStructurePropertyReal("match_rmsd",prot_rmsd_after_realign);
+            matches_repos.appendStructurePropertyReal("rmsd_adj",1.0);
+            
             //write to info file
+            info_out << f.name << "\t";
             info_out << split_chains.getName() << "\t" << sol.getRMSD() << "\t";
             info_out << prot_rmsd_before_realign << "\t" << prot_rmsd_after_realign << "\t";
-            info_out << pep_rmsd_before_realign << "\t" << pep_rmsd_after_realign << endl;
+            info_out << pep_rmsd_before_realign << "\t" << pep_rmsd_after_realign << "\t";
+            info_out << centroid_distance << endl;
         }
     }
 }
@@ -807,21 +831,30 @@ bool searchInterfaceFragments::checkViableContact(Residue* R_pep, Residue* R_pro
     int prot_chain_begin = protein_res.front()->getResidueIndex();
     int prot_chain_end = protein_res.back()->getResidueIndex();
     
-    //check peptide residue
+    //check if flanking residues fall out of peptide range
     int segment_n_term = R_pep->getResidueIndex() - flank;
     int segment_c_term = R_pep->getResidueIndex() + flank;
     
-    //check if flanking residues fall out of peptide range
     if (segment_n_term < pep_chain_begin) {
         R_pep = &complex->getResidue(pep_chain_begin+flank);
     }
     else if (segment_c_term > pep_chain_end) {
         R_pep = &complex->getResidue(pep_chain_end-flank);
     }
+    
+    //check that the residues form a contiguous segment
+    int R_index_in_chain = R_pep->getResidueIndexInChain();
+    vector<Residue*> peptide_segment(peptide_res.begin()+R_index_in_chain-flank,peptide_res.begin()+R_index_in_chain+flank+1);
+    bool contiguous = generalUtilities::contiguousResidues(peptide_segment);
+    if (!contiguous) {
+        cout << "Skipping contact, as cannot construct a contiguous peptide segment" << endl;
+        return false;
+    }
+    
+    //check if flanking residues fall out of protein range
     segment_n_term = R_prot->getResidueIndex() - flank;
     segment_c_term = R_prot->getResidueIndex() + flank;
     
-    //check if flanking residues fall out of protein range
     if (segment_n_term < prot_chain_begin) {
         R_prot = &complex->getResidue(prot_chain_begin+flank);
     }
@@ -829,26 +862,19 @@ bool searchInterfaceFragments::checkViableContact(Residue* R_pep, Residue* R_pro
         R_prot = &complex->getResidue(prot_chain_end-flank);
     }
     
+    //check that the residues form a contiguous segment
+    R_index_in_chain = R_prot->getResidueIndexInChain();
+    vector<Residue*> protein_segment(protein_res.begin()+R_index_in_chain-flank,protein_res.begin()+R_index_in_chain+flank+1);
+    contiguous = generalUtilities::contiguousResidues(protein_segment);
+    if (!contiguous) {
+        cout << "Skipping contact, as cannot construct a contiguous protein segment" << endl;
+        return false;
+    }
+    
     //add to contacts (check if already added)
     pair<Residue*,Residue*> contact(R_pep,R_prot);
     auto ret = interface_central_residues.insert(contact);
     return ret.second;
-}
-
-string searchInterfaceFragments::getNamePrefix(const interfaceFragment& f) {
-    /*
-     structure name
-     central residue (protein)
-     contacting residue (peptide)
-     flanking residues (protein)
-     flanking residues (peptide)
-     */
-    string name;
-    name += complex_name + "-";
-    name += f.contact.second->getChainID() + MstUtils::toString(f.contact.second->getNum()) + "-";
-    name += f.contact.first->getChainID() + MstUtils::toString(f.contact.first->getNum()) + "-";
-    name += MstUtils::toString(flank) + "_" + MstUtils::toString(flank);
-    return name;
 }
 
 void searchInterfaceFragments::renameChains(Structure& match, const interfaceFragment& f) {
@@ -888,4 +914,12 @@ vector<Atom*> searchInterfaceFragments::getProteinAlignedAtoms(const Structure &
         }
     }
     return match_protein_atoms;
+}
+
+mstreal searchInterfaceFragments::segmentCentroidDistances(const Structure& match_split) {
+    MstUtils::assert(match_split.chainSize() == 2,"segmentCentroidDistances() requires a structure with two chains (which represent disjoint segments of the fragment). number of chains: "+MstUtils::toString(match_split.chainSize()));
+    CartesianPoint centroid_1 = AtomPointerVector(match_split.getChain(0).getAtoms()).getGeometricCenter();
+    CartesianPoint centroid_2 = AtomPointerVector(match_split.getChain(1).getAtoms()).getGeometricCenter();
+    mstreal distance = centroid_1.distance(centroid_2);
+    return distance;
 }

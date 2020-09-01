@@ -388,6 +388,16 @@ mstreal generalUtilities::avgCosAngleBetweenSegments(const vector<Residue *> &se
     return avg / mstreal(seg1.size());
 }
 
+bool generalUtilities::contiguousResidues(vector<Residue*> segment, mstreal maxPeptideBond) {
+    if (segment.empty()) MstUtils::error("Empty vector of residues was passed","generalUtilities::contiguousResidues");
+    for (int i = 0; i < segment.size() - 1; i++) {
+        if (!Residue::areBonded(segment[i],segment[i+1],maxPeptideBond)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /* ----------- Miscellaneous useful functions -------------- */
 
 int getTargetResidueIndex(string seedName) {

@@ -66,7 +66,7 @@ void FuseCandidateFile::write(vector<FuseCandidate> candidates, string parentPat
         }
         writestream = new ofstream(_path, _shouldAppend ? (ofstream::app | ofstream::out) : ios::out);
         if (!writestream->is_open()) {
-            cerr << "couldn't open out stream" << endl;
+            cerr << "couldn't open out stream. path: " << _path << endl;
             return;
         }
     }
