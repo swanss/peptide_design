@@ -323,7 +323,7 @@ void SeedGraph::addAdjacencies(Chain *chain1, Chain *chain2, int overlap1, int o
                 }
             }
         } else {
-            if (chain1 != chain2 && i >= overlap1 - 1 && i < overlap1 + overlapSize) {
+            if (chain1 != chain2 && i >= overlap1 && i < overlap1 + overlapSize) {
                 // Add an edge to the next residue on the other chain
                 int otherIdx = i - overlap1 + overlap2 + 1;
                 if (otherIdx >= 0 && otherIdx < chain2->residueSize()) {

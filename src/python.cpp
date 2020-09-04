@@ -171,4 +171,8 @@ BOOST_PYTHON_MODULE(peptide_design) {
         .def("getAPV", &ClusterSearchResults::getAPV)
         .def("getRMSD", &ClusterSearchResults::getRMSD)
     ;
+    
+    class_<generalUtilities>("generalUtilities",init<>())
+        .def("avgCosAngleBetweenSegments",&generalUtilities::avgCosAngleBetweenSegments)
+    ;
 }
