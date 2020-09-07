@@ -43,13 +43,14 @@ public:
             together (false)
      @param sCache a structure cache to use as a source of residues. If this is
             non-null, the new seed graph will NOT manage its memory.
+     @param centerOnly edges should only be defined between the two most center residues of the overlap
      */
-    SeedGraph(bool adjSameResidues = false, StructureCache *sCache = nullptr);
+    SeedGraph(bool adjSameResidues = false, StructureCache *sCache = nullptr, bool centerOnly = false);
     
-    SeedGraph(string adjacencyPath, bool adjSameResidues, StructureCache *sCache = nullptr, string pdbPrefix = "");
+    SeedGraph(string adjacencyPath, bool adjSameResidues, StructureCache *sCache = nullptr, string pdbPrefix = "", bool centerOnly = false);
     
     /// Copy constructor
-    SeedGraph(const SeedGraph& other): adjSameResidues(other.adjSameResidues), structures(other.structures), ownsStructureCache(false), adjacencies(other.adjacencies), reverseAdjacencies(other.reverseAdjacencies) {}
+    SeedGraph(const SeedGraph& other): adjSameResidues(other.adjSameResidues), centerOnly(other.centerOnly), structures(other.structures), ownsStructureCache(false), adjacencies(other.adjacencies), reverseAdjacencies(other.reverseAdjacencies) {}
 
     /**
      Initialize a seed graph by reading a CSV file containing fuse candidates.
@@ -61,7 +62,9 @@ public:
             with good overlap to each other (true), or by connecting residues
             that could be joined with a bond (false)
      */
-    SeedGraph(FuseCandidateFile neighborsFile, string pdbPrefix = "", bool adjSameResidues = false): adjSameResidues(adjSameResidues) { structures = new StructureCache(pdbPrefix); load(neighborsFile); }
+    SeedGraph(FuseCandidateFile neighborsFile, string pdbPrefix = "", bool adjSameResidues = false, bool centerOnly = false): adjSameResidues(adjSameResidues), centerOnly(centerOnly) {
+        if (adjSameResidues == true and centerOnly == true) MstUtils::error("centerOnly cannot be applied while adjSameResidues is true");
+        structures = new StructureCache(pdbPrefix); load(neighborsFile); }
     ~SeedGraph();
     /** Print the graph's adjacency list to cout */
     void print();
@@ -276,10 +279,31 @@ private:
     ResidueAdjacencyList reverseAdjacencies;
     bool adjSameResidues = false; // If true, edges connect analogous residues (with low RMSD between themselves); otherwise, edges connect sequential residues
     
+    
+    /*
+     The following parameter is only applicable if adjSameResidues = false. When centerOnly is set to
+     true, edges are only defined in the center of the overlap.
+     
+     e.g.
+     
+     overlap1 = 3
+     overlap2 = 2
+     overlapSize = 4
+     
+     seed 1: 1->2->3->4->5->6
+                       X
+     seed 2:    1->2->3->4->5->6
+     
+     note: this is only defined when overlapSize is even.
+     */
+    
+    bool centerOnly = false;
+    
     int numEdges = 0;
     
     /**
      Adds adjacencies from chain1, including edges that join chain1 to chain2.
+     @param centerOnly include only edges that cross the center of the overlap (requires that overlapSize is even, only applicable when adjSameResidues == False)
      */
     void addAdjacencies(Chain *chain1, Chain *chain2, int overlap1, int overlap2, int overlapSize);
     

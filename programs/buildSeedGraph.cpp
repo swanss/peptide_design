@@ -57,7 +57,7 @@ int main (int argc, char *argv[]) {
     cout << "Preloading structures..." << endl;
     cache->preloadFromBinaryFile();
     cout << "Done preloading structures" << endl;
-    SeedGraph graph(false, cache);
+    SeedGraph graph(false, cache, true);
 
     if (overlapsPath.size() > 0) {
         // Loading overlaps from explicit overlap paths

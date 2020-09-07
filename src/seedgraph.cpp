@@ -13,7 +13,8 @@
 
 // SeedGraph
 
-SeedGraph::SeedGraph(bool adjSameResidues, StructureCache *sCache): adjSameResidues(adjSameResidues) {
+SeedGraph::SeedGraph(bool adjSameResidues, StructureCache *sCache, bool centerOnly): adjSameResidues(adjSameResidues), centerOnly(centerOnly) {
+    if (adjSameResidues == true and centerOnly == true) MstUtils::error("centerOnly cannot be applied while adjSameResidues is true");
     if (sCache == nullptr)
         structures = new StructureCache();
     else {
@@ -22,7 +23,8 @@ SeedGraph::SeedGraph(bool adjSameResidues, StructureCache *sCache): adjSameResid
     }
 }
 
-SeedGraph::SeedGraph(string adjacencyPath, bool adjSameResidues, StructureCache *sCache, string pdbPrefix): adjSameResidues(adjSameResidues) {
+SeedGraph::SeedGraph(string adjacencyPath, bool adjSameResidues, StructureCache *sCache, string pdbPrefix, bool centerOnly): adjSameResidues(adjSameResidues), centerOnly(centerOnly) {
+    if (adjSameResidues == true and centerOnly == true) MstUtils::error("centerOnly cannot be applied while adjSameResidues is true");
     if (sCache == nullptr)
         structures = new StructureCache(pdbPrefix);
     else {
@@ -309,12 +311,19 @@ void SeedGraph::print() {
 }
 
 void SeedGraph::addAdjacencies(Chain *chain1, Chain *chain2, int overlap1, int overlap2, int overlapSize) {
+//    if (centerOnly and adjSameResidues) MstUtils::error("centerOnly not applicable when adjSameResidues is set to true");
+    if (centerOnly and (overlapSize % 2 != 0)) MstUtils::error("if centerOnly provided, overlapSize must be even");
+    
     for (int i = 0; i < chain1->residueSize(); i++) {
         Residue &res = chain1->getResidue(i);
         addResidue(&res);
         
+        //check if this position falls within an overlap region
+        bool overlap_region = chain1 != chain2 && i >= overlap1 && i < overlap1 + overlapSize;
+        
+        //add applicable edges
         if (adjSameResidues) {
-            if (chain1 != chain2 && i >= overlap1 && i < overlap1 + overlapSize) {
+            if (overlap_region) {
                 // Add an edge to the corresponding residue on the other chain
                 int otherIdx = i - overlap1 + overlap2;
                 if (otherIdx >= 0 && otherIdx < chain2->residueSize()) {
@@ -323,17 +332,28 @@ void SeedGraph::addAdjacencies(Chain *chain1, Chain *chain2, int overlap1, int o
                 }
             }
         } else {
-            if (chain1 != chain2 && i >= overlap1 && i < overlap1 + overlapSize) {
-                // Add an edge to the next residue on the other chain
-                int otherIdx = i - overlap1 + overlap2 + 1;
-                if (otherIdx >= 0 && otherIdx < chain2->residueSize()) {
-                    Residue &otherRes = chain2->getResidue(otherIdx);
-                    addEdge(&res, &otherRes);
+            if (overlap_region) {
+                if (!centerOnly) {
+                    // Add an edge to the next residue on the other chain
+                    int otherIdx = i - overlap1 + overlap2 + 1;
+                    if (otherIdx >= 0 && otherIdx < chain2->residueSize()) {
+                        Residue &otherRes = chain2->getResidue(otherIdx);
+                        addEdge(&res, &otherRes);
+                    }
                 }
+                else if (i == overlap1 + (overlapSize / 2) - 1) {
+                    // edge will cross the center of the overlap
+                    // Add an edge to the next residue on the other chain
+                    int otherIdx = i - overlap1 + overlap2 + 1;
+                    if (otherIdx >= 0 && otherIdx < chain2->residueSize()) {
+                        Residue &otherRes = chain2->getResidue(otherIdx);
+                        addEdge(&res, &otherRes);
+                    }
+                }
+               
             }
             // Add an edge to the next residue on this chain
             if (i < chain1->residueSize() - 1) {
-                //cout << "Adding edge to next residue" << endl;
                 Residue &otherRes = chain1->getResidue(i + 1);
                 addEdge(&res, &otherRes);
             }

@@ -27,7 +27,7 @@ int main (int argc, char *argv[]) {
     //opts.addOption("data", "Directory in which seed structures are stored", true);
     opts.addOption("bin", "Path to a binary file containing seed structures", true);
     opts.addOption("out", "Path to CSV file at which to write overlaps", true);
-    opts.addOption("overlapSize", "Number of residues that must overlap between two residues (default 2)", false);
+    opts.addOption("overlapSize", "Number of residues that must overlap between two residues. Must be even (default 2)", false);
     opts.addOption("deviation", "Maximum deviation allowed between individual residues in an overlap segment (default 1.0)", false);
     opts.addOption("minCosAngle", "Minimum cosine angle between residue normal vectors in an overlap segment (default -1.0)", false);
     opts.addOption("worker", "The index of this worker (from 1 to numWorkers)", false);
@@ -51,6 +51,9 @@ int main (int argc, char *argv[]) {
     int numWorkers = opts.getInt("numWorkers", 1);
     int batchSize = opts.getInt("batchSize", 200000);
     int limitBatches = opts.getInt("limitBatches", -1);
+    
+    if (numResOverlap % 2 != 0) MstUtils::error("overlapSize must be even");
+    
     if (worker < 1 || worker > numWorkers) {
         cerr << "Batch index must be between 1 and numWorkers" << endl;
         return 1;
