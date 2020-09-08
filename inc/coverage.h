@@ -120,7 +120,7 @@ public:
     
     //Info pertaining to coverage
     void writeAllAlignedSeedsInfo(string outDir);
-    void writeBestAlignedSeeds(string outDir, int numSeeds);
+    void writeBestAlignedSeeds(string outDir, int numSeeds, bool write_structures = false);
     void writeSegmentCoverage(string outDir);
     
     Structure* getTargetStructure() {return target;}

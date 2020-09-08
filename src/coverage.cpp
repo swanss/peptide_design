@@ -349,13 +349,17 @@ void interfaceCoverage::writeAllAlignedSeedsInfo(string outDir) {
     output.close();
 }
 
-void interfaceCoverage::writeBestAlignedSeeds(string outDir, int numSeeds) {
+void interfaceCoverage::writeBestAlignedSeeds(string outDir, int numSeeds, bool write_structures) {
     cout << "write " << numSeeds << " seeds with lowest RMSD to the peptide to file..." << endl;
     fstream output;
     string output_path = outDir + "best_aligned_seeds.tsv";
     MstUtils::openFile(output, output_path, fstream::out);
-    string seedOutDir = outDir + "best_aligned_seeds/";
-    MstSys::cmkdir(seedOutDir);
+    string seedOutDir = "";
+    if (write_structures) {
+        seedOutDir = outDir + "best_aligned_seeds/";
+        MstSys::cmkdir(seedOutDir);
+    }
+
     
     //header
     output << "seed_name\tchain_id\tseed_n_terminal_res\tpeptide_n_terminal_res\tlength\tmatch_rmsd\tsequence_match\trmsd\tavg_angle\tcontacts" << endl;
@@ -372,7 +376,7 @@ void interfaceCoverage::writeBestAlignedSeeds(string outDir, int numSeeds) {
                 
                 //get the seed segment and write it to a file
                 Structure* seed_segment = getSeedSegment(seed_info);
-//                seed_segment->writePDB(seedOutDir+seed_segment->getName()+".pdb");
+                if (write_structures) seed_segment->writePDB(seedOutDir+seed_segment->getName()+".pdb");
                 
                 //get the contacts
                 set<pair<int,int>> seed_protein_contacts = getContacts(seed_segment->getAtoms(), peptide_position);
