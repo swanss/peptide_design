@@ -329,6 +329,9 @@ struct interfaceFragment {
     vector<string> cIDs; //the chain names of each chain in the fragment
     vector<Atom*> protein_atoms;
     vector<Atom*> peptide_atoms;
+    int peptide_position;
+    int segment_length;
+    int matches;
     
     void reportFragment(string base_path) {
         cout<< "Name: " << name << endl;
@@ -340,7 +343,7 @@ struct interfaceFragment {
         cout << "Protein atoms: " << protein_atoms.size() << endl;
         cout << "Peptide atoms: " << peptide_atoms.size() << endl;
         cout << "Writing fragment..." << endl;
-        s.writePDB(name+".pdb");
+        s.writePDB(base_path + name+".pdb");
     }
     //set structure name
     /*
@@ -366,6 +369,8 @@ public:
     void findMatches(string base_path);
     
     void setFlankingResidues(int _flank) {flank = _flank;}
+    
+    void writeFragments(string base_path);
     
 protected:
     /*
@@ -396,6 +401,8 @@ private:
     set<pair<Residue*,Residue*>> interface_central_residues; //subset of contact_residues used to define fragments
     string peptide_cid;
     string seed_cid;
+    
+    vector<interfaceFragment> interface_fragments;
     
     // Fragment definition
     int flank;

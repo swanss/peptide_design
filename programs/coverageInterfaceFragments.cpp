@@ -71,6 +71,8 @@ int main(int argc, char *argv[]) {
     //Find matches to interface fragments and write to binary file
     SIF.findMatches(outDir);
     
+    SIF.writeFragments(outDir);
+    
     //Map the seed coverage
     /*
      Vary parameters that filter the seeds

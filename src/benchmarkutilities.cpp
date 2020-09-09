@@ -700,7 +700,7 @@ void searchInterfaceFragments::findMatches(string base_path) {
     }
     cout << "There are " << interface_central_residues.size() << " pairs of residues to define fragments around" << endl;
     
-    vector<interfaceFragment> interface_fragments; interface_fragments.resize(interface_central_residues.size());
+    interface_fragments.clear(); interface_fragments.resize(interface_central_residues.size());
     int i = 0;
     for (auto contact: interface_central_residues) {
         interfaceFragment& f = interface_fragments[i];
@@ -727,7 +727,11 @@ void searchInterfaceFragments::findMatches(string base_path) {
                 f.protein_atoms.insert(f.protein_atoms.end(),segment_atoms.begin(),segment_atoms.end());
             }
         }
-
+        
+        //get the "alignment" of the peptide segment to the peptide itself
+        f.peptide_position = R_pep->getResidueIndexInChain() - flank;
+        f.segment_length = 1 + 2 * flank;
+        
         f.setName(complex_name,flank);
         
         f.reportFragment(base_path);
@@ -746,6 +750,7 @@ void searchInterfaceFragments::findMatches(string base_path) {
         
         fragment_matches[i] = F.search();
         
+        interface_fragments[i].matches = fragment_matches[i].size();
         cout << "Fragment " << i << " has " << fragment_matches[i].size() << " matches" << endl;
     }
     
@@ -818,6 +823,24 @@ void searchInterfaceFragments::findMatches(string base_path) {
             info_out << pep_rmsd_before_realign << "\t" << pep_rmsd_after_realign << "\t";
             info_out << centroid_distance << endl;
         }
+    }
+}
+
+void searchInterfaceFragments::writeFragments(string base_path) {
+    
+    fstream info;
+    MstUtils::openFile(info, base_path+"fragment_info.tsv",fstream::out);
+    
+    info << "fragment_name\tmatches\tpeptide_position\tsegment_length" << endl;
+    
+    for (int i = 0; i < interface_fragments.size(); i++) {
+        interfaceFragment& f = interface_fragments[i];
+        
+        info << f.name << "\t";
+        info << f.matches << "\t";
+        info << f.peptide_position << "\t";
+        info << f.segment_length << "\t";
+        info << endl;
     }
 }
 
