@@ -66,7 +66,7 @@ public:
     enum seedType {MANY_CONTACT, PEPTIDE_EXTENSION};
     
     // Fragment methods
-    vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, mstreal RMSD, int match_number, bool same_res);
+    vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, int match_number, mstreal RMSD, bool same_res);
     void writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out);
     void writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct_out, StructuresBinaryFile* bin);
     //  void writeSecStruct(string outDir, fstream& secstruct_out);

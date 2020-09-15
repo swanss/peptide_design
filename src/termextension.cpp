@@ -728,7 +728,7 @@ void seedTERM::setName() {
     cout << "Fragment name set to:  " << name << endl;
 }
 
-vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, mstreal RMSD, int match_number, bool same_res) {
+vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, int match_number, mstreal RMSD, bool same_res) {
     vector<Structure*> new_structures;
     
     // for each seed segment, make a new extended fragment that includes the anchor
