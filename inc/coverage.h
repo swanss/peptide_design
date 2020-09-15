@@ -32,15 +32,18 @@ public:
     string chain_ID;
     int res_idx;
     int res_length;
+    //the rank of the match which the seed was generated from
+    int match_number;
     //the RMSD of the protein segment(s) to the match
     mstreal match_rmsd;
     //indicates whether the match has the same amino acid at its central res
     bool sequence_match;
     mstreal rmsd;
+    mstreal max_ca_deviation;
     mstreal alignment_cos_angle;
     
     seedSubstructureInfo() {};
-    seedSubstructureInfo(string name, string ID, int idx, int length, mstreal _match_rmsd, bool _sequence_match, mstreal _rmsd, mstreal _alignment_cos_angle) : structure_name(name), chain_ID(ID), res_idx(idx), res_length(length), match_rmsd(_match_rmsd), sequence_match(_sequence_match), rmsd(_rmsd), alignment_cos_angle(_alignment_cos_angle) {};
+    seedSubstructureInfo(string name, string ID, int idx, int length, int _match_number, mstreal _match_rmsd, bool _sequence_match, mstreal _rmsd, mstreal _alignment_cos_angle) : structure_name(name), chain_ID(ID), res_idx(idx), res_length(length), match_number(_match_number), match_rmsd(_match_rmsd), sequence_match(_sequence_match), rmsd(_rmsd), alignment_cos_angle(_alignment_cos_angle) {};
 //    seedSubstructureInfo(const seedSubstructureInfo& other) : structure_name(other.structure_name), chain_ID(other.chain_ID), res_idx(other.res_idx), res_length(other.res_length), rmsd(other.rmsd) {};
     
     bool operator < (const seedSubstructureInfo& other) const {
@@ -111,7 +114,7 @@ public:
     
     //map seeds to peptide segments
     void findCoveringSeeds();
-    void mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, mstreal match_rmsd, bool seq_match);
+    void mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, int match_number, mstreal match_rmsd, bool seq_match);
     
     //report the results
     //Info pertaining to the peptide (which is to be covered)

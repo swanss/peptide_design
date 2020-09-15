@@ -102,7 +102,7 @@ void TermExtension::storeParameters(string Dir) {
     params_out << "\tINT threshold" << "\t" << int_threshold << endl;
     params_out << "\tBackbone interaction cutoff (Angstroms)" << "\t" << bbInteraction_cutoff << endl;
     params_out << "\tAdaptive RMSD" << "\t" << adaptive_rmsd << endl;
-    if (match_req != 0) params_out << "\t match number" << "\t" << match_req << endl;
+    if (match_req != 0) params_out << "\tMatch number requirement" << "\t" << match_req << endl;
     params_out << "Fragment extension parameters" << endl;
     params_out << "\tSeed flanking residues" << "\t" << seed_flanking_res << endl;
     params_out << "\tMinimum seed length" << "\t" << minimum_seed_length << endl;
@@ -110,7 +110,7 @@ void TermExtension::storeParameters(string Dir) {
 }
 
 void TermExtension::generateFragments(fragType option, bool search) {
-    if (((option == MATCH_NUM_REQ) || (option == COMPLEXITY_SCAN)) && (!search)) {
+    if (((option == MATCH_NUM_REQ_SIZE) || (option == MATCH_NUM_REQ_CUTOFF) || (option == COMPLEXITY_SCAN)) && (!search)) {
         MstUtils::error("The algorithm used to create the selected fragment type requires that search is enabled");
     }
     
@@ -118,29 +118,25 @@ void TermExtension::generateFragments(fragType option, bool search) {
     cout << MstUtils::toString(bindingSiteRes.size()) << " protein residues selected to be expanded into fragments" << endl;
     
     for (int cenResID = 0; cenResID != bindingSiteRes.size(); cenResID++) {
-        
         Residue* cenRes = bindingSiteRes[cenResID];
-        if (verbose) cout << "Generating new fragment... (" << cenResID+1 << "/" << bindingSiteRes.size() << ")" << endl;
+        if (verbose) cout << "Generate fragment (" << cenResID+1 << "/" << bindingSiteRes.size() << ") centered on residue " << *(cenRes) << endl;
         
-        /* CEN_RES */
+            /* CEN_RES */
         if (option == CEN_RES) {
-            seedTERM* frag = new seedTERM(this, {cenRes}, search);
+            seedTERM* frag = new seedTERM(this, {cenRes}, search, max_rmsd, flanking_res);
             all_fragments.push_back(frag);
             
             /* CONTACT */
         } else if (option == CONTACT) {
-            if (verbose) cout << "Generate fragment centered on residue " << *(cenRes) << endl;
             vector<pair<Residue*,Residue*>> conts = generalUtilities::getContactsWith({cenRes}, C, 0, cd_threshold, int_threshold, bbInteraction_cutoff, verbose);
             vector<Residue*> allRes = generalUtilities::getContactingResidues(conts);
             // place center residue at the front of the vector of all residues
             allRes.insert(allRes.begin(), cenRes);
-            seedTERM* frag = new seedTERM(this, allRes, search);
+            seedTERM* frag = new seedTERM(this, allRes, search, max_rmsd, flanking_res);
             all_fragments.push_back(frag);
             
             /* ALL_COMBINATIONS */
         } else if (option == ALL_COMBINATIONS) {
-            if (verbose) cout << "Generate all fragments centered on residue " << *(cenRes) << endl;
-            
             // get the residues that contact the central residue
             vector<pair<Residue*,Residue*>> conts = generalUtilities::getContactsWith({cenRes}, C, 0, cd_threshold, int_threshold, bbInteraction_cutoff, verbose);
             vector<Residue*> contResidues = generalUtilities::getContactingResidues(conts);
@@ -156,13 +152,50 @@ void TermExtension::generateFragments(fragType option, bool search) {
                 all_res.reserve(contacting_res.size() + 1);
                 all_res.insert(all_res.end(), bindingSiteRes[cenResID]);
                 all_res.insert(all_res.end(), contacting_res.begin(), contacting_res.end());
-                seedTERM* frag = new seedTERM(this,all_res,search);
+                seedTERM* frag = new seedTERM(this, all_res, search, max_rmsd, flanking_res);
                 all_fragments.push_back(frag);
             }
-            /* MATCH_GUIDED */
-        } else if (option == MATCH_NUM_REQ || option == COMPLEXITY_SCAN) {
+            /* MATCH_GUIDED (find proper RMSD cutoff) */
+        } else if (option == MATCH_NUM_REQ_CUTOFF) {
+            // Begin by making a fragment with the binding site residue alone
+            seedTERM* self_f = new seedTERM(this, {cenRes}, search, max_rmsd, flanking_res);
+            if (verbose) cout << "Constructed fragment with default cutoff " << max_rmsd << endl;
+            
+            //if this has the required number of matches, stop
+            if (self_f->getNumMatches() > match_req) {
+                if (verbose) cout << "Fragment has sufficient matches, add and continue" << endl;
+                all_fragments.push_back(self_f);
+            } else {
+                //if there are insufficient matches, raise the cutoff
+                if (verbose) cout << "Fragment has insufficient matches, try raising cutoff" << endl;
+                mstreal new_rmsd_cutoff = max_rmsd;
+                int new_flanking_res = flanking_res;
+                seedTERM* self_f = nullptr;
+                while (flanking_res > 0) {
+                    while (new_rmsd_cutoff <= 1.0) {
+                        cout << "Try raising the cutoff to " << new_rmsd_cutoff << endl;
+                        delete self_f;
+                        self_f = new seedTERM(this, {cenRes}, search, new_rmsd_cutoff, new_flanking_res);
+                        if (self_f->getNumMatches() > match_req) {
+                            if (verbose) cout << "Fragment has sufficient matches, add and continue" << endl;
+                            all_fragments.push_back(self_f);
+                            goto end;
+                        }
+                        new_rmsd_cutoff += 0.1;
+                    }
+                    //decrement the flanking residue number, making a shorter segment
+                    cout << "Try decreasing number of flanking residues to " << new_flanking_res-1 << " (and reset cutoff)" << endl;
+                    new_flanking_res = flanking_res - 1;
+                    new_rmsd_cutoff = max_rmsd;
+                }
+                if (verbose) cout << "Was not able to find sufficient matches to fragment within allowed RMSD cutoff range, adding anyways" << endl;
+                all_fragments.push_back(self_f);
+                end:;
+            }
+            /* MATCH_GUIDED (find proper fragment size) */
+        } else if (option == MATCH_NUM_REQ_SIZE || option == COMPLEXITY_SCAN) {
             /*
-             MATCH_NUM_REQ: Try adding each residue from the contacting residues to the central one
+             MATCH_NUM_REQ_SIZE: Try adding each residue from the contacting residues to the central one
              and select the largest fragment (highest number of residues) that 1) has at least the required
              number of matches and 2) more total residues than the previous fragment. If there is a tie,
              take the fragment with more matches. If nothing can be added, store the current fragment.
@@ -173,10 +206,8 @@ void TermExtension::generateFragments(fragType option, bool search) {
              enough matches. If so, create a fragment to be grown later.
              */
             
-            if (verbose) cout << "Generate fragment(s) centered on residue " << *(bindingSiteRes[cenResID]) << endl;
-            
             // Begin by making a fragment with the binding site residue alone
-            seedTERM* self_f = new seedTERM(this,{cenRes},search);
+            seedTERM* self_f = new seedTERM(this, {cenRes}, search, max_rmsd, flanking_res);
             
             // get the residues that contact the central residue
             vector<pair<Residue*,Residue*>> conts = generalUtilities::getContactsWith({cenRes}, C, 0, cd_threshold, int_threshold, bbInteraction_cutoff, verbose);
@@ -201,7 +232,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                     if (verbose) cout << "Try adding contact " << *R << "..." << endl;
                     vector<Residue*> new_res = current_fragment->getInteractingRes();
                     new_res.push_back(R);
-                    seedTERM* new_f = new seedTERM(this,new_res,search);
+                    seedTERM* new_f = new seedTERM(this, new_res, search, max_rmsd, flanking_res);
                     
                     // If fragment has at least the minimum number of matches AND more res than current, keep
                     if (new_f->getNumMatches() >= match_req && new_f->getNumRes() > current_fragment->getNumRes()) {
@@ -218,8 +249,8 @@ void TermExtension::generateFragments(fragType option, bool search) {
                     // No contacts can be added, break loop
                     if (verbose) cout << "No potential expansions... process complete" << endl;
                     // Add current fragment in match_num_req mode, as this is the final fragment
-                    if (option == MATCH_NUM_REQ) all_fragments.push_back(current_fragment);
-                    if ((option == MATCH_NUM_REQ) && (verbose)) cout << "In the end, " << current_fragment->getName() << " will be added (MATCH_NUM_REQ)" << endl;
+                    if (option == MATCH_NUM_REQ_SIZE) all_fragments.push_back(current_fragment);
+                    if ((option == MATCH_NUM_REQ_SIZE) && (verbose)) cout << "In the end, " << current_fragment->getName() << " will be added (MATCH_NUM_REQ_SIZE)" << endl;
                     // In the COMPLEXITY_SCAN mode, this should already have been added last cycle
                     break;
                 } else if (expansion_res.size() == 1) {
@@ -229,10 +260,10 @@ void TermExtension::generateFragments(fragType option, bool search) {
                     // Remove the added contact
                     remConts = MstUtils::setdiff(remConts,{expansion_res.front()});
                     // If this is was the last of the remaining contacts, loop will end after this iteration, so this is the final fragment
-                    if (remConts.empty() && (option == MATCH_NUM_REQ)) all_fragments.push_back(expansions[expansion_res.front()]);
-                    if (remConts.empty() && (option == MATCH_NUM_REQ) && verbose) cout << "In the end, " << expansions[expansion_res.front()]->getName() << " will be added (MATCH_NUM_REQ)" << endl;
+                    if (remConts.empty() && (option == MATCH_NUM_REQ_SIZE)) all_fragments.push_back(expansions[expansion_res.front()]);
+                    if (remConts.empty() && (option == MATCH_NUM_REQ_SIZE) && verbose) cout << "In the end, " << expansions[expansion_res.front()]->getName() << " will be added (MATCH_NUM_REQ_SIZE)" << endl;
                     // If not final iteration, set current fragment ()
-                    if (option == MATCH_NUM_REQ) delete current_fragment; //only the final fragment should be kept
+                    if (option == MATCH_NUM_REQ_SIZE) delete current_fragment; //only the final fragment should be kept
                     if (!remConts.empty()) current_fragment = expansions[expansion_res.front()];
                     if (!remConts.empty() && verbose) cout << expansions[expansion_res.front()]->getName() << " is now the current fragment" << endl;
                     /* Don't break because--while unlikely--if there are remaining contacts, it's possible
@@ -249,7 +280,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                         // Remove the added contact
                         remConts = MstUtils::setdiff(remConts,{expansion_res[0]});
                         // set current fragment
-                        if (option == MATCH_NUM_REQ) delete current_fragment; //only the final fragment should be kept
+                        if (option == MATCH_NUM_REQ_SIZE) delete current_fragment; //only the final fragment should be kept
                         current_fragment = expansions[expansion_res[0]];
                         if (verbose) cout << expansions[expansion_res[0]]->getName() << " is now the current fragment" << endl;
                         //delete all other fragments that were not chosen
@@ -277,7 +308,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                         remConts = MstUtils::setdiff(remConts,{equal_size_expansion_res[0]});
                         
                         // set current fragment
-                        if (option == MATCH_NUM_REQ) delete current_fragment; //only the final fragment should be kept
+                        if (option == MATCH_NUM_REQ_SIZE) delete current_fragment; //only the final fragment should be kept
                         current_fragment = expansions[equal_size_expansion_res[0]];
                         if (verbose) cout << expansions[equal_size_expansion_res[0]]->getName() << " is now the current fragment" << endl;
                         //delete all other fragments that were not chosen
@@ -449,7 +480,7 @@ int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, Str
         bool same_res = (R_match->getName() == R_query->getName());
         
         //use the match_idx/extension_idx to make a fragment extension
-        vector<Structure*> new_structures = frag->extendMatch(option,transformed_match_structure,match_idx,seed_segments,seed_sec_structure,sol.getRMSD(),same_res);
+        vector<Structure*> new_structures = frag->extendMatch(option,transformed_match_structure,match_idx,seed_segments,seed_sec_structure,sol_id,sol.getRMSD(),same_res);
         
         frag->writeExtendedFragmentstoBIN(info,sec_struct,bin);
         
@@ -597,7 +628,7 @@ seedTERM::seedTERM() {
     // compiler error thrown unless I include this
 }
 
-seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _search) {
+seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _search, mstreal max_rmsd, int flank) : RMSD_cutoff(max_rmsd), flank(flank) {
     MstTimer timer;
     timer.start();
     
@@ -609,7 +640,7 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _
     num_extended_fragments = 0;
     
     //generate the structure
-    cenResIdx = TERMUtils::selectTERM(interactingRes, fragmentStructure, FragmenterObj->getFlank(), &(allResIdx))[0];
+    cenResIdx = TERMUtils::selectTERM(interactingRes, fragmentStructure, flank, &(allResIdx))[0];
     
     //get the complexity
     effective_degrees_of_freedom = generalUtilities::fragDegreesOfFreedom(allResIdx, *parent->getTarget(), 15);
@@ -632,8 +663,7 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _
     if (search) {
         //search for matches
         FragmenterObj->F.setQuery(fragmentStructure);
-        if (FragmenterObj->getAdaptiveRMSD()) RMSD_cutoff = RMSDCalculator::rmsdCutoff(allResIdx, *parent->getTarget(), parent->max_rmsd, 15); // NOTE: the residues in the same chain of the original structure are not by default assumed to be independent
-        else RMSD_cutoff = parent->max_rmsd;
+        if (FragmenterObj->getAdaptiveRMSD()) RMSD_cutoff = RMSDCalculator::rmsdCutoff(allResIdx, *parent->getTarget(), RMSD_cutoff, 15); // NOTE: the residues in the same chain of the original structure are not by default assumed to be independent
         FragmenterObj->F.setRMSDCutoff(RMSD_cutoff);
         
         FragmenterObj->F.options().unsetSequenceConstraints();
@@ -662,6 +692,7 @@ seedTERM::seedTERM(const seedTERM& F) {
     interactingRes = F.interactingRes;
     allResIdx = F.allResIdx;
     cenResIdx = F.cenResIdx; //index of the index of the central residue
+    flank = F.flank;
     matches = F.matches;
     search = F.search;
     seeds = F.seeds;
@@ -692,12 +723,12 @@ void seedTERM::setName() {
     ss << "-";
     
     // protein flanking residue number
-    ss << MstUtils::toString(parent->getFlank());
+    ss << MstUtils::toString(flank);
     name = ss.str();
     cout << "Fragment name set to:  " << name << endl;
 }
 
-vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, mstreal RMSD, bool same_res) {
+vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, mstreal RMSD, int match_number, bool same_res) {
     vector<Structure*> new_structures;
     
     // for each seed segment, make a new extended fragment that includes the anchor
@@ -723,6 +754,7 @@ vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* ma
         // add to fragmenter seeds
         Seed s;
         s.extended_fragment = extended_fragment;
+        s.match_number = match_number;
         s.rmsd = RMSD;
         s.secondary_structure_classification = seed_sec_struct[i];
         s.sequence_match = same_res;
@@ -745,6 +777,7 @@ void seedTERM::writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct
     for (int i = 0; i != seeds.size(); i++) {
         Structure* ext_frag = seeds[i].extended_fragment;
         bin->appendStructure(ext_frag);
+        bin->appendStructurePropertyInt("match_number",seeds[i].match_number);
         bin->appendStructurePropertyReal("match_rmsd",seeds[i].rmsd);
         bin->appendStructurePropertyReal("rmsd_adj",rmsd_adjust_factor);
         bin->appendStructurePropertyInt("seq", seeds[i].sequence_match);
@@ -774,7 +807,7 @@ vector<int> seedTERM::getSegmentLens(mstreal maxPeptideBondLen) {
     
     vector<Residue*> residues = fragmentStructure.getResidues();
     int chain_len = 0;
-    for (int i = 0; i < residues.size() - 1; i++) {
+    for (int i = 0; i < residues.size(); i++) {
         // get last BB atom of first res and first BB atom of second
         Atom* atomC = residues[i]->findAtom("C", true);
         Atom* atomN = residues[i + 1]->findAtom("N", true);

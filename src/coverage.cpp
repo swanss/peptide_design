@@ -201,6 +201,8 @@ void interfaceCoverage::findCoveringSeeds() {
     while (seeds->hasNext()) {
         Structure* extended_fragment = seeds->next();
         
+        int match_number = seeds->getStructurePropertyInt("match_number",extended_fragment->getName());
+        
         //check if structure meets criteria
         bool sequence_match = seeds->getStructurePropertyInt("seq",extended_fragment->getName());
         if (seq_const && !sequence_match) {
@@ -221,13 +223,13 @@ void interfaceCoverage::findCoveringSeeds() {
         
         Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
         if (seed_C == NULL) MstUtils::error("Structures in binary file are missing seed chains: "+seed_chain_id,"interfaceCoverage::findCoveringSeeds()");
-        mapSeedToChainSubsegments(getBackboneAtoms(seed_C),seed_C->getResidues(),match_rmsd,sequence_match);
+        mapSeedToChainSubsegments(getBackboneAtoms(seed_C),seed_C->getResidues(),match_number,match_rmsd,sequence_match);
         delete extended_fragment;
     }
     seeds->reset();
 }
 
-void interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, mstreal match_rmsd, bool sequence_match) {
+void interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, int match_number, mstreal match_rmsd, bool sequence_match) {
     int seed_length = seed_residues.size();
     int max_allowable_seed_segment_length = min(seed_length,max_allowable_segment_length);
     
@@ -257,7 +259,7 @@ void interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vect
                     vector<Residue*> seed_residue_segment(seed_residues.begin()+seed_position,seed_residues.begin()+seed_position+segment_length);
                     mstreal alignment_cos_angle = generalUtilities::avgCosAngleBetweenSegments(seed_residue_segment,chainResidueSubsegments[segment_length-1][peptide_position]);
                     
-                    seedSubstructureInfo info(structure_name,chain_ID,seed_position,segment_length,match_rmsd,sequence_match,rmsd,alignment_cos_angle);
+                    seedSubstructureInfo info(structure_name,chain_ID,seed_position,segment_length,match_number,match_rmsd,sequence_match,rmsd,alignment_cos_angle);
                     
                     chainSubsegmentsBins[segment_length-1][peptide_position].insert(info, rmsd);
                 }
@@ -325,7 +327,7 @@ void interfaceCoverage::writeAllAlignedSeedsInfo(string outDir) {
     string output_path = outDir + "aligned_seeds.tsv";
     MstUtils::openFile(output, output_path, fstream::out);
     //header
-    output << "seed_name\tchain_id\tseed_n_terminal_res\tpeptide_n_terminal_res\tlength\tmatch_rmsd\tsequence_match\trmsd\tavg_angle" << endl;
+    output << "seed_name\tchain_id\tseed_n_terminal_res\tpeptide_n_terminal_res\tlength\tmatch_number\tmatch_rmsd\tsequence_match\trmsd\tavg_angle" << endl;
     //find the segments that contain the peptide residue
     for (int segment_length = 1; segment_length <= chainSubsegmentsBins.size(); segment_length++){
         for (int peptide_position = 0; peptide_position < chainSubsegmentsBins[segment_length-1].size(); peptide_position++) {
@@ -338,6 +340,7 @@ void interfaceCoverage::writeAllAlignedSeedsInfo(string outDir) {
                 output << seed.res_idx << "\t";
                 output << peptide_position << "\t";
                 output << seed.res_length << "\t";
+                output << seed.match_number << "\t";
                 output << seed.match_rmsd << "\t";
                 output << seed.sequence_match << "\t";
                 output << seed.rmsd << "\t";
@@ -362,7 +365,7 @@ void interfaceCoverage::writeBestAlignedSeeds(string outDir, int numSeeds, bool 
 
     
     //header
-    output << "seed_name\tchain_id\tseed_n_terminal_res\tpeptide_n_terminal_res\tlength\tmatch_rmsd\tsequence_match\trmsd\tavg_angle\tcontacts" << endl;
+    output << "seed_name\tchain_id\tseed_n_terminal_res\tpeptide_n_terminal_res\tlength\tmatch_number\tmatch_rmsd\tsequence_match\trmsd\tavg_angle\tcontacts" << endl;
     //find the segments that contain the peptide residue
     for (int segment_length = 1; segment_length <= chainSubsegmentsBins.size(); segment_length++){
         for (int peptide_position = 0; peptide_position < chainSubsegmentsBins[segment_length-1].size(); peptide_position++) {
@@ -395,6 +398,7 @@ void interfaceCoverage::writeBestAlignedSeeds(string outDir, int numSeeds, bool 
                 output << seed_info.res_idx << "\t";
                 output << peptide_position << "\t";
                 output << seed_info.res_length << "\t";
+                output << seed_info.match_number << "\t";
                 output << seed_info.match_rmsd << "\t";
                 output << seed_info.sequence_match << "\t";
                 output << seed_info.rmsd << "\t";

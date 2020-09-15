@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
     if (op.isGiven("match_num_req")) {
       F.setMatchReq(match_num_req);
       cout << "Generating fragments in the match number requirement mode..." << endl;
-      F.generateFragments(TermExtension::MATCH_NUM_REQ);
+      F.generateFragments(TermExtension::MATCH_NUM_REQ_SIZE);
     } else if (op.isGiven("complexity_scan")) {
       cout << "Generating fragments in the complexity scan mode ..." << endl;
       F.generateFragments(TermExtension::COMPLEXITY_SCAN);

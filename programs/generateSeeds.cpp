@@ -25,6 +25,7 @@ int main(int argc, char *argv[]) {
     op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
     op.addOption("flanking_res","The number of residues flanking a contact to include when creating a fragment (default 2).");
     op.addOption("match_req", "The fragmenter will attempt to create the largest (ranked by number of residues) fragments that have at least this many matches. During TERM Extension, even if the fragment has more than this number match_num_req matches, only this number will be used to generate seeds. If not defined, defaults to CEN_RES.");
+    op.addOption("variable_rmsd", "If match_req == true and this option is provided fragments will not grow, instead the RMSD cutoff will be increased until sufficient matches have be found");
     op.addOption("match_rmsd", "Sets the max rmsd allowed when searching for matches to protein fragments.");
     op.addOption("no_adaptive_rmsd","If provided, will not use adaptive RMSD cutoff.");
     op.setOptions(argc, argv);
@@ -40,6 +41,7 @@ int main(int argc, char *argv[]) {
     string sel_str = op.getString("sel","");
     int flanking_res = op.getInt("flanking_res",2);
     mstreal match_rmsd = op.getReal("match_rmsd",1.2);
+    bool variable_rmsd = op.isGiven("variable_rmsd");
     bool adaptive_rmsd = !op.isGiven("no_adaptive_rmsd");
     
     // Make directories
@@ -87,7 +89,11 @@ int main(int argc, char *argv[]) {
     if (op.isGiven("match_req")) {
         cout << "Match requirement: " << op.getInt("match_req") << endl;
         TE.setMatchReq(op.getInt("match_req"));
-        TE.generateFragments(TermExtension::MATCH_NUM_REQ);
+        if (variable_rmsd) {
+            TE.generateFragments(TermExtension::MATCH_NUM_REQ_CUTOFF);
+        } else {
+            TE.generateFragments(TermExtension::MATCH_NUM_REQ_SIZE);
+        }
     }
     else {
         cout << "No match requirement, CEN_RES mode" << endl;

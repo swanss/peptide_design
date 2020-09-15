@@ -35,6 +35,7 @@ struct seed;
 
 struct Seed {
     Structure* extended_fragment;
+    int match_number; //the rank of this match
     mstreal rmsd; //rmsd for this specific match
     bool sequence_match; //true if match has same residue as the query at the central residue
     string secondary_structure_classification;
@@ -46,7 +47,7 @@ class seedTERM {
 public:
     /* Constructor */
     seedTERM();
-    seedTERM(TermExtension* Fragmenter, vector<Residue*> all_res, bool search);
+    seedTERM(TermExtension* Fragmenter, vector<Residue*> all_res, bool search, mstreal max_rmsd, int flank);
     /*
      To do: fix copying Seeds. Currently, the pointers are copied, so if the parent object is deleted
      the pointers in the child object would be null.
@@ -58,14 +59,14 @@ public:
      
      Many contact - each contact to the central residue that has flanking residues that overlap
      with another contact is combined to make a longer segment. Contacts that are not within this
-     distance are saved as distinct segments, but the same seed.
+     distance are saved as distinct segments, but the same seed.ß
      
      Peptide extension - only contacts that have flanking residues that overlap to the segment of the
      fragment in the original target are saved as seeds. */
     enum seedType {MANY_CONTACT, PEPTIDE_EXTENSION};
     
     // Fragment methods
-    vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, mstreal RMSD, bool same_res);
+    vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, mstreal RMSD, int match_number, bool same_res);
     void writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out);
     void writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct_out, StructuresBinaryFile* bin);
     //  void writeSecStruct(string outDir, fstream& secstruct_out);
@@ -122,6 +123,7 @@ private:
     vector<Residue*> interactingRes; // These point to residues in the target structure
     vector<int> allResIdx;
     int cenResIdx; //index of the index of the central residue
+    int flank;
     fasstSolutionSet matches;
     bool search;
     
@@ -190,7 +192,7 @@ public:
      the number of residues in the neighbourhood.
      
      */
-    enum fragType {CEN_RES, CONTACT, ALL_COMBINATIONS, MATCH_NUM_REQ, COMPLEXITY_SCAN};
+    enum fragType {CEN_RES, CONTACT, ALL_COMBINATIONS, MATCH_NUM_REQ_SIZE, MATCH_NUM_REQ_CUTOFF, COMPLEXITY_SCAN};
     
     /* Constructor */
     TermExtension(string fasstDBPath, string rotLib, vector<Residue*> selection, bool _verbose = true);
