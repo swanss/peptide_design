@@ -185,7 +185,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                     }
                     //decrement the flanking residue number, making a shorter segment
                     cout << "Try decreasing number of flanking residues to " << new_flanking_res-1 << " (and reset cutoff)" << endl;
-                    new_flanking_res = flanking_res - 1;
+                    new_flanking_res--;
                     new_rmsd_cutoff = max_rmsd;
                 }
                 if (verbose) cout << "Was not able to find sufficient matches to fragment within allowed RMSD cutoff range, adding anyways" << endl;
