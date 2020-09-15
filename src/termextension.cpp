@@ -807,7 +807,7 @@ vector<int> seedTERM::getSegmentLens(mstreal maxPeptideBondLen) {
     
     vector<Residue*> residues = fragmentStructure.getResidues();
     int chain_len = 0;
-    for (int i = 0; i < residues.size(); i++) {
+    for (int i = 0; i < residues.size() - 1; i++) {
         // get last BB atom of first res and first BB atom of second
         Atom* atomC = residues[i]->findAtom("C", true);
         Atom* atomN = residues[i + 1]->findAtom("N", true);
@@ -817,10 +817,13 @@ vector<int> seedTERM::getSegmentLens(mstreal maxPeptideBondLen) {
         if ((i == 0) || (dist < maxPeptideBondLen)) {
             chain_len += 1;
         } else {
+            // otherwise, add previous segment and start new one
             segment_lengths.push_back(chain_len);
             chain_len = 1;
         }
     }
+    // add final residue
+    chain_len += 1;
     segment_lengths.push_back(chain_len);
     
     return segment_lengths;
