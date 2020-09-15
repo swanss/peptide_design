@@ -171,7 +171,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                 mstreal new_rmsd_cutoff = max_rmsd;
                 int new_flanking_res = flanking_res;
                 seedTERM* self_f = nullptr;
-                while (flanking_res > 0) {
+                while (new_flanking_res > 0) {
                     while (new_rmsd_cutoff <= 1.0) {
                         cout << "Try raising the cutoff to " << new_rmsd_cutoff << endl;
                         delete self_f;
