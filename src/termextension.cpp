@@ -157,6 +157,8 @@ void TermExtension::generateFragments(fragType option, bool search) {
             }
             /* MATCH_GUIDED (find proper RMSD cutoff) */
         } else if (option == MATCH_NUM_REQ_CUTOFF) {
+            //set this to avoid generating an unecessary number of matches
+            F.options().setMaxNumMatches(match_req);
             // Begin by making a fragment with the binding site residue alone
             seedTERM* self_f = new seedTERM(this, {cenRes}, search, max_rmsd, flanking_res);
             if (verbose) cout << "Constructed fragment with default cutoff " << max_rmsd << endl;
@@ -176,7 +178,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                         cout << "Try raising the cutoff to " << new_rmsd_cutoff << endl;
                         delete self_f;
                         self_f = new seedTERM(this, {cenRes}, search, new_rmsd_cutoff, new_flanking_res);
-                        if (self_f->getNumMatches() > match_req) {
+                        if (self_f->getNumMatches() >= match_req) {
                             if (verbose) cout << "Fragment has sufficient matches, add and continue" << endl;
                             all_fragments.push_back(self_f);
                             goto end;
@@ -192,6 +194,8 @@ void TermExtension::generateFragments(fragType option, bool search) {
                 all_fragments.push_back(self_f);
                 end:;
             }
+            //reset for the future
+            F.options().setMaxNumMatches(-1);
             /* MATCH_GUIDED (find proper fragment size) */
         } else if (option == MATCH_NUM_REQ_SIZE || option == COMPLEXITY_SCAN) {
             /*
