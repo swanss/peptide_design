@@ -28,10 +28,18 @@ TermExtension::TermExtension(string fasstDBPath, string rotLib, vector<Residue*>
     if (verbose) cout << "Setting the binding site residues..." << endl;
     bindingSiteRes = selection;
     
-    if (verbose) cout << "Copying structures from DB" << endl;
-    //get structures from DB to minimize copying
+    if (verbose) cout << "Copying atoms from structures in DB" << endl;
+    //get atoms from structures in DB to minimize copying later on
+    target_structures_atoms.resize(F.numTargets());
     for (int i = 0; i < F.numTargets(); i++) {
-        target_structures.push_back(new Structure(*F.getTarget(i)));
+        vector<Atom*> atoms = F.getTarget(i)->getAtoms();
+        vector<Atom*> atoms_copy;
+        for (Atom* a: atoms) {
+            Atom* a_copy = new Atom(a);
+            a_copy->stripInfo();
+            atoms_copy.push_back(a_copy);
+        }
+        target_structures_atoms[i] = atoms_copy;
     }
     
     cout << "Fragmenter construction complete." << endl;
@@ -64,7 +72,7 @@ void TermExtension::set_params(string fasstDBPath, string rotLib) {
     if (verbose) cout << "Reading FASST database... ";
     MstTimer timer; timer.start();
     fasstdbPath = fasstDBPath;
-    F.readDatabase(fasstdbPath,1); //only read backbone
+    F.readDatabase(fasstdbPath,1); //only read backbone///, destroy original structure and reload as needed
     timer.stop();
     if (verbose) cout << "Reading the database took " << timer.getDuration() << " s... " << endl;
     
@@ -77,7 +85,9 @@ void TermExtension::set_params(string fasstDBPath, string rotLib) {
 
 TermExtension::~TermExtension() {
     delete target_PS;
-    for (int i = 0; i < target_structures.size(); i++) delete target_structures[i];
+    for (int i = 0; i < target_structures_atoms.size(); i++) {
+        for (int j = 0; j < target_structures_atoms[i].size(); j++) delete target_structures_atoms[i][j];
+    }
     for (seedTERM* f : all_fragments) delete f;
     all_fragments.clear();
 }
@@ -175,6 +185,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                 seedTERM* self_f = nullptr;
                 while (new_flanking_res > 0) {
                     while (new_rmsd_cutoff <= 1.0) {
+                        new_rmsd_cutoff += 0.1;
                         cout << "Try raising the cutoff to " << new_rmsd_cutoff << endl;
                         delete self_f;
                         self_f = new seedTERM(this, {cenRes}, search, new_rmsd_cutoff, new_flanking_res);
@@ -183,7 +194,6 @@ void TermExtension::generateFragments(fragType option, bool search) {
                             all_fragments.push_back(self_f);
                             goto end;
                         }
-                        new_rmsd_cutoff += 0.1;
                     }
                     //decrement the flanking residue number, making a shorter segment
                     cout << "Try decreasing number of flanking residues to " << new_flanking_res-1 << " (and reset cutoff)" << endl;
@@ -454,7 +464,7 @@ int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, Str
         
         //transform the match for this specific solution
         int target_idx = sol.getTargetIndex();
-        Structure* transformed_match_structure = target_structures[target_idx];
+        Structure* transformed_match_structure = F.getTarget(target_idx);
         sol.getTransform().apply(transformed_match_structure);
         
         //// Look for contacts to the central residue in the match protein and create seeds by the
@@ -493,7 +503,7 @@ int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, Str
         frag->deleteExtendedFragments();
         
         //reset the coordinates of the target structure
-        generalUtilities::copyAtomCoordinates(transformed_match_structure, F.getTarget(target_idx));
+        generalUtilities::copyAtomCoordinates(transformed_match_structure, target_structures_atoms[target_idx]);
     }
     if (verbose) cout << "Fragment " << frag->getName() << " generated " << frag->getExtendedFragmentNum() << " extended fragments!" << endl;
     return num_extendedfragments;

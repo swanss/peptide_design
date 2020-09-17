@@ -319,7 +319,7 @@ private:
     Structure target_BB_structure;
     AtomPointerVector target_BB_atoms;
     ProximitySearch* target_PS;
-    vector<Structure*> target_structures;
+    vector<vector<Atom*>> target_structures_atoms;
     
     int seed_flanking_res, minimum_seed_length; // seed variables
     int extendedFragmentNumber; //counter
