@@ -159,7 +159,7 @@ private:
      At each position of the vector there is a pair that specifies the target_index of the structure
      and the N_terminal residue index.
      
-     windows[5][1000] is the thousandth length 5 window in the database.
+     windows[5][1000] is the 1001th length 5 window in the database.
      windows[5][1000].first is the target index of that window.
      windows[5][1000].second is the residue index of its N-terminus.
      

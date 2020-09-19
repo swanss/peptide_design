@@ -155,7 +155,7 @@ structureBoundingBox::structureBoundingBox(vector<Residue*> residues, mstreal _p
 }
 
 void structureBoundingBox::construct_structureBoundingBox(AtomPointerVector atoms) {
-    cout << "Trying to construct bounding box containing all seed centroids..." << endl;
+    cout << "Trying to construct bounding box containing all provided atoms..." << endl;
     xlo = INFINITY;
     ylo = INFINITY;
     zlo = INFINITY;
@@ -397,11 +397,13 @@ int naiveSeedsFromBin::transform(Structure* seed, structureBoundingBox& bounding
             sample_new_pose.apply(seed);
             
             //check if seed clashes
-            if (!clash_check) seed_clash = false;
-            else if (!position && attempts > max_attempts) seed_clash = false;
-            else {
-                AtomPointerVector transformed_seed_atoms = seed->getAtoms();
-                seed_clash = isClash(*target_PS, target_BB_atoms, transformed_seed_atoms); //from structgen
+            seed_clash = false;
+            if (clash_check) {
+                if (!position && attempts > max_attempts) seed_clash = false;
+                else {
+                    AtomPointerVector transformed_seed_atoms = seed->getAtoms();
+                    seed_clash = isClash(*target_PS, target_BB_atoms, transformed_seed_atoms); //from structgen
+                }
             }
         }
         if (!rejection_sample || sampler == nullptr) accept = true;
@@ -601,7 +603,9 @@ histogram seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal m
         Structure* seed = new Structure(*C);
         mstreal distance = centroid2NearestProteinAtom(seed);
         
-        if ((distance > max_value) || (distance < min_value)) MstUtils::error("Seed centroid with distance outside of range: "+MstUtils::toString(distance),"seedStatistics::generateDistanceHistogram");
+//        if ((distance > max_value) || (distance < min_value)) MstUtils::error("Seed centroid with distance outside of range: "+MstUtils::toString(distance),"seedStatistics::generateDistanceHistogram");
+        //this is rare enough (but still possible in some cases) that I think it's best to throw away the count but continue running
+        if ((distance > max_value) || (distance < min_value)) cout << "Seed centroid with distance outside of range: " << MstUtils::toString(distance) << " seedStatistics::generateDistanceHistogram" << endl;
         
         bin_counts[int((distance - min_value) / distances.getBinSize())] += 1;
         
@@ -641,7 +645,7 @@ mstreal seedStatistics::point2NearestProteinAtom(CartesianPoint point) {
     while (closest_points.empty()) {
         closest_points = target_PS->getPointsWithin(point,0.0,max_d);
         max_d = max_d*2;
-        if (max_d > 80.0) MstUtils::error("Dude this seed is nowhere near the protein...","seedStatistics::point2NearestProteinAtom");
+        if (max_d > 200.0) MstUtils::error("This point is greater than 200A away from the protein, is there an erro?","seedStatistics::point2NearestProteinAtom");
     }
     
     //find the closest one;
