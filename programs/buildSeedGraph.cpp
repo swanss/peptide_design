@@ -62,7 +62,7 @@ int main (int argc, char *argv[]) {
     if (overlapsPath.size() > 0) {
         // Loading overlaps from explicit overlap paths
         if (MstSys::isDir(overlapsPath)) {
-            int i = 0;
+            int i = 1;
             string path = MstSystemExtension::join(overlapsPath, "overlaps" + to_string(i++) + ".txt");
             while (MstSystemExtension::fileExists(path)) {
                 cout << "Loading overlaps from batch " << i << endl;
