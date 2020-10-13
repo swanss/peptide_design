@@ -294,6 +294,8 @@ private:
                        X
      seed 2:    1->2->3->4->5->6
      
+     two edges are defined: seed 1 residue 4 to seed 2 residue 4, and seed 2 residue 3 to seed 1 residue 5.
+     
      note: this is only defined when overlapSize is even.
      */
     
@@ -301,9 +303,10 @@ private:
     
     int numEdges = 0;
     
+    string seed_chain_ID = "0";
+    
     /**
      Adds adjacencies from chain1, including edges that join chain1 to chain2.
-     @param centerOnly include only edges that cross the center of the overlap (requires that overlapSize is even, only applicable when adjSameResidues == False)
      */
     void addAdjacencies(Chain *chain1, Chain *chain2, int overlap1, int overlap2, int overlapSize);
     

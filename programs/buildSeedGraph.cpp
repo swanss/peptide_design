@@ -63,12 +63,12 @@ int main (int argc, char *argv[]) {
         // Loading overlaps from explicit overlap paths
         if (MstSys::isDir(overlapsPath)) {
             int i = 1;
-            string path = MstSystemExtension::join(overlapsPath, "overlaps" + to_string(i++) + ".txt");
+            string path = MstSystemExtension::join(overlapsPath, "overlaps" + to_string(i++) + ".csv");
             while (MstSystemExtension::fileExists(path)) {
                 cout << "Loading overlaps from batch " << i << endl;
                 FuseCandidateFile file(path);
                 graph.load(file);
-                path = MstSystemExtension::join(overlapsPath, "overlaps" + to_string(i++) + ".txt");
+                path = MstSystemExtension::join(overlapsPath, "overlaps" + to_string(i++) + ".csv");
             }
         } else {
             // All overlaps stored in one file

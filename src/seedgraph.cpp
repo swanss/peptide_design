@@ -87,7 +87,7 @@ void SeedGraph::load(SeedListFile structuresFile, string pdbPrefix, Structure *n
                 continue;
         }
         
-        Chain *chain = structure->getChainByID("0");
+        Chain *chain = structure->getChainByID(seed_chain_ID);
         
         addAdjacencies(chain, chain, 0, 0, 0);
     }
@@ -106,7 +106,7 @@ void SeedGraph::load(StructuresBinaryFile *binaryFile, Structure *nearStructure,
                 continue;
         }
         
-        Chain *chain = structure->getChainByID("0");
+        Chain *chain = structure->getChainByID(seed_chain_ID);
         
         addAdjacencies(chain, chain, 0, 0, 0);
     }
@@ -311,7 +311,6 @@ void SeedGraph::print() {
 }
 
 void SeedGraph::addAdjacencies(Chain *chain1, Chain *chain2, int overlap1, int overlap2, int overlapSize) {
-//    if (centerOnly and adjSameResidues) MstUtils::error("centerOnly not applicable when adjSameResidues is set to true");
     if (centerOnly and (overlapSize % 2 != 0)) MstUtils::error("if centerOnly provided, overlapSize must be even");
     
     for (int i = 0; i < chain1->residueSize(); i++) {

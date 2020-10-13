@@ -149,10 +149,10 @@ private:
  
 Note: StructureCache has a capacity parameter that saves memory by using a least-
 recently used (LRU) caching algorithm to save frequently-used structures. However,
-this means that structure data may get deleted from the cache, including any
-auxiliary objects owned by the structure. To avoid segmentation faults, copy
-any structure data that needs to be persisted over many calls to the structure
-cache, or omit the capacity argument to use an effectively infinite-sized cache.
+this means that if the capacity is exceeded, structure data will be deleted from
+the cache, including any auxiliary objects owned by the structure. To avoid
+segmentation faults, copy any structure data that needs to be persisted over many
+calls, or omit the capacity argument to use an effectively infinite-sized cache.
  */
 class StructureCache {
 public:
