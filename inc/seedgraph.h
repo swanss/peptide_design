@@ -91,6 +91,8 @@ public:
      * Adds to the seed graph from the given binary file without any connections between seeds.
      */
     void load(StructuresBinaryFile *binaryFile, Structure *nearStructure = nullptr, float inset = 0.0);
+    
+    void loadCache();
 
     /**
      * Adds nodes and edges to the seed graph using a cluster tree. Pairs of nodes in

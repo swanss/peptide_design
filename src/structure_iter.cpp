@@ -238,6 +238,9 @@ void StructureCache::preloadFromBinaryFile() {
         cachePointers[s->getName()] = cache.begin();
     }
     cout << "preload: load factor " << cachePointers.load_factor() << ", max " << cachePointers.max_load_factor() << endl;
+    
+    preloaded = true;
+    if (binaryFile->structureCount() <= capacity) _belowCapacity = true;
 }
 
 Structure* StructureCache::getStructure(string name, string prefix) {

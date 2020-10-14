@@ -90,8 +90,9 @@ int main (int argc, char *argv[]) {
 
         graph.load(tree, overlapSize, opts.getReal("overlapRMSD", 1.0), opts.getReal("minCosAngle", -1.0));
     }
-    cout << "Graph currently has " << graph.seedSize() << " seeds, now loading all seeds" << endl;
-    graph.load(&binaryFile);
+    cout << "Graph currently has " << graph.seedSize() << " seeds and " << graph.residueSize() << " residues. Now loading all seeds" << endl;
+
+    graph.loadCache();
     
     cout << "Final graph has " << graph.seedSize() << " seeds and " << graph.residueSize() << " residues" << endl;
     SeedGraph graphToCluster = adjSameResidues ? graph.withAdjSameResidue() : graph;

@@ -176,6 +176,9 @@ public:
      * the capacity of the cache.
      */
     void preloadFromBinaryFile();
+    
+    bool isPreloaded() {return preloaded;}
+    bool belowCapacity() {return _belowCapacity;}
 
     /**
      Returns the structure for the given name/path, loading it fresh if it is not
@@ -262,6 +265,8 @@ public:
 private:
     string pdbPrefix;
     long capacity;
+    bool preloaded = false;
+    bool _belowCapacity = false;
     unordered_map<string, list<Structure *>::iterator> cachePointers;
     unordered_map<string, vector<Atom *>> atoms;
     list<Structure *> cache;

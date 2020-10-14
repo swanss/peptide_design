@@ -112,6 +112,19 @@ void SeedGraph::load(StructuresBinaryFile *binaryFile, Structure *nearStructure,
     }
 }
 
+void SeedGraph::loadCache() {
+    //check if the cache has preloaded all of the seeds in the binary file
+    if (!structures->isPreloaded()) structures->preloadFromBinaryFile();
+    if (!structures->belowCapacity()) MstUtils::error("Unable to load from cache as the capacity is lower than the number of seeds in the binary file","SeedGraph::loadCache()");
+    for (auto it = structures->begin(); it != structures->end(); ++it) {
+        Structure *structure = *it;
+        Chain *chain = structure->getChainByID(seed_chain_ID);
+        
+        addAdjacencies(chain, chain, 0, 0, 0);
+    }
+}
+
+
 void SeedGraph::load(ClusterTree &clusterTree, int numResOverlap, mstreal rmsdCutoff, mstreal minCosAngle) {
     FragmentFetcher *fetcher = clusterTree.getFragmentFetcher();
     FuseCandidateFinder overlapDetector(numResOverlap, FuseCandidateSearchMode::general, rmsdCutoff);
