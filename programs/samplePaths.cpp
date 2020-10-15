@@ -178,8 +178,8 @@ int main (int argc, char *argv[]) {
         cout << paths.size() << endl;
         for (PathResult &path_result: paths) {
             cout << "Path: " << pathIndex << endl;
-            string name = base + "_fused_path_" + to_string(pathIndex);
-            string name_whole = base + "_fused_path_and_context_" + to_string(pathIndex);
+            string name = base + "_fused-path_" + to_string(pathIndex);
+            string name_whole = base + "_fused-path-and-context_" + to_string(pathIndex);
             out << name << ",";
             
             for (Residue *res: path_result.getOriginalResidues()) {
