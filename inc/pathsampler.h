@@ -65,6 +65,8 @@ public:
      Samples the given number of paths from the seed graph or cluster tree.
      */
     virtual vector<PathResult> sample(int numPaths) = 0;
+    
+    void setMinimumLength(int length) {minimumLength = length;}
         
 protected:
     Structure *_target = nullptr;
@@ -73,6 +75,7 @@ protected:
     
     // Number of residues to include for overlap when fusing
     int overlapLength = 3;
+    int minimumLength = 15;
 
     /**
      * Generates a PathResult by fusing the given path together, making

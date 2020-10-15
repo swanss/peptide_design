@@ -47,8 +47,9 @@ int corroborationScore(PathResult &path, int nearbyThreshold) {
     });
     unordered_set<pair<string, int>, pair_hash> coveredResidues;
     for (auto code: targetResidues) {
-        if (coveredResidues.count(code) != 0)
+        if (coveredResidues.count(code) != 0) {
             continue;
+        }
         score++;
         for (int i = code.second - nearbyThreshold; i < code.second + nearbyThreshold + 1; i++) {
             coveredResidues.insert(make_pair(code.first, i));
@@ -62,52 +63,55 @@ int main (int argc, char *argv[]) {
     
     // Get command-line arguments
     MstOptions opts;
-    opts.setTitle("Finds overlaps between all pairs of the given seed residues.");
-    opts.addOption("target", "Path to the target PDB structure file", true);
-    opts.addOption("peptideChain", "Chain ID for the peptide chain in the target, if one exists - it will be removed", false);
+    opts.setTitle("Samples paths from a seed graph/cluster tree and fuses the residues together into a peptide backbone structure.");
+    opts.addOption("complex", "Path to a PDB structure file containing the target protein", true);
+    opts.addOption("peptideChain", "Chain ID for the peptide chain in the target, if one exists - it will be removed (default false)", false);
     opts.addOption("seeds", "Path to a binary file containing seed structures", true);
-    opts.addOption("seedChain", "Chain ID for the seed structures (default is '0')", false);
+    opts.addOption("seedChain", "Chain ID for the seed structures (default '0')", false);
     opts.addOption("overlaps", "Path to a text file defining a cluster tree of overlaps", false);
     opts.addOption("seedGraph", "Path to a text file defining a seed graph", false);
-    opts.addOption("out", "Path to a directory into which the fused seed path structures and scores will be written", true);
-    opts.addOption("numPaths", "Number of paths to generate (linearly impacts running time - default 1000)", false);
+    opts.addOption("numPaths", "Number of paths to generate. (default 1000)", false);
     opts.addOption("req_seed", "The name of a seed in the binary file that all paths should extend",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
     opts.addOption("config", "The path to a configfile",true);
+    opts.addOption("base", "Prepended to filenames",true);
     opts.addOption("noScore", "If provided, disable designability and contact scoring", false);
     opts.setOptions(argc, argv);
 
     if (opts.isGiven("overlaps") == opts.isGiven("seedGraph")) MstUtils::error("Either 'overlaps' or 'seedGraph' must be provided, but not both.");
+    if (opts.isGiven("overlaps") == true && opts.isGiven("req_seed") == true) MstUtils::error("req_seed parameter not implemented for cluster tree path sampling");
     
-    string targetPath = opts.getString("target");
+    string complexPath = opts.getString("complex");
     string binaryFilePath = opts.getString("seeds");
     string overlapTreePath = opts.getString("overlaps");
-    string outputPath = opts.getString("out");
     string configFilePath = opts.getString("config");
-    
+    string base = opts.getString("base");
     string seedChain = opts.getString("seedChain", "0");
     bool shouldScore = !opts.isGiven("noScore");
     
+    
+    
+    string outputPath = "./path_structures";
     if (!MstSys::fileExists(outputPath)) {
         MstSys::cmkdir(outputPath);
     }
 
-    Structure target(targetPath);
+    Structure complex(complexPath);
 
     // Remove native peptide from target
     if (opts.isGiven("peptideChain")) {
-        Chain *peptide = target.getChainByID(opts.getString("peptideChain", "B"));
+        Chain *peptide = complex.getChainByID(opts.getString("peptideChain", "B"));
         if (peptide != nullptr)
-            target.deleteChain(peptide);
+            complex.deleteChain(peptide);
     }
 
-    // Scorer
+    // Set up scorer, if shouldScore provided
     StructureCompatibilityScorer *scorer = nullptr;
     if (shouldScore) {
         FragmentParams fParams(2, true);
         rmsdParams rParams(1.2, 15, 1);
         contactParams cParams;
-        scorer = new StructureCompatibilityScorer(&target, fParams, rParams, cParams, configFilePath);
+        scorer = new StructureCompatibilityScorer(&complex, fParams, rParams, cParams, configFilePath, 0.4, 1, 8000, 0.7, true);
     }
 
     int numPaths = opts.getInt("numPaths", 1000);
@@ -132,12 +136,9 @@ int main (int argc, char *argv[]) {
         
         // Stringent: 3-residue overlaps, 0.75A cutoff
         // Permissive: 3-residue overlaps, 1.25A cutoff
-        ClusterTreePathSampler *cSampler = new ClusterTreePathSampler(&target, fetcher, overlapTree, 3, 1.25, fetcher->getAllResidues());
+        ClusterTreePathSampler *cSampler = new ClusterTreePathSampler(&complex, fetcher, overlapTree, 3, 1.25, fetcher->getAllResidues());
         if (opts.isGiven("ss")) {
             cSampler->preferredSecondaryStructure = new string(opts.getString("ss"));
-        }
-        if (opts.isGiven("req_seed")) {
-            MstUtils::error("req_seed parameter not implemented for cluster tree path sampling");
         }
         
         sampler = cSampler;
@@ -147,7 +148,8 @@ int main (int argc, char *argv[]) {
         cache = new StructureCache(&seedFile);
         seedG = new SeedGraph(opts.getString("seedGraph"), false, cache);
         
-        SeedGraphPathSampler *gSampler = new SeedGraphPathSampler(&target,seedG);
+        int overlapLength = 1;
+        SeedGraphPathSampler *gSampler = new SeedGraphPathSampler(&complex,seedG,overlapLength);
         if (opts.isGiven("ss")) {
             gSampler->preferredSecondaryStructure = new string(opts.getString("ss"));
         }
@@ -160,45 +162,76 @@ int main (int argc, char *argv[]) {
         sampler = gSampler;
     }
     
-    ofstream out(MstSystemExtension::join(outputPath, "fused_paths.csv"), ios::out);
+    
+    // Sample paths
+    ofstream out(base+"_fused_paths.csv", ios::out);
     if (!out.is_open())
         MstUtils::error("Could not open file stream");
     // CSV header
-    out << "name,path,path_len,designability,num_contacts,num_designable,corroboration" << endl;
+    out << "name,path,path_len,fuser_score,rmsd_score,total_rmsd_score,bond_score,angle_score,dihedral_score,interchain_clash,intrachain_clash,interchain_designability,num_interchain_contacts,num_designable_interchain_contacts,intrachain_designability,num_intrachain_contacts,num_designable_intrachain_contacts,corroboration" << endl;
     
+    cout << "Sample, fuse, and score " << numPaths << " fused paths..." << endl;
     int pathIndex = 0;
-    StructuresBinaryFile fusedFile(MstSystemExtension::join(outputPath, "fused_paths.bin"), false);
-
     while (pathIndex < numPaths) {
+        cout << pathIndex << endl;
         vector<PathResult> paths = sampler->sample(10);
-        for (PathResult &path: paths) {
-            string name = "fused_path_" + to_string(pathIndex);
+        cout << paths.size() << endl;
+        for (PathResult &path_result: paths) {
+            cout << "Path: " << pathIndex << endl;
+            string name = base + "_fused_path_" + to_string(pathIndex);
+            string name_whole = base + "_fused_path_and_context_" + to_string(pathIndex);
             out << name << ",";
-            for (Residue *res: path.getOriginalResidues()) {
+            
+            for (Residue *res: path_result.getOriginalResidues()) {
                 out << res->getStructure()->getName() << ":" << res->getResidueIndex() << ";";
             }
-            out << "," << path.size() << ",";
+            out << "," << path_result.size() << ",";
+            
+            //report the fusion score (and its individual components)
+            fusionOutput fuserScore = path_result.getFuserScore();
+            out << fuserScore.getScore() << "," << fuserScore.getRMSDScore() << "," << fuserScore.getTotRMSDScore() << ",";
+            out << fuserScore.getBondScore() << "," << fuserScore.getAngleScore() << "," << fuserScore.getDihedralScore() << ",";
+            
+            //report clashes
+            out << path_result.getInterchainClash() << "," << path_result.getIntrachainClash() << ",";
+            
+            //get the path_and_context structure (including target-aligned residues) and path only
+            Structure& path_and_context = path_result.getFusedStructure();
+            Structure path_only;
+            path_result.getFusedPathOnly(path_only);
+            path_only.setName(name);
+            path_and_context.setName(name_whole);
 
             // Score the path
-            Structure fused;
-            path.getFusedPathOnly(fused);
-            fused.setName(name);
-            fusedFile.appendStructure(&fused);
-            Structure &fullFused = path.getFusedStructure();
-
-            // Write zeros for scores if scoring is disabled (speeds up performance)
-            mstreal totalScore = 0.0;
+            // Score the path (looking at inter-chain contacts)
+            mstreal totalScore = 0;
             int numContacts = 0;
             int numDesignable = 0;
             if (shouldScore) {
-                scorer->score(&fused, totalScore, numContacts, numDesignable);
-                cout << "Score: " << totalScore << endl;
+                cout << "Score inter-chain contacts" << endl;
+                scorer->score(&path_only, totalScore, numContacts, numDesignable, false);
             }
-            out << totalScore << "," << numContacts << "," << numDesignable << "," << corroborationScore(path, 2) << endl;
+            out << totalScore << "," << numContacts << "," << numDesignable << ",";
+            
+            if (shouldScore) {
+                // Score the path (looking at intra-chain contacts)
+                cout << "Score intra-chain contacts" << endl;
+                scorer->score(&path_only, totalScore, numContacts, numDesignable, true);
+            }
+            out << totalScore << "," << numContacts << "," << numDesignable << ",";
+            
+            out << corroborationScore(path_result, 2) << endl;
+            
+            // Write out the PDBs
+            path_and_context.writePDB(MstSystemExtension::join(outputPath,path_and_context.getName()+".pdb"));
+            path_only.writePDB(MstSystemExtension::join(outputPath,path_only.getName()+".pdb"));
+            
             pathIndex++;
+            if (pathIndex >= numPaths) break;
         }
     }
     
+    // Deallocate all memory on the heap
     if (opts.isGiven("overlaps")) {
         delete fetcher;
         delete overlapTree;

@@ -233,7 +233,7 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
     
     while (results.size() < numPaths) {
         // Pick a residue at random from the graph
-        Residue *startRes = residuesOrdered[rand() % residuesOrdered.size()];
+        Residue *startRes = residuesOrdered[MstUtils::randInt(residuesOrdered.size())];
         vector<Residue *> path(startRes->getParent()->getResidues());
         string seedName = startRes->getStructure()->getName();
         int originalCount = path.size();
@@ -252,7 +252,7 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
             }
             
             if (!adj.empty()) {
-                Residue *nextRes = adj[rand() % adj.size()];
+                Residue *nextRes = adj[MstUtils::randInt(adj.size())];
                 seedName = nextRes->getStructure()->getName();
                 path.erase(path.begin() + endIndex + 1, path.end());
                 vector<Residue *> newResidues = nextRes->getParent()->getResidues();
@@ -298,10 +298,14 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
             }
         }
         
-        if (path.size() <= originalCount)
+        if ((path.size() <= originalCount) || (path.size() < minimumLength)) {
+            cout << "Sampled path is too short: " << path.size() << endl;
             continue;
-        if (!emplacePathFromResidues(path, results))
+        }
+        if (!emplacePathFromResidues(path, results)) {
+            cout << "Sampled path clashes" << endl;
             continue;
+        }
         if (results.size() % 100 == 0)
             cout << results.size() << " paths generated" << endl;
     }
@@ -348,7 +352,7 @@ vector<PathResult> ClusterTreePathSampler::sample(int numPaths) {
     _searchTree->sufficientMatches = 100;
     while (results.size() < numPaths) {
         // Pick a residue at random
-        Residue *startRes = _searchTreeResidues[rand() % _searchTreeResidues.size()];
+        Residue *startRes = _searchTreeResidues[MstUtils::randInt(_searchTreeResidues.size())];
         vector<Residue *> path(startRes->getParent()->getResidues());
         string seedName = startRes->getStructure()->getName();
         if (uniqueSeeds && _usedSeeds.count(seedName) != 0) {
@@ -414,7 +418,7 @@ vector<PathResult> ClusterTreePathSampler::sample(int numPaths) {
             endIndex = 0;
         }
 
-        if (path.size() <= originalCount) {
+        if ((path.size() <= originalCount) || (path.size() < minimumLength)) {
             cout << "Path too small" << endl;
             continue;
         }

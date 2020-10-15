@@ -65,7 +65,6 @@ int main (int argc, char *argv[]) {
             int i = 1;
             string path = MstSystemExtension::join(overlapsPath, "overlaps" + to_string(i++) + ".csv");
             while (MstSystemExtension::fileExists(path)) {
-                cout << "Loading overlaps from batch " << i << endl;
                 FuseCandidateFile file(path);
                 graph.load(file);
                 path = MstSystemExtension::join(overlapsPath, "overlaps" + to_string(i++) + ".csv");

@@ -666,7 +666,7 @@ unordered_map<Residue*, mstreal> StructureCompatibilityScorer::designabilityScor
             }
         }
     }
-    cout << "took " << timer.getDuration() << " to find matches to all fragments" << endl;
+    cout << "took " << timer.getDuration() << "s to find matches to all fragments" << endl;
     fasst->setSufficientNumMatches(prevSufficientNumMatches);
     return result;
 }

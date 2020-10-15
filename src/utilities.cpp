@@ -411,10 +411,11 @@ int getTargetResidueIndex(string seedName) {
 }
 
 pair<string, int> getTargetResidueCode(string seedName) {
-    regex re("^[A-z0-9_]-([A-z])(\\d+)-");
+    regex re("([A-z])(\\d+)");
     smatch match;
     string fileName = MstSystemExtension::fileName(seedName);
-    if (std::regex_search(fileName, match, re) && match.size() > 1) {
+    string central_residue = MstUtils::split(fileName,"-")[1];
+    if (std::regex_search(central_residue, match, re) && match.size() > 1) {
         return make_pair(match.str(1), atoi(match.str(2).c_str()));
     }
     return make_pair("", -1);
