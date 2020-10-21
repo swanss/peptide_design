@@ -111,6 +111,8 @@ public:
         return properties;
     }
     
+    vector<string> getStructureNames();
+    
 private:
     string _filePath;
     bool readMode;

@@ -220,6 +220,14 @@ pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metada
     return pair<Structure*,long>(S,pos); //just to quell compiler warning;
 }
 
+vector<string> StructuresBinaryFile::getStructureNames() {
+    MstUtils::assert(readMode, "getStructureNamed not supported in write mode");
+    if (_filePositions.size() == 0) {
+        scanFilePositions();
+    }
+    return _structureNames;
+}
+
 // StructureCache
 
 StructureCache::~StructureCache() {

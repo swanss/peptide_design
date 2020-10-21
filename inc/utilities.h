@@ -13,6 +13,7 @@
 #include "mstlinalg.h"
 #include "mstsequence.h"
 #include <unordered_map>
+#include <list>
 
 using namespace MST;
 
@@ -134,6 +135,38 @@ public:
      */
     static bool contiguousResidues(vector<Residue*> segment, mstreal maxPeptideBond = 2.0);
     
+    // Uses brute-force to find the best alignment (no gaps) of two peptide structures
+    static mstreal bestRMSD(Chain* C1, Chain* C2);
+
+    
+};
+
+// Implements the Needleman-Wunsch algorithm for finding the optimal global alignment of backbone atoms
+class peptideAlignmentNW {
+public:
+    peptideAlignmentNW(mstreal _gap_penalty = -20) : gap_penalty(_gap_penalty) {};
+    
+    // This method assumes both structures have a single chain representing the peptide and only
+    // backbone atoms.
+    mstreal findOptimalAlignment(Structure* _S1, Structure* _S2);
+
+    static mstreal getDistance(vector<Residue*> R1, vector<Residue*> R2);
+
+    static mstreal similarity(Residue* R1, Residue* R2);
+private:
+    mstreal gap_penalty;
+    Structure* S1;
+    Structure* S2;
+    vector<Residue*> R1;
+    vector<Residue*> R2;
+    vector<vector<mstreal>> score_table;
+    vector<vector<pair<int,int>>> traceback_table;
+    list<pair<int,int>> alignment;
+    vector<Residue*> R1_aligned;
+    vector<Residue*> R2_aligned;
+    mstreal best_alignment_distance;
+    bool ready = false;
+    bool verbose = true;
 };
 
 // Miscellaneous useful functions

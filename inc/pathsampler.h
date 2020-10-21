@@ -76,6 +76,8 @@ protected:
     // Number of residues to include for overlap when fusing
     int overlapLength = 3;
     int minimumLength = 15;
+    
+    string chainID = "0";
 
     /**
      * Generates a PathResult by fusing the given path together, making

@@ -174,7 +174,7 @@ int main (int argc, char *argv[]) {
     int pathIndex = 0;
     while (pathIndex < numPaths) {
         cout << pathIndex << endl;
-        vector<PathResult> paths = sampler->sample(10);
+        vector<PathResult> paths = sampler->sample(100);
         cout << paths.size() << endl;
         for (PathResult &path_result: paths) {
             cout << "Path: " << pathIndex << endl;

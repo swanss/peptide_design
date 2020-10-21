@@ -398,6 +398,158 @@ bool generalUtilities::contiguousResidues(vector<Residue*> segment, mstreal maxP
     return true;
 }
 
+mstreal generalUtilities::bestRMSD(Chain* C1, Chain* C2) {
+    if ((C1->residueSize() == 0) || (C2->residueSize() == 0)) MstUtils::error("Both chains must have at least one residue","generalUtilities::bestRMSD");
+    
+    // Make sure C1 is shorter than C2
+    if (C1->residueSize() > C2->residueSize()) {
+        Chain* C_temp = C1;
+        C1 = C2;
+        C2 = C_temp;
+    }
+    
+    // Find the lowest RMSD alignment by sliding C1 over C2
+    vector<Residue*> R1 = C1->getResidues();
+    vector<Residue*> R2 = C2->getResidues();
+    mstreal lowest_rmsd = numeric_limits<double>::max();
+    for (int i = 0; i < C2->residueSize() - C1->residueSize() + 1; i++) {
+        vector<Residue*> R2_segment = vector<Residue*>(R2.begin()+i,R2.begin()+i+C1->residueSize());
+        mstreal new_rmsd = peptideAlignmentNW::getDistance(R1, R2_segment);
+        if (new_rmsd < lowest_rmsd) lowest_rmsd = new_rmsd;
+    }
+    return lowest_rmsd;
+}
+
+mstreal peptideAlignmentNW::findOptimalAlignment(Structure* _S1, Structure* _S2) {
+    // check that these look like normal fused paths
+    if ((_S1->chainSize() != 1) || (_S2->chainSize() != 1)) MstUtils::error("One or both of the paths have more than one chain!","peptideAlignmentNW::findOptimalAlignment");
+    
+    S1 = _S1; //length N ("columns")
+    S2 = _S2; //length M ("rows")
+    R1 = S1->getResidues();
+    R2 = S2->getResidues();
+    
+    if (verbose) cout << "S1 residue size : " << R1.size() << "\t S2 residue size: " << R2.size() << endl;
+    
+//    if (S1->residueSize() == S2->residueSize()) {
+//        // alignment is trivial
+//        best_alignment_distance = getDistance(R1,R2);
+//    }
+    
+    // Resize the tables/alignment vector
+    score_table.clear();
+    traceback_table.clear();
+    score_table.resize(R1.size()+1,vector<mstreal>(R2.size()+1,0.0));
+    traceback_table.resize(R1.size(),vector<pair<int,int>>(R2.size(),pair<int,int>(0,0)));
+    
+    // Fill in the score table (special cases)
+    for (int i = 1; i < R1.size()+1; i++) {
+        // fill in the leftmost column
+        score_table[i][0] = score_table[i-1][0] + gap_penalty;
+    }
+    for (int j = 1; j < R2.size()+1; j ++) {
+        // fill in the topmost row
+        score_table[0][j] = score_table[0][j-1] + gap_penalty;
+    }
+
+    // Apply the recursive rule to fill the remaining positions
+    mstreal gap_chain1, same, gap_chain2;
+    for (int i = 1; i < R1.size()+1; i++) {
+        for (int j = 1; j < R2.size()+1; j++) {
+            // Compute three values corresponding to:
+            // 1) gap in chain 1
+            gap_chain1 = score_table[i-1][j] + gap_penalty;
+            // 2) aligned position
+            same = score_table[i-1][j-1] + similarity(R1[i-1],R2[j-1]);
+            // 3) gap in chain 2
+            gap_chain2 = score_table[i][j-1] + gap_penalty;
+            
+            // add to score table
+            score_table[i][j] = max(gap_chain1,max(same,gap_chain2));
+            
+            // depending on which value was largest, fill in traceback table
+            if ((gap_chain1 > same) && (gap_chain1 > gap_chain2)) {
+                traceback_table[i-1][j-1] = pair<int,int>(-1,0);
+            } else if ((same > gap_chain1) && (same > gap_chain2)) {
+                traceback_table[i-1][j-1] = pair<int,int>(-1,-1);
+            } else {
+                traceback_table[i-1][j-1] = pair<int,int>(0,-1);
+            }
+        }
+    }
+    
+    if (verbose) {
+        cout.precision(3);
+        
+        // If verbose, print out score/trackback table
+        for (int i = 0; i < R1.size()+1; i++) {
+            for (int j = 0; j < R2.size()+1; j++) {
+                cout << score_table[i][j] << "\t";
+            }
+            cout << endl;
+        }
+        
+        for (int i = 0; i < R1.size(); i++) {
+            for (int j = 0; j < R2.size(); j++) {
+                cout << traceback_table[i][j].first << "," << traceback_table[i][j].second << "\t";
+            }
+            cout << endl;
+        }
+    }
+    
+    // Starting at the (S1_residueSize,S2_residueSize) position in the traceback table, find the path
+    // that maximizes the score
+    alignment.clear();
+    int i = R1.size() - 1; int j = R2.size() - 1;
+    while (i >= 0 and j >= 0) {
+        pair<int,int>& move = traceback_table[i][j];
+        if ((move.first == -1) && (move.second == -1)) {
+            if (verbose) cout << "\ti: " << i << "\tj: " << j << endl;
+            alignment.push_front(pair<int,int>(i,j));
+        }
+        i += move.first;
+        j += move.second;
+    }
+    
+    // Get residues using alignment
+    R1_aligned.clear(); R2_aligned.clear();
+    for (pair<int,int>& alignment_pos : alignment) {
+        if (verbose) cout << alignment_pos.first << " " << alignment_pos.second << endl;
+        R1_aligned.push_back(R1[alignment_pos.first]);
+        R2_aligned.push_back(R2[alignment_pos.second]);
+    }
+    
+    // Get RMSD
+    best_alignment_distance = getDistance(R1_aligned,R2_aligned);
+    
+    if (verbose) cout << "distance: " << best_alignment_distance << endl;
+    
+    return best_alignment_distance;
+}
+
+mstreal peptideAlignmentNW::getDistance(vector<Residue*> R1, vector<Residue*> R2) {
+    vector<Atom*> A1; vector<Atom*> A2;
+    for (int i = 0; i < R1.size(); i++) {
+        Residue* R1_i = R1[i];
+        Residue* R2_i = R2[i];
+        if (!RotamerLibrary::hasFullBackbone(R1_i) || !RotamerLibrary::hasFullBackbone(R2_i)) MstUtils::error("Residue from peptide is missing backbone atoms","peptideAlignmentNW::getRMSD");
+        vector<Atom*> R1_i_bb_atoms = RotamerLibrary::getBackbone(R1_i);
+        vector<Atom*> R2_i_bb_atoms = RotamerLibrary::getBackbone(R2_i);
+        A1.insert(A1.end(),R1_i_bb_atoms.begin(),R1_i_bb_atoms.end());
+        A2.insert(A2.end(),R2_i_bb_atoms.begin(),R2_i_bb_atoms.end());
+    }
+    RMSDCalculator rmsd_calc;
+    return rmsd_calc.rmsd(A1,A2);
+}
+
+mstreal peptideAlignmentNW::similarity(Residue* R1, Residue* R2) {
+    if (!RotamerLibrary::hasFullBackbone(R1) || !RotamerLibrary::hasFullBackbone(R2)) MstUtils::error("Residue from peptide is missing backbone atoms","peptideAlignmentNW::similarity");
+    vector<Atom*> R1_bb_atoms = RotamerLibrary::getBackbone(R1);
+    vector<Atom*> R2_bb_atoms = RotamerLibrary::getBackbone(R2);
+    RMSDCalculator rmsd_calc;
+    return -rmsd_calc.rmsd(R1_bb_atoms,R2_bb_atoms);
+}
+
 /* ----------- Miscellaneous useful functions -------------- */
 
 int getTargetResidueIndex(string seedName) {
