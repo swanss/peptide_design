@@ -92,6 +92,7 @@ int main (int argc, char *argv[]) {
     //The base name sets the seed, since this varies between batches, this should give unique sampling
     hash<string> hash;
     int name_hash = hash(base);
+    cout << "base name: " << base << " with hash: " << name_hash << endl;
     srand(name_hash);
     
     string outputPath = "./path_structures";
