@@ -89,7 +89,10 @@ int main (int argc, char *argv[]) {
     string seedChain = opts.getString("seedChain", "0");
     bool shouldScore = !opts.isGiven("noScore");
     
-    
+    //The base name sets the seed, since this varies between batches, this should give unique sampling
+    hash<string> hash;
+    int name_hash = hash(base);
+    srand(name_hash);
     
     string outputPath = "./path_structures";
     if (!MstSys::fileExists(outputPath)) {
