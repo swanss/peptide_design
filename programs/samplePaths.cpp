@@ -66,20 +66,22 @@ int main (int argc, char *argv[]) {
     opts.setTitle("Samples paths from a seed graph/cluster tree and fuses the residues together into a peptide backbone structure.");
     opts.addOption("complex", "Path to a PDB structure file containing the target protein", true);
     opts.addOption("peptideChain", "Chain ID for the peptide chain in the target, if one exists - it will be removed (default false)", false);
-    opts.addOption("seeds", "Path to a binary file containing seed structures", true);
+    opts.addOption("seeds", "Path to a binary file containing seed structures", false);
     opts.addOption("seedChain", "Chain ID for the seed structures (default '0')", false);
-    opts.addOption("overlaps", "Path to a text file defining a cluster tree of overlaps", false);
+//    opts.addOption("overlaps", "Path to a text file defining a cluster tree of overlaps", false);
     opts.addOption("seedGraph", "Path to a text file defining a seed graph", false);
     opts.addOption("numPaths", "Number of paths to generate. (default 1000)", false);
     opts.addOption("req_seed", "The name of a seed in the binary file that all paths should extend",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
+    opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores.", false);
+    opts.addOption("score_structures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
     opts.addOption("config", "The path to a configfile",true);
     opts.addOption("base", "Prepended to filenames",true);
     opts.addOption("noScore", "If provided, disable designability and contact scoring", false);
     opts.setOptions(argc, argv);
 
-    if (opts.isGiven("overlaps") == opts.isGiven("seedGraph")) MstUtils::error("Either 'overlaps' or 'seedGraph' must be provided, but not both.");
-    if (opts.isGiven("overlaps") == true && opts.isGiven("req_seed") == true) MstUtils::error("req_seed parameter not implemented for cluster tree path sampling");
+//    if (opts.isGiven("overlaps") == opts.isGiven("seedGraph")) MstUtils::error("Either 'overlaps' or 'seedGraph' must be provided, but not both.");
+//    if (opts.isGiven("overlaps") == true && opts.isGiven("req_seed") == true) MstUtils::error("req_seed parameter not implemented for cluster tree path sampling");
     
     string complexPath = opts.getString("complex");
     string binaryFilePath = opts.getString("seeds");
@@ -118,13 +120,10 @@ int main (int argc, char *argv[]) {
         scorer = new StructureCompatibilityScorer(&complex, fParams, rParams, cParams, configFilePath, 0.4, 1, 8000, 0.7, true);
     }
 
-    int numPaths = opts.getInt("numPaths", 1000);
+    int numPaths = opts.getInt("numPaths", 200);
     
-    cout << "Loading seeds" << endl;
-    StructuresBinaryFile seedFile(binaryFilePath);
-    seedFile.scanFilePositions();
-    
-    PathSampler* sampler;
+    StructuresBinaryFile* seedFile;
+    SeedGraphPathSampler* sampler;
     SingleFragmentFetcher* fetcher;
     ClusterTree* overlapTree;
     StructureCache* cache;
@@ -132,38 +131,41 @@ int main (int argc, char *argv[]) {
     
     // Handle configuration options separately for each input type, since different
     // sets of options may be available
-    if (opts.isGiven("overlaps")) {
-        cout << "Loading cluster tree..." << endl;
-        fetcher = new SingleFragmentFetcher(&seedFile, 3, seedChain);
-        overlapTree = new ClusterTree(fetcher, 4, true); // 4 children per level; shared coordinate system
-        overlapTree->read(overlapTreePath);
+//    if (opts.isGiven("overlaps")) {
+        //this is deprecated
+//        cout << "Loading cluster tree..." << endl;
+//        fetcher = new SingleFragmentFetcher(seedFile, 3, seedChain);
+//        overlapTree = new ClusterTree(fetcher, 4, true); // 4 children per level; shared coordinate system
+//        overlapTree->read(overlapTreePath);
+//
+//        // Stringent: 3-residue overlaps, 0.75A cutoff
+//        // Permissive: 3-residue overlaps, 1.25A cutoff
+//        ClusterTreePathSampler *cSampler = new ClusterTreePathSampler(&complex, fetcher, overlapTree, 3, 1.25, fetcher->getAllResidues());
+//        if (opts.isGiven("ss")) {
+//            cSampler->preferredSecondaryStructure = new string(opts.getString("ss"));
+//        }
+//
+//        sampler = cSampler;
+//        }
+    if (opts.isGiven("seedGraph") && !opts.isGiven("score_structures")) {
+        cout << "Loading seeds" << endl;
+        seedFile = new StructuresBinaryFile(binaryFilePath);
+        seedFile->scanFilePositions();
         
-        // Stringent: 3-residue overlaps, 0.75A cutoff
-        // Permissive: 3-residue overlaps, 1.25A cutoff
-        ClusterTreePathSampler *cSampler = new ClusterTreePathSampler(&complex, fetcher, overlapTree, 3, 1.25, fetcher->getAllResidues());
-        if (opts.isGiven("ss")) {
-            cSampler->preferredSecondaryStructure = new string(opts.getString("ss"));
-        }
-        
-        sampler = cSampler;
-        
-    } else if (opts.isGiven("seedGraph")) {
         cout << "Loading graph.." << endl;
-        cache = new StructureCache(&seedFile);
+        cache = new StructureCache(seedFile);
         seedG = new SeedGraph(opts.getString("seedGraph"), false, cache);
         
         int overlapLength = 1;
-        SeedGraphPathSampler *gSampler = new SeedGraphPathSampler(&complex,seedG,overlapLength);
+        sampler = new SeedGraphPathSampler(&complex,seedG,overlapLength);
         if (opts.isGiven("ss")) {
-            gSampler->preferredSecondaryStructure = new string(opts.getString("ss"));
+            sampler->preferredSecondaryStructure = new string(opts.getString("ss"));
         }
         if (opts.isGiven("req_seed")) {
             string reqSeedName = opts.getString("req_seed");
             Structure* reqSeed = cache->getStructure(reqSeedName);
-            gSampler->setStartingSeed(reqSeed,seedChain);
+            sampler->setStartingSeed(reqSeed,seedChain);
         }
-
-        sampler = gSampler;
     }
     
     
@@ -177,8 +179,27 @@ int main (int argc, char *argv[]) {
     cout << "Sample, fuse, and score " << numPaths << " fused paths..." << endl;
     int pathIndex = 0;
     while (pathIndex < numPaths) {
-        cout << pathIndex << endl;
-        vector<PathResult> paths = sampler->sample(100);
+        vector<PathResult> paths;
+        if (opts.isGiven("score_paths")) {
+            vector<string> path_strings = MstUtils::fileToArray(opts.getString("score_paths"));
+            paths = sampler->fusePaths(path_strings);
+            numPaths = paths.size();
+        } else if (opts.isGiven("score_structures")) {
+            vector<string> structure_paths = MstUtils::fileToArray(opts.getString("score_structures"));
+            vector<Structure> structures;
+            for (string structure_path : structure_paths) {
+                Structure S(structure_path);
+                S.setName(MstSystemExtension::fileName(S.getName()));
+                //verify that there is a single chain with ID = 0
+                if (S.chainSize() != 1) MstUtils::error("Structures provided for scoring should have a single chain");
+                if (S.getChainByID("0") == NULL) MstUtils::error("Structures provided for scoring must have a chain with ID = 0");
+                vector<Residue*> empty;
+                paths.emplace_back(empty,S,0,fusionOutput(),0,0);
+            }
+            numPaths = paths.size();
+        } else {
+            paths = sampler->sample(100);
+        }
         cout << paths.size() << endl;
         for (PathResult &path_result: paths) {
             cout << "Path: " << pathIndex << endl;
@@ -236,10 +257,11 @@ int main (int argc, char *argv[]) {
     }
     
     // Deallocate all memory on the heap
-    if (opts.isGiven("overlaps")) {
-        delete fetcher;
-        delete overlapTree;
-    } else if (opts.isGiven("seedGraph")) {
+//    if (opts.isGiven("overlaps")) {
+//        delete fetcher;
+//        delete overlapTree;
+//    }
+    if (opts.isGiven("seedGraph")) {
         delete cache;
         delete seedG;
     }

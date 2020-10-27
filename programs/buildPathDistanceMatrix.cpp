@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
                     //NW and RMSD
                     mstreal rmsd = generalUtilities::bestRMSD(path_1,path_2);
                     
-                    cout << "i,j: " << i + i_batch << " " << j + j_batch << endl;
+//                    cout << "i,j: " << i + i_batch << " " << j + j_batch << endl;
                     
                     paths_distances[make_pair(i + i_batch,j + j_batch)] = rmsd;
                 }
@@ -151,6 +151,8 @@ int main(int argc, char* argv[]) {
         }
         out.close();
     }
+    
+    cout << "Done" << endl;
     
     return 0;
 }

@@ -54,7 +54,7 @@ public:
 
     /**
      Initialize a seed graph by reading a CSV file containing fuse candidates.
-     
+
      @param neighborsFile the CSV file to read
      @param pdbPrefix a path prefix to use before each path found in the
             fuse candidate metadata

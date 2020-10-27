@@ -180,7 +180,7 @@ unordered_map<Residue*, mstreal> SequenceCompatibilityScorer::score(Structure *s
     if (!countingContacts) {
         // We need to remap the residues from the merged structure to the original seed
         result = remapResiduesFromCombinedStructure(combinedResult, seed);
-	cout << "Original result had " << combinedResult.size() << ", new result has " << result.size() << endl;
+        cout << "Original result had " << combinedResult.size() << ", new result has " << result.size() << endl;
         
         // Set values in adjacency graph map, if available
         if (adjacencyGraph != nullptr) {

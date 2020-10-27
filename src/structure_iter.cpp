@@ -238,7 +238,6 @@ StructureCache::~StructureCache() {
 
 void StructureCache::preloadFromBinaryFile() {
     MstUtils::assert(binaryFile != nullptr, "Cannot preload without a binary file");
-
     binaryFile->reset();
     while (binaryFile->hasNext() && (long)cache.size() < capacity) {
         Structure *s = binaryFile->next();
@@ -246,10 +245,24 @@ void StructureCache::preloadFromBinaryFile() {
         cachePointers[s->getName()] = cache.begin();
     }
     cout << "preload: load factor " << cachePointers.load_factor() << ", max " << cachePointers.max_load_factor() << endl;
-    
     preloaded = true;
-    if (binaryFile->structureCount() <= capacity) _belowCapacity = true;
+    if (cache.size() < capacity) _belowCapacity = true;
 }
+
+void StructureCache::preloadFromPDBList(string pdbList) {
+    vector<string> pdbNames = MstUtils::fileToArray(pdbList);
+    for (string pdbName : pdbNames) {
+        string path = MstSystemExtension::join(pdbPrefix, pdbName);
+        Structure* s = new Structure(path);
+        cache.push_front(s);
+        cachePointers[s->getName()] = cache.begin();
+        if ((long)cache.size() == capacity) break;
+    }
+    cout << "preload: load factor " << cachePointers.load_factor() << ", max " << cachePointers.max_load_factor() << endl;
+    preloaded = true;
+    if (cache.size() < capacity) _belowCapacity = true;
+}
+
 
 Structure* StructureCache::getStructure(string name, string prefix) {
     Structure *structure = nullptr;

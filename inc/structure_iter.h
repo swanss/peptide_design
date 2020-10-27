@@ -174,10 +174,12 @@ public:
     bool storeAtoms = false;
 
     /**
-     * Preloads all structures from the binary file, up to
+     * Preloads all structures from binary file, up to
      * the capacity of the cache.
      */
     void preloadFromBinaryFile();
+    
+    void preloadFromPDBList(string pdbList);
     
     bool isPreloaded() {return preloaded;}
     bool belowCapacity() {return _belowCapacity;}
@@ -240,6 +242,7 @@ public:
         iterator(const iterator& other): it_(other.it_) { }
         self_type operator++() { it_++; return *this; }
         self_type operator++(int junk) { self_type i = *this; it_++; return i; }
+        self_type advance(int step_size) {self_type i = *this; std::advance(it_,step_size); return i;}
         Structure * operator*() { return *it_; }
         Structure * const * operator->() { return &(*it_); }
         bool operator==(const self_type& rhs) { return it_ == rhs.it_; }
