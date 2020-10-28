@@ -90,6 +90,7 @@ int main(int argc, char *argv[]) {
         cout << "Match requirement: " << op.getInt("match_req") << endl;
         TE.setMatchReq(op.getInt("match_req"));
         if (variable_rmsd) {
+            TE.setAdaptiveRMSD(false);
             TE.generateFragments(TermExtension::MATCH_NUM_REQ_CUTOFF);
         } else {
             TE.generateFragments(TermExtension::MATCH_NUM_REQ_SIZE);

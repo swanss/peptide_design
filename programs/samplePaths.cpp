@@ -73,7 +73,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("numPaths", "Number of paths to generate. (default 1000)", false);
     opts.addOption("req_seed", "The name of a seed in the binary file that all paths should extend",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
-    opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format: seed_A:residue_i;seed_B:residue_j;etc...", false);
+    opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format:q: seed_A:residue_i;seed_B:residue_j;etc...", false);
     opts.addOption("score_structures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
     opts.addOption("config", "The path to a configfile",true);
     opts.addOption("base", "Prepended to filenames",true);
