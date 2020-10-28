@@ -157,9 +157,14 @@ int main (int argc, char *argv[]) {
         cout << "loading structure cache. List: " << structuresList << " Prefix: " << structuresPath << endl;
         StructureCache* structures = new StructureCache(structuresPath);
         structures->preloadFromPDBList(structuresList);
+        long cache_size = structures->size();
         
         int i = 0;
-        auto it = structures->begin(); it.advance(workerIndex);
+        auto it = structures->begin();
+        for (int i = 0; i < workerIndex-1; i++) {
+            it++;
+            if (it == structures->end()) break;
+        }
         while (it != structures->end()) {
             Structure *s = *it;
             if (scoredSeeds.count(s->getName()) != 0) {
@@ -187,7 +192,11 @@ int main (int argc, char *argv[]) {
                 outputSS << s->getName() << "\t" << resScore.first->getChainID() << resScore.first->getNum() << "\t" << resScore.second << endl;
             }
             
-            it.advance(numWorkers);
+            // advance the iterator
+            for (int i = 0; i < numWorkers; i++) {
+                it++;
+                if (it == structures->end()) break;
+            }
         }
         delete structures;
         

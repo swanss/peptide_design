@@ -183,7 +183,8 @@ public:
     
     bool isPreloaded() {return preloaded;}
     bool belowCapacity() {return _belowCapacity;}
-
+    int size() {return preloaded ? cache.size() : -1;}
+    
     /**
      Returns the structure for the given name/path, loading it fresh if it is not
      already loaded. Uses the given path prefix if provided, otherwise uses the
@@ -242,7 +243,15 @@ public:
         iterator(const iterator& other): it_(other.it_) { }
         self_type operator++() { it_++; return *this; }
         self_type operator++(int junk) { self_type i = *this; it_++; return i; }
-        self_type advance(int step_size) {self_type i = *this; std::advance(it_,step_size); return i;}
+//        //this method results in the iterator skipping end()
+//        self_type advance(int step_size) {
+//            self_type i = *this;
+//            for (int i = 0; i < step_size; i++) {
+//                it_++;
+//                if (it_ == it_.end()) break;
+//            }
+//            return i;
+//        }
         Structure * operator*() { return *it_; }
         Structure * const * operator->() { return &(*it_); }
         bool operator==(const self_type& rhs) { return it_ == rhs.it_; }
