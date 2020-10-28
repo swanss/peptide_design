@@ -299,8 +299,8 @@ Residue* SeedGraph::getResidueFromFile(string residueID, bool loadIfNeeded) {
     if (!loadIfNeeded && !structures->hasStructure(comps[0]))
         return nullptr;
     
-    Structure *structure = structures->getStructure(comps[0]);
-    return & structure->getResidue(atoi(comps[1].c_str()));
+    Chain *chain = structures->getStructure(comps[0])->getChainByID(seed_chain_ID);
+    return &chain->getResidue(atoi(comps[1].c_str()));
 }
 
 Structure* SeedGraph::getStructureFromFile(string structureName, bool loadIfNeeded) {
@@ -540,7 +540,7 @@ string SeedGraph::writeCodeForResidue(Residue *res) {
         writeName = MstSystemExtension::relativePath(structureName, structures->getPDBPrefix());
     else
         writeName = MstSystemExtension::fileName(structureName);
-    return writeName + ":" + to_string(res->getResidueIndex());
+    return writeName + ":" + to_string(res->getResidueIndexInChain()());
 }
 
 void SeedGraph::write(string path) {
