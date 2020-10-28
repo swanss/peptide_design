@@ -159,7 +159,8 @@ int main (int argc, char *argv[]) {
         structures->preloadFromPDBList(structuresList);
         
         int i = 0;
-        for (auto it = structures->begin(); it != structures->end(); it.advance(numWorkers)) {
+        auto it = structures->begin(); it.advance(workerIndex);
+        while (it != structures->end()) {
             Structure *s = *it;
             if (scoredSeeds.count(s->getName()) != 0) {
                 continue;
@@ -185,6 +186,8 @@ int main (int argc, char *argv[]) {
             for (auto resScore: result) {
                 outputSS << s->getName() << "\t" << resScore.first->getChainID() << resScore.first->getNum() << "\t" << resScore.second << endl;
             }
+            
+            it.advance(numWorkers);
         }
         delete structures;
         
