@@ -540,7 +540,7 @@ string SeedGraph::writeCodeForResidue(Residue *res) {
         writeName = MstSystemExtension::relativePath(structureName, structures->getPDBPrefix());
     else
         writeName = MstSystemExtension::fileName(structureName);
-    return writeName + ":" + to_string(res->getResidueIndexInChain()());
+    return writeName + ":" + to_string(res->getResidueIndexInChain());
 }
 
 void SeedGraph::write(string path) {
