@@ -224,7 +224,6 @@ bool PathSampler::pathClashes(const Structure &path, int seedStartIdx, int &inte
 vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
     vector<PathResult> results;
 
-    int totalSampledPaths = 0;
     while (results.size() < numPaths) {
         Residue *startRes;
 
@@ -325,20 +324,24 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
             }
         }
         
-        totalSampledPaths++;
+        attempts++;
         
         // Check if path is accepted
         if (path == initial_path) {
             cout << "Sampled path is the same as the initially selected seed" << endl;
+            no_overlaps++;
             continue;
         } else if (_sampledPaths.find(path) != _sampledPaths.end()){
-            cout << "Path is redundant to one that has already been sampled" << endl;
+            cout << "Path is redundant to a previously sampled one " << endl;
+            redundant++;
             continue;
         } else if ((path.size() < minimumLength)) {
             cout << "Sampled path is too short: " << path.size() << endl;
+            too_short++;
             continue;
         } else if (!emplacePathFromResidues(path, results)) {
             cout << "Sampled path clashes" << endl;
+            clashes++;
             continue;
         }
         
@@ -348,9 +351,6 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
             cout << results.size() << " paths generated" << endl;
         }
     }
-    
-    cout << "In order to generate " << numPaths << " acceptable paths, sampled " << totalSampledPaths << endl;
-    
     return results;
 }
 

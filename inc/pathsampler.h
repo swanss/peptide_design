@@ -158,6 +158,18 @@ public:
      */
   
     vector<PathResult> fusePaths(const vector<string> &path_specifiers);
+    
+    /*
+     Prints sampling statistics
+     */
+    void reportSamplingStatistics() {
+        cout << "Total attempts: " << attempts << endl;
+        cout << "No overlaps: " << no_overlaps << endl;
+        cout << "Redundant: " << redundant << endl;
+        cout << "Below minimum length: " << too_short << endl;
+        cout << "Contains a clash: " << clashes << endl;
+        cout << "Accepted: " << _sampledPaths.size() << endl;
+    };
   
     // If true, constrain sampled paths to never use seeds that have been used in previously-sampled paths
     bool uniqueSeeds = false;
@@ -203,6 +215,7 @@ private:
     set<Residue*> _fixedResidues;
   
     set<vector<Residue*>> _sampledPaths;
+    int attempts, no_overlaps, redundant, too_short, clashes = 0;
     
     vector<Residue*> pathResiduesFromSpecifier(string path_spec);
     

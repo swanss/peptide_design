@@ -72,7 +72,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("numPaths", "Number of paths to generate. (default 200)", false);
     opts.addOption("minLength", "The minimum residue length of the sampled paths. (default 15)", false);
     opts.addOption("reqSeed", "The name of a seed in the binary file that all paths should extend from",false);
-    opts.addOption("reqSeedSel", "A selection that specifies the residues in reqSeed that should always be included in sampled paths, e.g. resid 3-5. (note: 'chain 0' is always assumed)",false);
+    opts.addOption("reqSeedSel", "A selection that specifies the residues in reqSeed that should always be included in sampled paths. Must be a continuous range: e.g. resid 3-5. (note: 'chain 0' is always assumed)",false);
     opts.addOption("fixedSeed", "If residues from the specified seed are included in a path, they will be fixed during fusing.",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
     opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format:q: seed_A:residue_i;seed_B:residue_j;etc...", false);
@@ -222,7 +222,6 @@ int main (int argc, char *argv[]) {
         } else {
             paths = sampler->sample(min(100,numPaths-pathIndex));
         }
-        cout << paths.size() << endl;
         for (PathResult &path_result: paths) {
             cout << "Path: " << pathIndex << endl;
             string name = base + "_fused-path_" + to_string(pathIndex);
@@ -277,6 +276,8 @@ int main (int argc, char *argv[]) {
             if (pathIndex >= numPaths) break;
         }
     }
+    
+    sampler->reportSamplingStatistics();
     
     // Deallocate all memory on the heap
 //    if (opts.isGiven("overlaps")) {
