@@ -63,15 +63,17 @@ int main (int argc, char *argv[]) {
     
     // Get command-line arguments
     MstOptions opts;
-    opts.setTitle("Samples paths from a seed graph/cluster tree and fuses the residues together into a peptide backbone structure.");
+    opts.setTitle("Samples random paths from a seed graph/cluster tree and fuses the residues together into a peptide backbone structure.");
     opts.addOption("complex", "Path to a PDB structure file containing the target protein", true);
     opts.addOption("peptideChain", "Chain ID for the peptide chain in the target, if one exists - it will be removed (default false)", false);
     opts.addOption("seeds", "Path to a binary file containing seed structures", false);
     opts.addOption("seedChain", "Chain ID for the seed structures (default '0')", false);
-//    opts.addOption("overlaps", "Path to a text file defining a cluster tree of overlaps", false);
-    opts.addOption("seedGraph", "Path to a text file defining a seed graph", false);
-    opts.addOption("numPaths", "Number of paths to generate. (default 1000)", false);
-    opts.addOption("req_seed", "The name of a seed in the binary file that all paths should extend",false);
+    opts.addOption("seedGraph", "Path to a text file defining a seed graph", true);
+    opts.addOption("numPaths", "Number of paths to generate. (default 200)", false);
+    opts.addOption("minLength", "The minimum residue length of the sampled paths. (default 15)", false);
+    opts.addOption("reqSeed", "The name of a seed in the binary file that all paths should extend from",false);
+    opts.addOption("reqSeedSel", "A selection that specifies the residues in reqSeed that should always be included in sampled paths, e.g. resid 3-5. (note: 'chain 0' is always assumed)",false);
+    opts.addOption("fixedSeed", "If residues from the specified seed are included in a path, they will be fixed during fusing.",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
     opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format:q: seed_A:residue_i;seed_B:residue_j;etc...", false);
     opts.addOption("score_structures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
@@ -121,14 +123,15 @@ int main (int argc, char *argv[]) {
     }
 
     int numPaths = opts.getInt("numPaths", 200);
+    int minLength = opts.getInt("minLength", 15);
     
     StructuresBinaryFile* seedFile;
     SeedGraphPathSampler* sampler;
-    SingleFragmentFetcher* fetcher;
-    ClusterTree* overlapTree;
+//    SingleFragmentFetcher* fetcher;
+//    ClusterTree* overlapTree;
     StructureCache* cache;
     SeedGraph* seedG;
-    
+
     // Handle configuration options separately for each input type, since different
     // sets of options may be available
 //    if (opts.isGiven("overlaps")) {
@@ -161,13 +164,32 @@ int main (int argc, char *argv[]) {
         if (opts.isGiven("ss")) {
             sampler->preferredSecondaryStructure = new string(opts.getString("ss"));
         }
-        if (opts.isGiven("req_seed")) {
-            string reqSeedName = opts.getString("req_seed");
+        if (opts.isGiven("reqSeed")) {
+            string reqSeedName = opts.getString("reqSeed");
             Structure* reqSeed = cache->getStructure(reqSeedName);
-            sampler->setStartingSeed(reqSeed,seedChain);
+            vector<Residue*> residues;
+            if (opts.isGiven("reqSeedSel")) {
+                string reqSeedSel = opts.getString("reqSeedSel");
+                selector sel(*reqSeed);
+                residues = sel.selectRes(reqSeedSel);
+                cout << "Select residues: ";
+                for (Residue* R : residues) {
+                    cout << R->getChainID() << R->getNum() << " ";
+                }
+                cout << endl;
+            } else {
+                Chain* C = reqSeed->getChainByID(seedChain);
+                residues = C->getResidues();
+            }
+            sampler->setStartingPathResidues(residues);
+        }
+        if (opts.isGiven("fixedSeed")) {
+            string fixedSeedName = opts.getString("fixedSeed");
+            sampler->addFixedSeed(fixedSeedName);
         }
     }
     
+    sampler->setMinimumLength(minLength);
     
     // Sample paths
     ofstream out(base+"_fused_paths.csv", ios::out);
@@ -198,7 +220,7 @@ int main (int argc, char *argv[]) {
             }
             numPaths = paths.size();
         } else {
-            paths = sampler->sample(100);
+            paths = sampler->sample(min(100,numPaths-pathIndex));
         }
         cout << paths.size() << endl;
         for (PathResult &path_result: paths) {

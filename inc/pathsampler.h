@@ -69,6 +69,15 @@ public:
     virtual vector<PathResult> sample(int numPaths) = 0;
     
     void setMinimumLength(int length) {minimumLength = length;}
+    
+    static string getPathFromResidues(vector<Residue*> path) {
+        string path_string = "";
+        for (Residue* R : path) {
+            path_string += R->getStructure()->getName() + ":" + MstUtils::toString(R->getResidueIndexInChain());
+            if (R != path.back()) path_string += ";";
+        }
+        return path_string;
+    }
         
 protected:
     Structure *_target = nullptr;
@@ -126,7 +135,11 @@ public:
      @param target the target structure from which to obtain structure context for fusion
      @param graph a bond-adjacency graph containing seeds to sample from
      */
-    SeedGraphPathSampler(Structure *target, SeedGraph *graph, int overlapLength = 3): PathSampler(target, overlapLength), _graph(graph) {};
+    SeedGraphPathSampler(Structure *target, SeedGraph *graph, int overlapLength = 3): PathSampler(target, overlapLength), _graph(graph) {
+        unordered_set<Residue *> residues = _graph->getResidues();
+        _startingResidues = vector<Residue*>(residues.begin(), residues.end());
+        if (_startingResidues.size() >= INT_MAX) MstUtils::error("The number of residues in the graph exceeds the max value of an integer.");
+    };
 
     ~SeedGraphPathSampler() override {};
     
@@ -153,12 +166,14 @@ public:
     string *preferredSecondaryStructure = nullptr;
     float secondaryStructureWeight = 2.0f;
   
-    // If provided, will always initialize the path from a residue in this seed
+    // If provided, will always initialize the path from theses residues
     // (only implemented in sampleFromGraph)
-    void setStartingSeed(Structure* seed, string seed_chain) {
+    void setStartingPathResidues(vector<Residue*> startingResidues) {
         if (_graph == nullptr) MstUtils::error("Option not available when PathSampler is constructed without a seed graph");
-        _startingResidues = seed->getChainByID(seed_chain)->getResidues();
-        MstUtils::assert((_startingResidues.empty()),"There are no residues in the specified chain");
+        _initialPathResidues = startingResidues;
+        sort(_initialPathResidues.begin(),_initialPathResidues.end(),[](Residue* R1, Residue* R2){return R1->getResidueIndex() < R2->getResidueIndex();});
+        cout << "Set the initial path to " << _initialPathResidues.size() << " residues and sorted" << endl;
+        if (_initialPathResidues.empty()) MstUtils::error("There are no residues in the provided vector","SeedGraphPathSampler::setStartingResidues");
     }
     
     //Adds the residues of a seed to the fixedResidues set, which is checked before fusing a path
@@ -172,17 +187,23 @@ public:
 
 private:
     SeedGraph *_graph = nullptr;
+    
+    // The residues that a random residue is sampled from to begin the path
+    vector<Residue*> _startingResidues;
 
     // Used if uniqueSeeds is true
     unordered_set<string> _usedSeeds;
-  
-    // Used only if starting_seed is provided
-    vector<Residue*> _startingResidues;
+    
+    // If not empty, these residues always represent the beginning of a path (sample will
+    // extend them in both directions, if possible).
+    vector<Residue*> _initialPathResidues;
     
     // If not empty, fusePath will check each path for these residues, and if they are
     // found in the path, those positions will be fixed
     set<Residue*> _fixedResidues;
   
+    set<vector<Residue*>> _sampledPaths;
+    
     vector<Residue*> pathResiduesFromSpecifier(string path_spec);
     
 //    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, set<Residue*> fixedResidues, mstreal& fuserScore);

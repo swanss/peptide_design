@@ -223,36 +223,51 @@ bool PathSampler::pathClashes(const Structure &path, int seedStartIdx, int &inte
 
 vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
     vector<PathResult> results;
-  
-    vector<Residue *> residuesOrdered;
-    if (_startingResidues.empty()) {
-        unordered_set<Residue *> residues = _graph->getResidues();
-        residuesOrdered = vector<Residue*>(residues.begin(), residues.end());
-    } else {
-        residuesOrdered = _startingResidues;
-    };
-    
+
+    int totalSampledPaths = 0;
     while (results.size() < numPaths) {
-        // Pick a residue at random from the graph
-        Residue *startRes = residuesOrdered[MstUtils::randInt(residuesOrdered.size())];
-        vector<Residue *> path(startRes->getParent()->getResidues());
+        Residue *startRes;
+
+        // the position of the "first" residue of the seed that was most recently added to the path
+        // this residue represents the boundary: if this residue cannot be extended (and thus all
+        // before it could not be either), then the path cannot continue growing in the current direction
+        int lastSeedLimit;
+        vector<Residue*> initial_path;
+        vector<Residue*> path;
+        if (!_initialPathResidues.empty()) {
+            // The path begins with the already selected residues
+            startRes = _initialPathResidues.back();
+            path = startRes->getParent()->getResidues();
+            // the path *must* include these residues, so the C-terminal limit is set by this
+            auto it = find(path.begin(),path.end(),startRes);
+            lastSeedLimit = it - path.begin();
+        } else {
+            // Pick a residue at random from the graph
+            startRes = _startingResidues[MstUtils::randInt(_startingResidues.size())];
+            path = startRes->getParent()->getResidues();
+            lastSeedLimit = 0;
+        }
         string seedName = startRes->getStructure()->getName();
         int originalCount = path.size();
-        int firstSeedEnd = -1;
+        int firstSeedEnd = -1; //the position of the last residue of the first seed that was added to the path
+        initial_path = path;
         
-        // Extend forward
+        // Extend the C-terminus of the path
         int endIndex = path.size() - 1;
-        int lastSeedLimit = 0;
         vector<Residue *> adj;
-        while (endIndex > lastSeedLimit || !adj.empty()) {
+        while (endIndex >= lastSeedLimit) {
             unordered_set<Residue *> allAdj = _graph->forwardNeighbors(path[endIndex]);
+
+            // ensure that the adjacent residues are part of new seeds
             adj.clear();
             for (Residue *res: allAdj) {
                 if (res->getStructure()->getName() == seedName) continue;
                 adj.push_back(res);
             }
-            
+
             if (!adj.empty()) {
+                // the are potential residue(s) on other seeds that can be added to the path, select
+                // one seed to add
                 Residue *nextRes = adj[MstUtils::randInt(adj.size())];
                 seedName = nextRes->getStructure()->getName();
                 path.erase(path.begin() + endIndex + 1, path.end());
@@ -266,23 +281,34 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
                 lastSeedLimit = endIndex + 1;
                 endIndex = path.size() - 1;
             } else {
+                // there were no residues on a different seed to add to the path, check if there are
+                // potential bonds with the neighbouring residue in the N-terminal direction
                 endIndex--;
             }
         }
-        
-        // Extend backward
+
+        // Extend the N-terminus of the path
         endIndex = 0;
-        lastSeedLimit = (firstSeedEnd >= 0 ? firstSeedEnd : originalCount);
+        if (!_initialPathResidues.empty()) {
+            // the last seed limit is the position of the first required residue in the path
+            Residue* first = _initialPathResidues.front();
+            auto it = find(path.begin(),path.end(),first);
+            lastSeedLimit = it - path.begin();
+        } else {
+            // the last seed limit is either the position of the last residue from the first seed
+            // or just the last residue of the first seed, if it was never extended towards the C-terminus
+            lastSeedLimit = (firstSeedEnd >= 0 ? firstSeedEnd : originalCount - 1);
+        }
         seedName = path[0]->getStructure()->getName();
         adj.clear();
-        while (endIndex < lastSeedLimit || !adj.empty()) {
+        while (endIndex <= lastSeedLimit) {
             unordered_set<Residue *> allAdj = _graph->backwardNeighbors(path[endIndex]);
             adj.clear();
             for (Residue *res: allAdj) {
                 if (res->getStructure()->getName() == seedName) continue;
                 adj.push_back(res);
             }
-            
+
             if (!adj.empty()) {
                 Residue *nextRes = adj[rand() % adj.size()];
                 seedName = nextRes->getStructure()->getName();
@@ -292,24 +318,38 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
                 if (resIdx == newResidues.end())
                     MstUtils::error("Residue not found in its own chain!");
                 path.insert(path.begin(), newResidues.begin(), resIdx + 1);
-                lastSeedLimit = distance(newResidues.begin(), resIdx) + 1;
+                lastSeedLimit = resIdx - newResidues.begin();
                 endIndex = 0;
             } else {
                 endIndex++;
             }
         }
         
-        if ((path.size() <= originalCount) || (path.size() < minimumLength)) {
+        totalSampledPaths++;
+        
+        // Check if path is accepted
+        if (path == initial_path) {
+            cout << "Sampled path is the same as the initially selected seed" << endl;
+            continue;
+        } else if (_sampledPaths.find(path) != _sampledPaths.end()){
+            cout << "Path is redundant to one that has already been sampled" << endl;
+            continue;
+        } else if ((path.size() < minimumLength)) {
             cout << "Sampled path is too short: " << path.size() << endl;
             continue;
-        }
-        if (!emplacePathFromResidues(path, results)) {
+        } else if (!emplacePathFromResidues(path, results)) {
             cout << "Sampled path clashes" << endl;
             continue;
         }
-        if (results.size() % 100 == 0)
+        
+        _sampledPaths.insert(path);
+
+        if (results.size() % 100 == 0) {
             cout << results.size() << " paths generated" << endl;
+        }
     }
+    
+    cout << "In order to generate " << numPaths << " acceptable paths, sampled " << totalSampledPaths << endl;
     
     return results;
 }
