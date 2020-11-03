@@ -187,9 +187,8 @@ int main (int argc, char *argv[]) {
             string fixedSeedName = opts.getString("fixedSeed");
             sampler->addFixedSeed(fixedSeedName);
         }
+        sampler->setMinimumLength(minLength);
     }
-    
-    sampler->setMinimumLength(minLength);
     
     // Sample paths
     ofstream out(base+"_fused_paths.csv", ios::out);

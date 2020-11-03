@@ -39,7 +39,8 @@ public:
         for (int i = _seedStartIdx; i < _fusedPath.residueSize(); i++) {
             c->appendResidue(new Residue(_fusedPath.getResidue(i)));
         }
-        ret.appendChain(c);
+        c->setID(
+        ret.appendChain(_chainID);
     }
     fusionOutput getFuserScore() {return _fuserScore;}
     int getIntrachainClash() {return _intrachainClash;}
@@ -55,6 +56,7 @@ private:
     fusionOutput _fuserScore;
     int _interchainClash;
     int _intrachainClash;
+    string _chainID = "0";
     
 };
 

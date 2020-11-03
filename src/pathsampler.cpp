@@ -39,7 +39,6 @@ bool PathSampler::emplacePathFromResidues(vector<Residue *> path, vector<PathRes
 
     Structure fused; fusionOutput fuserScore;
     int seedStartIdx = fusePath(path, fused, fuserScore, fixedResidues);
-    fused.getChain(0).setID(chainID);
     int interchain_clash = 0; int intrachain_clash = 0;
     bool has_clash = pathClashes(fused, seedStartIdx, interchain_clash, intrachain_clash);
     
