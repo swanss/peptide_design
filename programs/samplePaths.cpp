@@ -225,7 +225,8 @@ int main (int argc, char *argv[]) {
             cout << "Path: " << pathIndex << endl;
             string name = base + "_fused-path_" + to_string(pathIndex);
             string name_whole = base + "_fused-path-and-context_" + to_string(pathIndex);
-            out << name << ",";
+            if (opts.isGiven("score_structures")) out << path_result.getFusedStructure().getName() << ",";
+            else out << name << ",";
             
             for (Residue *res: path_result.getOriginalResidues()) {
                 out << res->getStructure()->getName() << ":" << res->getResidueIndex() << ";";

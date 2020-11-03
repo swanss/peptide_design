@@ -45,9 +45,7 @@ public:
     fusionOutput getFuserScore() {return _fuserScore;}
     int getIntrachainClash() {return _intrachainClash;}
     int getInterchainClash() {return _interchainClash;}
-    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, fusionOutput fuserScore, int interchainClash = 0, int intrachainClash = 0): _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _fuserScore(fuserScore), _interchainClash(interchainClash), _intrachainClash(intrachainClash) {
-        if (originalResidues.empty()) _originalResidues = _fusedPath.getResidues();
-    }
+    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, fusionOutput fuserScore, int interchainClash = 0, int intrachainClash = 0): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _fuserScore(fuserScore), _interchainClash(interchainClash), _intrachainClash(intrachainClash) {}
 
 private:
     vector<Residue *> _originalResidues;
