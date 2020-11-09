@@ -860,10 +860,12 @@ void cleanStructure(Structure& s, Structure& cleaned, bool reassignChains, bool 
     for (int i = 0; i < residues.size(); i++) {
         Residue* res = residues[i];
         if (res->atomSize() >= 4 && hasBackbone(*res) && res->getName().length() == 3) {
-            res_t idx = SeqTools::aaToIdx(res->getName());
-            if (idx != SeqTools::unknownIdx() && idx != SeqTools::gapIdx()) {
-                passingResidues.push_back(res);
-            }
+            //previously residues were not added if they were named 'UNK' or '-'.
+//            res_t idx = SeqTools::aaToIdx(res->getName());
+//            if (idx != SeqTools::unknownIdx() && idx != SeqTools::gapIdx()) {
+//                passingResidues.push_back(res);
+//            }
+            passingResidues.push_back(res);
         }
     }
     cleaned = Structure(passingResidues);

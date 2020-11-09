@@ -91,6 +91,12 @@ bool FASSTScorer::prepareCombinedStructure(Structure *seed) {
     Structure tmpStructure(*seed);
     Structure pose;
     cleanStructure(tmpStructure, pose, true, true, true);
+    
+    if (pose.residueSize() == 0) {
+        cout << "pose has no residues" << endl;
+        return false;
+    }
+    
     removeSideChains(pose); // may not always want to do this
     AtomPointerVector poseAPV = pose.getAtoms();
     set<int> structResis; // empty since we are not excluding any chains
@@ -165,6 +171,7 @@ unordered_map<Residue*, mstreal> SequenceCompatibilityScorer::score(Structure *s
     
     if (mustContact && conts.size() == 0) {
         // doesn't contact the correct regions of the target
+        cout << "The provided seed doesn't contact the target" << endl;
         resetCombinedStructure();
         return invalidScoreMap(seed);
     }
@@ -210,7 +217,7 @@ ofstream *SequenceCompatibilityScorer::getScoreWriteStream() {
         
         // Write the header file
         ofstream& out = *scoreWriteOut;
-        out << "seed,seed_res,target_res,num_results,pair_score,bg_score,seq_score,contact_score,total_score" << endl;
+        out << "seed,seed_res_num,target_res_num,num_results,pair_score,bg_score,seq_score,contact_score,total_score" << endl;
     }
     return scoreWriteOut;
 }
@@ -330,7 +337,7 @@ unordered_map<Residue *, mstreal> SequenceCompatibilityScorer::sequenceStructure
                 }
                 
                 if (out != nullptr)
-                    *out << seed->getName() << "," << seedResidue->getResidueIndexInChain() << "," << res->getResidueIndexInChain() << ",";
+                    *out << seed->getName() << "," << seedResidue->getChainID() << seedResidue->getNum() << "," <<  res->getChainID() << res->getNum() << ",";
                 
                 cout << "Calculating score component" << endl;
                 double score = sequenceStructureScoreComponent(frag, res, seedResidue, &seenProbs);
