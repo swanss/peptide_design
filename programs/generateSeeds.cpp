@@ -28,6 +28,7 @@ int main(int argc, char *argv[]) {
     op.addOption("variable_rmsd", "If match_req == true and this option is provided fragments will not grow, instead the RMSD cutoff will be increased until sufficient matches have be found");
     op.addOption("match_rmsd", "Sets the max rmsd allowed when searching for matches to protein fragments.");
     op.addOption("no_adaptive_rmsd","If provided, will not use adaptive RMSD cutoff.");
+    op.addOption("seq", "Constrain the matches to those that have the same central amino acid");
     op.setOptions(argc, argv);
     
     if (op.isGiven("peptide") == op.isGiven("sel")) MstUtils::error("Either a peptide chain ID or a selection string must be provided, but not both");
@@ -85,6 +86,7 @@ int main(int argc, char *argv[]) {
     TE.setFlankingNumber(flanking_res);
     TE.setMaxRMSD(match_rmsd);
     TE.setAdaptiveRMSD(adaptive_rmsd);
+    if (op.isGiven("seq")) TE.setSeqConst(true);
     timer.start();
     if (op.isGiven("match_req")) {
         cout << "Match requirement: " << op.getInt("match_req") << endl;
