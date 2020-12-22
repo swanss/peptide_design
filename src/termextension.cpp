@@ -57,12 +57,12 @@ void TermExtension::set_params(string fasstDBPath, string rotLib) {
     F.setOptions(foptsBase);
     F.options().setRedundancyProperty("sim");
     F.options().setMinNumMatches(0); //Always allow 0 matches, min_match_number is used for the match_requirement_algorithm
-    if (params.verbose) cout << "Reading FASST database... ";
+    cout << "Reading FASST database... " << endl;
     MstTimer timer; timer.start();
     fasstdbPath = fasstDBPath;
     F.readDatabase(fasstdbPath,1); //only read backbone///, destroy original structure and reload as needed
     timer.stop();
-    if (params.verbose) cout << "Reading the database took " << timer.getDuration() << " s... " << endl;
+    cout << "Reading the database took " << timer.getDuration() << " s... " << endl;
     
     // set seed/clash parameters
     minimum_seed_length = (params.seed_flanking_res*2)+1;
@@ -156,6 +156,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
             /* MATCH_GUIDED (find proper RMSD cutoff) */
         } else if (option == MATCH_NUM_REQ_CUTOFF) {
             //set this to avoid generating an unecessary number of matches
+            //note: this setting gives the N best matches (vs. the first N matches below the cutoff)
             F.options().setMaxNumMatches(params.match_req);
             // Begin by making a fragment with the binding site residue alone
             seedTERM* self_f = new seedTERM(this, {cenRes}, search, params.max_rmsd, params.flanking_res);
@@ -167,33 +168,32 @@ void TermExtension::generateFragments(fragType option, bool search) {
                 all_fragments.push_back(self_f);
             } else {
                 //if there are insufficient matches, raise the cutoff
-                if (params.verbose) cout << "Fragment has insufficient matches, try raising cutoff" << endl;
-                mstreal new_rmsd_cutoff = params.max_rmsd;
-                int new_flanking_res = params.flanking_res;
-                seedTERM* self_f = nullptr;
+                if (params.verbose) cout << "Fragment has insufficient matches, try decreasing flank residues" << endl;
+                int new_flanking_res = params.flanking_res - 1;
+                delete self_f;
+                seedTERM* shortened_f = nullptr;
                 while (new_flanking_res > 0) {
-                    while (new_rmsd_cutoff <= 1.0) {
-                        new_rmsd_cutoff += 0.1;
-                        if (params.verbose) cout << "Try raising the cutoff to " << new_rmsd_cutoff << endl;
-                        delete self_f;
-                        self_f = new seedTERM(this, {cenRes}, search, new_rmsd_cutoff, new_flanking_res);
-                        if (self_f->getNumMatches() >= params.match_req) {
-                            if (params.verbose) cout << "Fragment has sufficient matches, add and continue" << endl;
-                            all_fragments.push_back(self_f);
-                            goto end;
-                        }
+                    if (params.verbose) cout << "Try decreasing number of flanking residues to " << new_flanking_res << " (and reset cutoff)" << endl;
+                    // search for N matches
+                    shortened_f = new seedTERM(this, {cenRes}, search, params.max_rmsd, new_flanking_res);
+                    
+                    // check if sufficient matches
+                    if (self_f->getNumMatches() >= params.match_req) {
+                        if (params.verbose) cout << "Fragment has sufficient matches, add and continue" << endl;
+                        all_fragments.push_back(shortened_f);
+                        break;
                     }
-                    //decrement the flanking residue number, making a shorter segment
-                    if (params.verbose) cout << "Try decreasing number of flanking residues to " << new_flanking_res-1 << " (and reset cutoff)" << endl;
+                    delete shortened_f;
                     new_flanking_res--;
-                    new_rmsd_cutoff = params.max_rmsd;
                 }
-                if (params.verbose) cout << "Was not able to find sufficient matches to fragment within allowed RMSD cutoff range, adding anyways" << endl;
-                all_fragments.push_back(self_f);
-                end:;
+                if (new_flanking_res <= 0) {
+                    if (params.verbose) cout << "Was not able to find sufficient matches to fragment within allowed RMSD cutoff range, adding anyways" << endl;
+                    all_fragments.push_back(shortened_f);
+                }
             }
             //reset for the future
             F.options().setMaxNumMatches(-1);
+            
             /* MATCH_GUIDED (find proper fragment size) */
         } else if (option == MATCH_NUM_REQ_SIZE || option == COMPLEXITY_SCAN) {
             /*
