@@ -69,6 +69,11 @@ void writeStructureCoordinates(const Structure &s, ofstream &out, string chainID
     }
 }
 
+Structure getSeedSegment(Structure* S, string seed_chain = "0") {
+    Chain* C = S->getChainByID(seed_chain);
+    return Structure(*C);
+}
+
 int main (int argc, char *argv[]) {
     
     // Get command-line arguments
@@ -156,7 +161,8 @@ int main (int argc, char *argv[]) {
             }
 
             Structure *s = binaryFile.next();
-            writeStructureCoordinates(*s, out, chainID, atomMode, outFileExt == "pcloud", [&](ofstream &out, string ssID, Atom *a) {
+            Structure S_seed = getSeedSegment(s);
+            writeStructureCoordinates(S_seed, out, chainID, atomMode, outFileExt == "pcloud", [&](ofstream &out, string ssID, Atom *a) {
                 if (colorMode == "uniform") {
                     out << 0;
                 } else if (colorMode == "atom") {

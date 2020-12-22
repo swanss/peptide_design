@@ -22,13 +22,7 @@ int main(int argc, char *argv[]) {
     op.addOption("pdb", "path to a .pdb file. Can include just protein chains, or both protein/peptide chains", true);
     op.addOption("peptide", "peptide chain ID. Only necessary if the provided .pdb file contains a peptide chain");
     op.addOption("sel","a selection string that specifies the protein residues to generate seeds around. Necessary if the provided PDB file does not include peptide chains");
-    op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
-    op.addOption("flanking_res","The number of residues flanking a contact to include when creating a fragment (default 2).");
-    op.addOption("match_req", "The fragmenter will attempt to create the largest (ranked by number of residues) fragments that have at least this many matches. During TERM Extension, even if the fragment has more than this number match_num_req matches, only this number will be used to generate seeds. If not defined, defaults to CEN_RES.");
-    op.addOption("variable_rmsd", "If match_req == true and this option is provided fragments will not grow, instead the RMSD cutoff will be increased until sufficient matches have be found");
-    op.addOption("match_rmsd", "Sets the max rmsd allowed when searching for matches to protein fragments.");
-    op.addOption("no_adaptive_rmsd","If provided, will not use adaptive RMSD cutoff.");
-    op.addOption("seq", "Constrain the matches to those that have the same central amino acid");
+    op.addOption("params_file","Path to the configuration file (specifies fasst database and rotamer library)",true);
     op.setOptions(argc, argv);
     
     if (op.isGiven("peptide") == op.isGiven("sel")) MstUtils::error("Either a peptide chain ID or a selection string must be provided, but not both");
@@ -37,13 +31,14 @@ int main(int argc, char *argv[]) {
     
     // Variables provided by user
     Structure target(op.getString("pdb"));
-    configFile config(op.getString("config"));
+    string params_file_path = op.getString("params_file");
     string p_cid = op.getString("peptide","");
     string sel_str = op.getString("sel","");
-    int flanking_res = op.getInt("flanking_res",2);
-    mstreal match_rmsd = op.getReal("match_rmsd",1.2);
-    bool variable_rmsd = op.isGiven("variable_rmsd");
-    bool adaptive_rmsd = !op.isGiven("no_adaptive_rmsd");
+  
+    // Open params file
+    TEParams params(params_file_path);
+    params.printValues();
+    configFile config(params.getConfigFile());
     
     // Make directories
     bool makeParents = true;
@@ -82,26 +77,9 @@ int main(int argc, char *argv[]) {
     classifier.writeResClassificationtoTSV(target, out);
     out.close();
     
-    TermExtension TE(config.getDB(), config.getRL(), bindingSiteRes);
-    TE.setFlankingNumber(flanking_res);
-    TE.setMaxRMSD(match_rmsd);
-    TE.setAdaptiveRMSD(adaptive_rmsd);
-    if (op.isGiven("seq")) TE.setSeqConst(true);
+    TermExtension TE(config.getDB(), config.getRL(), bindingSiteRes, params);
     timer.start();
-    if (op.isGiven("match_req")) {
-        cout << "Match requirement: " << op.getInt("match_req") << endl;
-        TE.setMatchReq(op.getInt("match_req"));
-        if (variable_rmsd) {
-            TE.setAdaptiveRMSD(false);
-            TE.generateFragments(TermExtension::MATCH_NUM_REQ_CUTOFF);
-        } else {
-            TE.generateFragments(TermExtension::MATCH_NUM_REQ_SIZE);
-        }
-    }
-    else {
-        cout << "No match requirement, CEN_RES mode" << endl;
-        TE.generateFragments(TermExtension::CEN_RES);
-    }
+    TE.generateFragments(TermExtension::MATCH_NUM_REQ_CUTOFF);
     timer.stop();
     cout << timer.getDuration() << " seconds to generate fragments" << endl;
     

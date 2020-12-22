@@ -32,6 +32,7 @@ using namespace MST;
 class TermExtension;
 class seedTERM;
 struct seed;
+class TEParams;
 
 struct Seed {
     Structure* extended_fragment;
@@ -88,7 +89,7 @@ public:
     int getSegmentNum(mstreal maxPeptideBondLen = 2.0);
     vector<int> getSegmentLens(mstreal maxPeptideBondLen = 2.0); //ordered by the residue indices
     vector<int> getResIdx() {return allResIdx;}
-    Residue* getCenRes() {return cenRes;}
+    Residue* getCenRes() const {return cenRes;}
     int getCenResIdx() const {return cenResIdx;}
     TermExtension* getParent() const {return parent;}
     string getName() const {return name;};
@@ -150,6 +151,35 @@ private:
     
 };
 
+class TEParams {
+    friend seedTERM;
+    friend TermExtension;
+public:
+    TEParams(string params_file_path) {
+        setParamsFromFile(params_file_path);
+    };
+    
+    void setParamsFromFile(string params_file_path);
+    
+    void printValues();
+    
+    string getConfigFile() {return config_file;}
+    
+private:
+    mstreal cd_threshold = .01;
+    mstreal cdSeqConst_threshold = .01;
+    mstreal int_threshold = .01;
+    mstreal bbInteraction_cutoff = 3.5;
+    mstreal max_rmsd = 1.2;
+    int flanking_res = 2;
+    int match_req = -1; //only considered if value is > 0
+    bool adaptive_rmsd = false;
+    bool seq_const = false;
+    string config_file = "";
+    int seed_flanking_res = 2;
+    bool verbose = false;
+};
+
 
 class TermExtension {
     friend class seedTERM;
@@ -195,20 +225,20 @@ public:
     enum fragType {CEN_RES, CONTACT, ALL_COMBINATIONS, MATCH_NUM_REQ_SIZE, MATCH_NUM_REQ_CUTOFF, COMPLEXITY_SCAN};
     
     /* Constructor */
-    TermExtension(string fasstDBPath, string rotLib, vector<Residue*> selection, bool _verbose = true);
+    TermExtension(string fasstDBPath, string rotLib, vector<Residue*> selection, TEParams& _params);
     
     /* Destructor */
     ~TermExtension();
     
     /* Fragmenter setters */
     void setTargetResidues(vector<Residue*> Selection);
-    void setMatchReq(int matchReq) {match_req = matchReq;}
-    void setFlankingNumber(int _flank) {flanking_res = _flank;}
+    void setMatchReq(int matchReq) {params.match_req = matchReq;}
+    void setFlankingNumber(int _flank) {params.flanking_res = _flank;}
     void setMinSeedLength(int len) {minimum_seed_length = len;}
-    void setMaxRMSD(mstreal _max_rmsd) {max_rmsd = _max_rmsd;}
-    void setAdaptiveRMSD(bool _adaptive_rmsd) {adaptive_rmsd = _adaptive_rmsd;}
-    void setSeqConst(bool _seq_const) {seq_const = _seq_const;}
-    
+    void setMaxRMSD(mstreal _max_rmsd) {params.max_rmsd = _max_rmsd;}
+    void setAdaptiveRMSD(bool _adaptive_rmsd) {params.adaptive_rmsd = _adaptive_rmsd;}
+    void setSeqConst(bool _seq_const) {params.seq_const = _seq_const;}
+  
     void resetFragments() {
         for (seedTERM* f : all_fragments) delete f;
         all_fragments.clear();
@@ -216,8 +246,8 @@ public:
     
     /* Fragmenter getters */
     Structure* getTarget() {return target_structure;}
-    bool getAdaptiveRMSD() {return adaptive_rmsd;}
-    int getFlank() const {return flanking_res;}
+    bool getAdaptiveRMSD() {return params.adaptive_rmsd;}
+    int getFlank() const {return params.flanking_res;}
     string getName() {return structure_name;}
     int getExtendedFragmentNumber() {return extendedFragmentNumber;}
     
@@ -263,7 +293,7 @@ public:
      */
     //  void extendFragments(seedType seed_type, bool store = 0, string outDir = "", string file_type = "bin");
     
-    int extendFragment(seedTERM* f, seedTERM::seedType option, StructuresBinaryFile* bin, fstream& info, fstream& sec_struct);
+    int extendFragment(seedTERM* f, seedTERM::seedType option, StructuresBinaryFile* bin, fstream& matchInfo, fstream& info, fstream& sec_struct);
     
     // Lower memory requirement
     void extendFragmentsandWriteStructures(seedTERM::seedType seed_type, string outDir = "");
@@ -281,9 +311,9 @@ protected:
      Returns the indices of the residues that contact the central residue in the fasst target structure
      Each vector is a set of residues that will form a single seed segment
      NOTE: this is fundamentally different than the match_idx, because it is only the *contacting* residues */
-    vector<int> identifySeedResidueIdx(const seedTERM* frag, const Structure* match_structure, vector<int> match_idx, int fasst_target_index);
+    vector<int> identifySeedResidueIdx(const seedTERM* frag, const Structure* match_structure, vector<int> match_idx, int fasst_target_index, string& cenResAA, fstream& match);
     
-    vector<int> getNonClashingResidueIdx(vector<int> seed_res_idx, const Structure* match_structure);
+    vector<int> getNonClashingResidueIdx(vector<int> seed_res_idx, const Structure* match_structure, fstream& match);
     
     vector<vector<int>> getSeedSegments(vector<int> seed_res_idx, const Structure* match_structure);
     
@@ -301,15 +331,15 @@ private:
     FASST F;
     fasstSearchOptions foptsBase; // base FASST options that will be used with every search
     string fasstdbPath;
-    int match_req; //if set to <= 0, does not influence process
+//    int match_req; //if set to <= 0, does not influence process
     
     vector<Residue*> bindingSiteRes;
-    mstreal cd_threshold, int_threshold, bbInteraction_cutoff;
+//    mstreal cd_threshold, cdSeqConst_threshold, int_threshold, bbInteraction_cutoff;
     
     // Fragmentation parameters
-    mstreal max_rmsd;
-    int flanking_res; //must remain constant between fragment creation and seed extraction
-    bool adaptive_rmsd, seq_const;
+//    mstreal max_rmsd;
+//    int flanking_res; //must remain constant between fragment creation and seed extraction
+//    bool adaptive_rmsd, seq_const;
     
     // Fragments
     vector<seedTERM*> all_fragments;
@@ -321,11 +351,15 @@ private:
     ProximitySearch* target_PS;
     vector<vector<Atom*>> target_structures_atoms;
     
-    int seed_flanking_res, minimum_seed_length; // seed variables
+    int minimum_seed_length; // seed variables
     int extendedFragmentNumber; //counter
+    
+    void setAAToSeqContProp();
+    map<string,string> aaToSeqContProp; //for getting the keys to the fasst property
     
     secondaryStructureClassifier sec_structure;
     
+    TEParams params; //handles all parameters
 };
 
 
