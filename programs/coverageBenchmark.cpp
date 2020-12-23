@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
     string type2_proposal_bin = outDir + type2_proposal_name + ".bin";
     string type2_name = "type2_seeds";
     string type2_bin = outDir + type2_name + ".bin";
-    seedStatistics stats(complex, p_cid, type2_proposal_bin);
+    seedStatistics stats(complex, p_cid);
     if (hist_path != "") {
         bool position = false;
         bool orientation = true;
@@ -106,6 +106,7 @@ int main(int argc, char *argv[]) {
         cout << "Generated type 2 seeds (to find proposal distribution) in " << timer.getDuration() << " seconds" << endl;
         
         //generate a proposal histogram
+        stats.setBinaryFile(type2_proposal_name);
         stats.writeStatisticstoFile(outDir, type2_proposal_name, num_sampled);
         histogram proposal = stats.generateDistanceHistogram();
         string proposal_hist_path = outDir + "seed_centroid_distance_proposal.csv";
