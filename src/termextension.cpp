@@ -159,7 +159,6 @@ void TermExtension::generateFragments(fragType option, bool search) {
             //note: this setting gives the N best matches (vs. the first N matches below the cutoff)
             F.options().setMaxNumMatches(params.match_req);
             // Begin by making a fragment with the binding site residue alone
-            if (params.verbose) cout << "Constructing fragment with default cutoff " << params.max_rmsd << endl;
             seedTERM* self_f = new seedTERM(this, {cenRes}, search, params.max_rmsd, params.flanking_res);
             
             //if this has the required number of matches, stop
@@ -173,6 +172,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
                 delete self_f;
                 seedTERM* shortened_f = nullptr;
                 while (new_flanking_res > 0) {
+                    delete shortened_f;
                     if (params.verbose) cout << "Try decreasing number of flanking residues to " << new_flanking_res << " (and reset cutoff)" << endl;
                     // search for N matches
                     shortened_f = new seedTERM(this, {cenRes}, search, params.max_rmsd, new_flanking_res);
@@ -183,7 +183,6 @@ void TermExtension::generateFragments(fragType option, bool search) {
                         all_fragments.push_back(shortened_f);
                         break;
                     }
-                    delete shortened_f;
                     new_flanking_res--;
                 }
                 if (new_flanking_res <= 0) {
