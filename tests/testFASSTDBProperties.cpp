@@ -33,6 +33,7 @@ int main(int argc, char *argv[]) {
     chain_num += S->chainSize();
   }
   
+  cout << "dbPath: " << op.getString("dbPath") << endl;
   cout << "Structures in DB: " << target_num << endl;
   cout << "Chains in DB: " << chain_num << endl;
   
@@ -45,6 +46,14 @@ int main(int argc, char *argv[]) {
   cout << "Residue pair property: interfered = " << F.isResiduePairPropertyPopulated("interfered") << endl;
   cout << "Residue pair property: bb = " << F.isResiduePairPropertyPopulated("bb") << endl;
   cout << "Residue relationship property sim: " << MstUtils::toString(F.isResidueRelationshipPopulated("sim")) << endl;
+    
+    // create map of prop names for contact degree with amino acid constraints
+    vector<string> aaNames = {"ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "HIS", "ILE", "LEU",
+        "LYS", "MET", "PHE", "SER", "THR", "TRP", "TYR", "VAL", "ALA"}; //aa allowed in rotamer library
+    map<string, string> aaToProp;
+    for (string aa : aaNames) aaToProp[aa] = "cont"+aa;
+    
+    for (auto it: aaToProp) cout << "Residue pair property: " << it.second << " = " << F.isResiduePairPropertyPopulated(it.second) << endl;
   
   return 1;
 }

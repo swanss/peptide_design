@@ -68,6 +68,7 @@ void TermExtension::set_params(string fasstDBPath, string rotLib) {
     minimum_seed_length = (params.seed_flanking_res*2)+1;
     extendedFragmentNumber = 0;
     
+    setAAToSeqContProp();
 }
 
 TermExtension::~TermExtension() {
@@ -411,7 +412,7 @@ void TermExtension::extendFragmentsandWriteStructures(seedTERM::seedType option,
     MstTimer timer;
     timer.start();
     
-    string matchContactsFile = outDir + "matchContacts.info";
+    string matchContactsFile = outDir + "matchContacts.tsv";
     string binFile = outDir + "extendedfragments.bin";
     string infoFile = outDir + "extendedfragments.info";
     string secStrucFile = outDir + "seed_secondary_structure.info";
@@ -515,7 +516,7 @@ vector<int> TermExtension::identifySeedResidueIdx(const seedTERM* frag, const St
     int cenResMatchIdx = match_idx[cenResIdx];
     
     if (params.verbose) match << cenResMatchIdx << "\t";
-    if (params.verbose) for (int matchResID : match_idx) match << matchResID << (matchResID != match_idx.back() ? "," : "\t");
+    if (params.verbose) match << joinString(match_idx, ",") << "\t";
 
     
     // Identify residues interacting with central res in match protein using EACH contact type
@@ -523,8 +524,9 @@ vector<int> TermExtension::identifySeedResidueIdx(const seedTERM* frag, const St
     
     // Sequence constrained contacts are special, and each is stored as a unique property
     map<int, mstreal> all_contacts_seqconst;
-    if (aaToSeqContProp.count(cenResAA)) {
+    if (aaToSeqContProp.count(cenResAA) == 1) {
         all_contacts_seqconst = F.getResiduePairProperties(fasst_target_index,aaToSeqContProp[cenResAA],cenResMatchIdx);
+        cout << "all_contacts_seqconst size: " << all_contacts_seqconst.size() << endl;
     }
     
     map<int, mstreal> all_interfered = F.getResiduePairProperties(fasst_target_index,"interfered",cenResMatchIdx);
@@ -534,50 +536,62 @@ vector<int> TermExtension::identifySeedResidueIdx(const seedTERM* frag, const St
     // Filter each contact type by its respective value, add to filtered contacts if new
     //CD
     vector<int> filtered_conts;
+    vector<int> contacts_for_type;
     for (auto it = all_contacts.begin(); it != all_contacts.end(); it++) {
         if (it->second > params.cd_threshold) {
             filtered_conts.push_back(it->first);
-            if (params.verbose) if (it != all_contacts.begin()) match << "," ;
-            if (params.verbose) match << it->first;
+            if (params.verbose) contacts_for_type.push_back(it->first);
         }
     }
-    if (params.verbose) match << "\t";
+    if (params.verbose) {
+        match << joinString(contacts_for_type,",") << "\t";
+        contacts_for_type.clear();
+    }
+    
     //CD seq const
     for (auto it = all_contacts_seqconst.begin(); it != all_contacts_seqconst.end(); it++) {
         if ((it->second > params.cdSeqConst_threshold) && (find(filtered_conts.begin(),filtered_conts.end(),it->first) == filtered_conts.end())) {
             filtered_conts.push_back(it->first);
-            if (params.verbose) if (it != all_contacts_seqconst.begin()) match << "," ;
-            if (params.verbose) match << it->first;
+            if (params.verbose) contacts_for_type.push_back(it->first);
         }
     }
-    if (params.verbose) match << "\t";
+    if (params.verbose) {
+        match << joinString(contacts_for_type,",") << "\t";
+        contacts_for_type.clear();
+    }
     //Int (residues that are interfered with by central res)
     for (auto it = all_interfered.begin(); it != all_interfered.end(); it++) {
         if ((it->second > params.int_threshold) && (find(filtered_conts.begin(),filtered_conts.end(),it->first) == filtered_conts.end())) {
             filtered_conts.push_back(it->first);
-            if (params.verbose) if (it != all_interfered.begin()) match << "," ;
-            if (params.verbose) match << it->first;
+            if (params.verbose) contacts_for_type.push_back(it->first);
         }
     }
-    if (params.verbose) match << "\t";
+    if (params.verbose) {
+        match << joinString(contacts_for_type,",") << "\t";
+        contacts_for_type.clear();
+    }
     //Int (residues that interfere with the central res)
     for (auto it = all_interfering.begin(); it != all_interfering.end(); it++) {
         if ((it->second > params.int_threshold) && (find(filtered_conts.begin(),filtered_conts.end(),it->first) == filtered_conts.end())) {
             filtered_conts.push_back(it->first);
-            if (params.verbose) if (it != all_interfering.begin()) match << "," ;
-            if (params.verbose) match << it->first;
+            if (params.verbose) contacts_for_type.push_back(it->first);
         }
     }
-    if (params.verbose) match << "\t";
+    if (params.verbose) {
+        match << joinString(contacts_for_type,",") << "\t";
+        contacts_for_type.clear();
+    }
     //bb
     for (auto it = all_bbInteraction.begin(); it != all_bbInteraction.end(); it++) {
         if ((it->second < params.bbInteraction_cutoff) && (find(filtered_conts.begin(),filtered_conts.end(),it->first) == filtered_conts.end())) {
             filtered_conts.push_back(it->first);
-            if (params.verbose) if (it != all_bbInteraction.begin()) match << "," ;
-            if (params.verbose) match << it->first;
+            if (params.verbose) contacts_for_type.push_back(it->first);
         }
     }
-    if (params.verbose) match << "\t";
+    if (params.verbose) {
+        match << joinString(contacts_for_type,",") << "\t";
+        contacts_for_type.clear();
+    }
     
     // Search for contacts that do not already appear in the residue indices of the match (or their flank)
     // if slow, replace this
@@ -615,7 +629,7 @@ vector<int> TermExtension::identifySeedResidueIdx(const seedTERM* frag, const St
             if (find(seed_res.begin(),seed_res.end(),j) == seed_res.end()) seed_res.push_back(j);
         }
     }
-    if (params.verbose) for (int seed_res_id : seed_res) match << seed_res_id << (seed_res_id != seed_res.back() ? "," : "\t");
+    if (params.verbose) match << joinString(seed_res,",") << "\t" << endl;
     return seed_res;
 }
 
@@ -669,10 +683,12 @@ vector<string> TermExtension::classifySegmentsInMatchProtein(Structure* S, vecto
 }
 
 void TermExtension::setAAToSeqContProp() {
+    cout << "Set the AAToSeqContProp map" << endl;
     vector<string> aaNames = {"ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "HIS", "ILE", "LEU",
         "LYS", "MET", "PHE", "SER", "THR", "TRP", "TYR", "VAL", "ALA"}; // all but GLY and PRO
     for (string aa : aaNames) {
         aaToSeqContProp[aa] = "cont"+aa;
+        cout << "key: " << aa << ", value: " << "cont"+aa << endl;
     }
 }
 
