@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     Structure complex(op.getString("pdb"));
     string p_cid = op.getString("peptide");
     mstreal max_rmsd = op.getReal("max_rmsd",2.0);
-    configFile config(op.getString("config"));
+    config config(op.getString("config"));
     string hist_path = op.getString("hist","");
     
     // Set the sequence of the peptide to "unknown"
@@ -106,8 +106,8 @@ int main(int argc, char *argv[]) {
         cout << "Generated type 2 seeds (to find proposal distribution) in " << timer.getDuration() << " seconds" << endl;
         
         //generate a proposal histogram
-        stats.setBinaryFile(type2_proposal_name);
-        stats.writeStatisticstoFile(outDir, type2_proposal_name, num_sampled);
+        stats.setBinaryFile(type2_proposal_bin);
+        stats.writeStatisticstoFile(outDir, type2_proposal_bin, num_sampled);
         histogram proposal = stats.generateDistanceHistogram();
         string proposal_hist_path = outDir + "seed_centroid_distance_proposal.csv";
         proposal.writeHistFile(proposal_hist_path);
@@ -190,6 +190,29 @@ int main(int argc, char *argv[]) {
         IC.writeAllAlignedSeedsInfo(covDir+"type2_");
         IC.writeBestAlignedSeeds(covDir+"type2_",1,true);
     }
+    
+    // leave commented until future commit where the rest of the pathFromCoveringSeeds is introduced
+//    /*
+//     Lastly, find the set optimally covering seeds and output as a path string. These can be fused later.
+//
+//     This is obtained by the following algorithm
+//     1) Define the peptide residues to be covered
+//     2) Find the seed that covers the most peptide residues. If there is a tie between two seeds, choose
+//     the seed with the lowest RMSD. Note: the terminal residues of the seed do not count as covering the peptide
+//     unless there is some other seed residue also covering that peptide residue. This is because junctions
+//     between seeds *must* have overlap with other seeds (or else they could not be sampled by our method)
+//     3) If all peptide residues are covered, terminate. Otherwise, return to step 2
+//
+//     */
+//
+//    pathFromCoveringSeeds generatePath(&IC);
+//
+//    string pathString = generatePath.getCoveringPath();
+//
+//    if (pathString == "") cout << "Was not able to generate a covering path" << endl;
+//    else cout << "path string: " << pathString;
+//
+//    generatePath.printCoveringSeeds();
     
     cout << "done" << endl;
     return 0;
