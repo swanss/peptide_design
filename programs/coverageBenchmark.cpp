@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     Structure complex(op.getString("pdb"));
     string p_cid = op.getString("peptide");
     mstreal max_rmsd = op.getReal("max_rmsd",2.0);
-    config config(op.getString("config"));
+    configFile config(op.getString("config"));
     string hist_path = op.getString("hist","");
     
     // Set the sequence of the peptide to "unknown"
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
         
         //generate a proposal histogram
         stats.setBinaryFile(type2_proposal_bin);
-        stats.writeStatisticstoFile(outDir, type2_proposal_bin, num_sampled);
+        stats.writeStatisticstoFile(outDir, type2_proposal_name, num_sampled);
         histogram proposal = stats.generateDistanceHistogram();
         string proposal_hist_path = outDir + "seed_centroid_distance_proposal.csv";
         proposal.writeHistFile(proposal_hist_path);
