@@ -141,9 +141,97 @@ unordered_map<Residue*, mstreal> FASSTScorer::remapResiduesFromCombinedStructure
     return result;
 }
 
+#pragma mark - contactCounter
+
+int contactCounter::countContacts(Structure* seed) {
+    int totalNewContacts = 0;
+    
+    // Add seed chain to target_copy
+    if (seed->chainSize() != 1) MstUtils::error("Seed should have a single chain","contactCounter::countContacts");
+    
+    Chain* seedChain = new Chain(seed->getChain(0));
+    targetCopy->appendChain(seedChain,false);
+    
+    // Get seed residues, excluding those within flankingRes from the termini
+    vector<Residue*> seedRes = getSeedRes(seedChain);
+    if (seedRes.empty()) return totalNewContacts;
+    
+    if (verbose) cout << "Seed chain with " << seedRes.size()+flankingRes*2 << " residues total, " << seedRes.size() << " that will be searched for contacts to the target" << endl;
+    
+    // Get all kinds of contacts
+    contactList bbConts; contactList sbConts; contactList bsConts; contactList ssConts;
+    bool intra = false;
+    // note from craig: switched bsConts and sbConts here as we want sb to be SC from target
+    // normal order bbConts, bsConts, sbConts, ssConts
+    splitContacts(*targetCopy, seedRes, RL, cParams, intra, bbConts, sbConts, bsConts, ssConts);
+    contactList conts = contactListUnion({bbConts, sbConts, bsConts, ssConts});
+    
+    if (verbose) cout << "Contacts between seed residues and the target: " << conts.size() << endl;
+    
+    for (int i = 0; i < conts.size(); i++) {
+        Residue *sourceResInCopy = conts.srcResidue(i);
+        
+        // Find the source residue in the target
+        Residue *sourceResInTarget = getTargetResidue(sourceResInCopy);
+        
+        // Add to contact count
+        contactCounts[sourceResInTarget] += 1;
+    }
+    
+    // Reset targetCopy
+    targetCopy->deleteChain(seedChain);
+    
+    return totalNewContacts;
+}
+
+void contactCounter::readContactsFile(string contactsFile) {
+    vector<string> lines = MstUtils::fileToArray(contactsFile);
+    
+    for (string line : lines) {
+        if (line == lines.front()) continue; // skip the header line
+        vector<string> line_split = MstUtils::split(line,"\t");
+        if (line_split.size() != 4) MstUtils::error("Line in contactsFile should have 4 fields, but instead has: "+MstUtils::toString(line_split.size()),"contactCounter::readContactsFile");
+        string chainID = line_split[0];
+        int resNum = MstUtils::toInt(line_split[1]);
+        string resName = line_split[2];
+        int count = MstUtils::toInt(line_split[3]);
+        
+        // Check if residue exists in the target protein
+        Chain *targetChain = target->getChainByID(chainID);
+        if (targetChain == NULL) MstUtils::error("Chain with ID: "+chainID+" not found in target","contactCounter::readContactsFile");
+        Residue* targetRes = targetChain->findResidue(resName, resNum);
+        if (targetRes == NULL) MstUtils::error("Residue with num,name "+MstUtils::toString(resNum)+","+resName+" not found in target","contactCounter::readContactsFile");
+        
+        // Add to count
+        contactCounts[targetRes] += count;
+    }
+}
+
+void contactCounter::writeContactsFile(string contactsFile) {
+    fstream contacts;
+    MstUtils::openFile(contacts,contactsFile,fstream::out);
+    string sep = "\t";
+    
+    for (auto it : contactCounts) {
+        // get the target residue and necessary info
+        Residue *targetRes = it.first;
+        string targetResChainID = targetRes->getChainID();
+        int resNum = targetRes->getNum();
+        string resName = targetRes->getName();
+        int count = it.second;
+        
+        // write to file
+        contacts << targetResChainID << sep;
+        contacts << resNum << sep;
+        contacts << resName << sep;
+        contacts << count << endl;
+    }
+    contacts.close();
+}
+
 #pragma mark - SequenceCompatibilityScorer
 
-SequenceCompatibilityScorer::SequenceCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank, int seedFlank, double fractionIdentity, double minRatio, double pseudocount, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), targetFlank(targetFlank), seedFlank(seedFlank), contParams(contParams), rParams(rParams), minRatio(minRatio), pseudocount(pseudocount), minNumMatches(minNumMatches) {
+SequenceCompatibilityScorer::SequenceCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank, int seedFlank, double fractionIdentity, double minRatio, double pseudocount, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches,   vdwRadius), targetFlank(targetFlank), seedFlank(seedFlank), contParams(contParams), rParams(rParams), minRatio(minRatio), pseudocount(pseudocount), minNumMatches(minNumMatches) {
     fragParams = FragmentParams(max(targetFlank, seedFlank), false);
 }
 
@@ -321,51 +409,51 @@ unordered_map<Residue *, mstreal> SequenceCompatibilityScorer::sequenceStructure
             targetContactCounts[&targetStructBB.getResidue(res->getResidueIndexInChain())] += frags.size();
         } else {
             // Iterate over contacts with this scoring residue, and their associated fragments
-            for (int i = 0; i < frags.size(); i++) {
-                Fragment& frag = frags[i];
-                Residue *seedResidue = resContacts[i];
-                if (result[seedResidue] == DBL_MAX || completedSeedResidues.count(seedResidue) != 0)
+        for (int i = 0; i < frags.size(); i++) {
+            Fragment& frag = frags[i];
+            Residue *seedResidue = resContacts[i];
+            if (result[seedResidue] == DBL_MAX || completedSeedResidues.count(seedResidue) != 0)
+                continue;
+            if (adjacencyGraph != nullptr) {
+                mstreal *val = adjacencyGraph->value(&seed->getResidue(seedResidue->getResidueIndexInChain()));
+                if (val != nullptr) {
+                    cout << "Using cached value for seed residue score" << endl;
+                    completedSeedResidues.insert(seedResidue);
+                    result[seedResidue] = *val;
                     continue;
-                if (adjacencyGraph != nullptr) {
-                    mstreal *val = adjacencyGraph->value(&seed->getResidue(seedResidue->getResidueIndexInChain()));
-                    if (val != nullptr) {
-                        cout << "Using cached value for seed residue score" << endl;
-                        completedSeedResidues.insert(seedResidue);
-                        result[seedResidue] = *val;
-                        continue;
-                    }
-                }
-                
-                if (out != nullptr)
-                    *out << seed->getName() << "," << seedResidue->getChainID() << seedResidue->getNum() << "," <<  res->getChainID() << res->getNum() << ",";
-                
-                cout << "Calculating score component" << endl;
-                double score = sequenceStructureScoreComponent(frag, res, seedResidue, &seenProbs);
-                seenProbs[frag] = score;
-                
-                cout << "Finished calculating score component" << endl;
-                // Add this score to the contacting residue on the SEED chain
-                if (score == DBL_MAX) {
-                    result[seedResidue] = score;
-                    if (out != nullptr)
-                        *out << score << "," << DBL_MAX << "," << DBL_MAX << endl;
-                } else {
-                    result[seedResidue] += score;
-                    
-                    // Also add the contact score
-                    double ctScore = contactScore(seedResidue, res);
-                    cout << "Scores: " << score << "," << ctScore << endl;
-                    if (out != nullptr)
-                        *out << score << "," << ctScore << "," << score + ctScore << endl;
-                    result[seedResidue] += ctScore;
                 }
             }
+            
+            if (out != nullptr)
+                *out << seed->getName() << "," << seedResidue->getChainID() << seedResidue->getNum() << "," <<  res->getChainID() << res->getNum() << ",";
+            
+            cout << "Calculating score component" << endl;
+            double score = sequenceStructureScoreComponent(frag, res, seedResidue, &seenProbs);
+            seenProbs[frag] = score;
+            
+            cout << "Finished calculating score component" << endl;
+            // Add this score to the contacting residue on the SEED chain
+            if (score == DBL_MAX) {
+                result[seedResidue] = score;
+                if (out != nullptr)
+                    *out << score << "," << DBL_MAX << "," << DBL_MAX << endl;
+            } else {
+                result[seedResidue] += score;
+                
+                // Also add the contact score
+                double ctScore = contactScore(seedResidue, res);
+                cout << "Scores: " << score << "," << ctScore << endl;
+                if (out != nullptr)
+                    *out << score << "," << ctScore << "," << score + ctScore << endl;
+                result[seedResidue] += ctScore;
+            }
+        }
         }
     }
     
     if (!countingContacts) {
-        uniqueResiduesScored += result.size() - completedSeedResidues.size();
-        residuesScored += result.size();
+    uniqueResiduesScored += result.size() - completedSeedResidues.size();
+    residuesScored += result.size();
     }
     
     return result;
@@ -516,9 +604,9 @@ mstreal SequenceCompatibilityScorer::contactScore(Residue *seedRes, Residue *tar
 
 #pragma mark - StructureCompatibilityScorer
 
-StructureCompatibilityScorer::StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity, int minNumMatches, int maxNumMatches, double vdwRadius, bool _scoreAll): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), fragParams(fragParams), rParams(rParams), contParams(contParams), minNumMatches(minNumMatches), scoreAll(_scoreAll) {}
+SeedDesignabilityScorer::SeedDesignabilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity, int minNumMatches, int maxNumMatches, double vdwRadius, bool _scoreAll): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), fragParams(fragParams), rParams(rParams), contParams(contParams), minNumMatches(minNumMatches), scoreAll(_scoreAll) {}
 
-unordered_map<Residue*, mstreal> StructureCompatibilityScorer::score(Structure *seed) {
+unordered_map<Residue*, mstreal> SeedDesignabilityScorer::score(Structure *seed) {
     _numDesignable = 0;
 
     // Stores combined structure in targetStructBB
@@ -558,14 +646,14 @@ unordered_map<Residue*, mstreal> StructureCompatibilityScorer::score(Structure *
     return result;
 }
 
-bool StructureCompatibilityScorer::clashes(Structure *seed) {
+bool SeedDesignabilityScorer::clashes(Structure *seed) {
     if (!prepareCombinedStructure(seed))
         return true;
     resetCombinedStructure();
     return false;
 }
 
-void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, int &numContacts, int &numDesignable, bool intra, bool score_all) {
+void SeedDesignabilityScorer::score(Structure *seed, mstreal &totalScore, int &numContacts, int &numDesignable, bool intra, bool score_all) {
     _numDesignable = 0;
     numContacts = 0;
     numDesignable = 0;
@@ -612,7 +700,7 @@ void StructureCompatibilityScorer::score(Structure *seed, mstreal &totalScore, i
     resetCombinedStructure();
 }
 
-unordered_map<Residue*, mstreal> StructureCompatibilityScorer::designabilityScore(Structure &combStruct, contactList &cl, vector<Residue*> seedResidues) {
+unordered_map<Residue*, mstreal> SeedDesignabilityScorer::designabilityScore(Structure &combStruct, contactList &cl, vector<Residue*> seedResidues) {
     // Fragment structure based on contacts
     FragmentParams newFragParams = fragParams;
     newFragParams.pair = true;

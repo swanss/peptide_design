@@ -60,7 +60,7 @@ int main (int argc, char *argv[]) {
     FragmentParams fParams(2, true);
     rmsdParams rParams(1.2, 15, 1);
     contactParams cParams;
-    StructureCompatibilityScorer scorer(&target, fParams, rParams, cParams, "/home/grigoryanlab/library/databases/dTERMen.databases/2019-01-22/dtermen.sim");
+    SeedDesignabilityScorer scorer(&target, fParams, rParams, cParams, "/home/grigoryanlab/library/databases/dTERMen.databases/2019-01-22/dtermen.sim");
 
     // Check for clashes with seeds
     /*seedFile.reset();

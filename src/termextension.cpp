@@ -526,7 +526,6 @@ vector<int> TermExtension::identifySeedResidueIdx(const seedTERM* frag, const St
     map<int, mstreal> all_contacts_seqconst;
     if (aaToSeqContProp.count(cenResAA) == 1) {
         all_contacts_seqconst = F.getResiduePairProperties(fasst_target_index,aaToSeqContProp[cenResAA],cenResMatchIdx);
-        cout << "all_contacts_seqconst size: " << all_contacts_seqconst.size() << endl;
     }
     
     map<int, mstreal> all_interfered = F.getResiduePairProperties(fasst_target_index,"interfered",cenResMatchIdx);
@@ -629,7 +628,7 @@ vector<int> TermExtension::identifySeedResidueIdx(const seedTERM* frag, const St
             if (find(seed_res.begin(),seed_res.end(),j) == seed_res.end()) seed_res.push_back(j);
         }
     }
-    if (params.verbose) match << joinString(seed_res,",") << "\t" << endl;
+    if (params.verbose) match << joinString(seed_res,",") << "\t";
     return seed_res;
 }
 
@@ -747,9 +746,10 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> allRes, bool _
         FragmenterObj->F.options().unsetSequenceConstraints();
         //if seq_const is true, apply
         if (parent->params.seq_const) {
+            if (!SeqTools::isUnknown(cenRes->getName())) cout << "Warning: could not apply sequence constraint when constructing seedTERM centered around " << cenRes->getChainID() << cenRes->getNum() << endl;
             Structure splitQuery = FragmenterObj->F.getQuery();
             fasstSeqConstSimple seqConst(splitQuery.chainSize());
-            const Residue& res = fragmentStructure.getResidue(cenResIdx);
+            const Residue& res = splitQuery.getResidue(cenResIdx);
             seqConst.addConstraint(res.getChain()->getIndex(), res.getResidueIndexInChain(), {res.getName()});
             FragmenterObj->F.options().setSequenceConstraints(seqConst);
         }

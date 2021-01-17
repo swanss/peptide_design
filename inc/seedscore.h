@@ -101,7 +101,7 @@ public:
     void setIgnoreClash(bool _ignoreClash) {ignoreClash = _ignoreClash;}
     
 protected:
-    configFile config;
+    config config;
   
     FASST* fasst;
     RotamerLibrary *rl;
@@ -135,6 +135,121 @@ protected:
      Convenience method that returns a map of each residue in seed to DBL_MAX.
      */
     unordered_map<Residue *, mstreal> invalidScoreMap(Structure *seed);
+};
+
+/*
+ A helper class that keeps track of the number of seeds that each target residue contacts.
+ 
+ The class is designed to be used in parallel when calculating the total number of contacts, as this
+ can be relatively slow. The seeds can be divided into batches, which are assigned to separate instances
+ of contactCounter. When all are complete, the contacts are written to contactFiles, and then are read
+ in such that the results are combined and can be rewritten as a single file. See programs/countContacts.cpp
+ */
+
+class contactCounter {
+public:
+    /**
+     Constructs the counter with zero counts for each target residue structure
+     
+     @param _target structure of the target protein (can be more than one chain)
+     @param _RL pointer to a rotamer library
+     @param _cParams the contact parameters
+     @param _flankingRes the number of residue on the N/C terminus of the seeds to ignore
+     */
+    contactCounter(Structure* _target, RotamerLibrary *_RL, contactParams _cParams, int _flankingRes = 2) : target(_target), RL(_RL), cParams(_cParams), flankingRes(_flankingRes) {
+        buildContactCounts();
+        targetCopy = new Structure(*target);
+    };
+    
+    /**
+     Constructs the counter with counts for each target residue structure specified in the contactsFile
+     
+     @param contactsFile path to file with number of seed contacts to each residue in the target
+     @param _target structure of the target protein (can be more than one chain)
+     @param _RL pointer to a rotamer library
+     @param _cParams the contact parameters
+     @param _flankingRes the number of residue on the N/C terminus of the seeds to ignore
+     */
+    contactCounter(string contactsFile, Structure* _target, RotamerLibrary *_RL, contactParams _cParams, int _flankingRes = 2) : target(_target), RL(_RL), cParams(_cParams), flankingRes(_flankingRes) {
+        buildContactCounts();
+        readContactsFile(contactsFile);
+        targetCopy = new Structure(*target);
+    };
+    
+    ~contactCounter() {
+        delete targetCopy;
+    };
+    
+    /**
+     Counts the number of unique contacts between the target protein and the provided seed and
+     adds this to contactCounts
+     
+     @param seed the structure of the seed (must be a single chain and have a complete backbone)
+     @return the number of new contacts between the target and seed
+     */
+    int countContacts(Structure *seed);
+    
+    /**
+     Gets the number of contacts to a specific residue in the target protein
+     
+     @param res a residue in target
+     @return the number of contacts between res and observed seeds
+     */
+    int getContactCounts(Residue *res) {
+        if (contactCounts.count(res) != 1) MstUtils::error("Provided residue does not exist in target structure","contactCounter::getContactCounts");
+        return contactCounts[res];
+    }
+    
+    /**
+     Sets the contact count for each residue to 0
+     */
+    void reset() {
+        for (auto it : contactCounts) it.second = 0;
+    };
+    
+    /**
+     Reads the contacts from a contactsFile and adds these to current contact counts
+     
+     @param contactsFile path to file with number of seed contacts to each residue in the target
+     */
+    void readContactsFile(string contactsFile);
+    
+    /**
+     Writes the current contacts count to contactsFile
+     
+     @param contactsFile path to file with number of seed contacts to each residue in the target
+     */
+    void writeContactsFile(string contactsFile);
+    
+protected:
+    void buildContactCounts() {
+        for (Residue* R : target->getResidues()) contactCounts[R] = 0;
+    }
+    
+    vector<Residue*> getSeedRes(Chain* seedChain) {
+        vector<Residue*> seedRes;
+        if (seedChain->residueSize() > flankingRes*2) {
+            for (int i = flankingRes; i < seedChain->residueSize() - flankingRes; i++) seedRes.push_back(&seedChain->getResidue(i));
+        }
+        return seedRes;
+    }
+    
+    Residue* getTargetResidue(Residue* targetCopyRes) {
+        /*
+         since the seed chain is always added as the final chain, the index of the residues
+         in the previous chains (i.e. the target) should not change
+         */
+        return &target->getResidue(targetCopyRes->getResidueIndex());
+    }
+    
+private:
+    Structure *target;
+    Structure *targetCopy; //copied structure is modified when counting contacts
+    map<Residue*, int> contactCounts; //Residue pointer from target
+    int flankingRes;
+    contactParams cParams;
+    RotamerLibrary *RL;
+    bool verbose = true;
 };
 
 /**
@@ -190,24 +305,24 @@ public:
      */
     unordered_map<Residue *, mstreal> score(Structure *seed) override;
     
-    /**
+    /*
      Collects contacts from the given seed structure without scoring them. This
      must be done for all seeds before scoring them, or else the contact score
      cannot be computed.
-     
+
      @param seed the seed structure from which to compute and count contacts
      */
     void collectContacts(Structure *seed);
-    
+
     /**
      Writes the contact counts for each target residue to the given file path
      as CSV.
-     
+
      @param filePath the path to write to
      */
     void writeContactCounts(string filePath);
-    
-    /**
+
+     /*
      Reads the contact counts for each target residue from the given CSV file.
      
      @param filePath the path to read from
@@ -344,8 +459,10 @@ private:
  
  note: if scoreAll is set to true, then non-designable contacts are not added
  to the final score.
+ 
+ renamed from StructureCompatibilityScorer to SeedDesignabilityScorer
  */
-class StructureCompatibilityScorer: public FASSTScorer {
+class SeedDesignabilityScorer: public FASSTScorer {
 public:
     /**
      For descriptions of parameters, see initializer for
@@ -354,7 +471,7 @@ public:
      option added by sebastian on 20/07/19
      @param scoreAll search all contacts, regardless if some are found to be non-designable
      */
-  StructureCompatibilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity = 0.4, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 0.7, bool scoreAll = false);
+  SeedDesignabilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity = 0.4, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 0.7, bool scoreAll = false);
     
     /**
      This currently only supports seeds with a single chain.

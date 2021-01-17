@@ -68,14 +68,14 @@ int main (int argc, char *argv[]) {
     opts.addOption("peptideChain", "Chain ID for the peptide chain in the target, if one exists - it will be removed (default false)", false);
     opts.addOption("seeds", "Path to a binary file containing seed structures", false);
     opts.addOption("seedChain", "Chain ID for the seed structures (default '0')", false);
-    opts.addOption("seedGraph", "Path to a text file defining a seed graph", true);
+    opts.addOption("seedGraph", "Path to a text file defining a seed graph", false);
     opts.addOption("numPaths", "Number of paths to generate. (default 200)", false);
     opts.addOption("minLength", "The minimum residue length of the sampled paths. (default 15)", false);
     opts.addOption("reqSeed", "The name of a seed in the binary file that all paths should extend from",false);
     opts.addOption("reqSeedSel", "A selection that specifies the residues in reqSeed that should always be included in sampled paths. Must be a continuous range: e.g. resid 3-5. (note: 'chain 0' is always assumed)",false);
     opts.addOption("fixedSeed", "If residues from the specified seed are included in a path, they will be fixed during fusing.",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
-    opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format:q: seed_A:residue_i;seed_B:residue_j;etc...", false);
+    opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format: seed_A:residue_i;seed_B:residue_j;etc...", false);
     opts.addOption("score_structures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
     opts.addOption("config", "The path to a configfile",true);
     opts.addOption("base", "Prepended to filenames",true);
@@ -114,12 +114,12 @@ int main (int argc, char *argv[]) {
     }
 
     // Set up scorer, if shouldScore provided
-    StructureCompatibilityScorer *scorer = nullptr;
+    SeedDesignabilityScorer *scorer = nullptr;
     if (shouldScore) {
         FragmentParams fParams(2, true);
         rmsdParams rParams(1.2, 15, 1);
         contactParams cParams;
-        scorer = new StructureCompatibilityScorer(&complex, fParams, rParams, cParams, configFilePath, 0.4, 1, 8000, 0.7, true);
+        scorer = new SeedDesignabilityScorer(&complex, fParams, rParams, cParams, configFilePath, 0.4, 1, 8000, 0.7, true);
     }
 
     int numPaths = opts.getInt("numPaths", 200);
@@ -277,7 +277,7 @@ int main (int argc, char *argv[]) {
         }
     }
     
-    sampler->reportSamplingStatistics();
+    if (!opts.isGiven("score_structures")) sampler->reportSamplingStatistics();
     
     // Deallocate all memory on the heap
 //    if (opts.isGiven("overlaps")) {
