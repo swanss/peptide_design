@@ -22,9 +22,9 @@ using namespace MST;
  These can vary between systems, so I found it easier to maintain a configFile for each project
  and call that when needed.
  */
-class configFile {
+class config {
 public:
-    configFile(string configFile_path);
+    config(string configFile_path);
     
     string getRL() {return RL_path;}
     string getDB() {return fasst_DB_path;}

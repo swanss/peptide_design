@@ -14,7 +14,7 @@
 using namespace MST;
 
 /* --------- configFile --------- */
-configFile::configFile(string configFile) {
+config::config(string configFile) {
     vector<string> lines = MstUtils::fileToArray(configFile);
     for (int i = 0; i < lines.size(); i++) {
         string line = MstUtils::trim(MstUtils::removeComment(lines[i], "#"));
