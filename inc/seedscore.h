@@ -101,7 +101,7 @@ public:
     void setIgnoreClash(bool _ignoreClash) {ignoreClash = _ignoreClash;}
     
 protected:
-    config config;
+    configFile config;
   
     FASST* fasst;
     RotamerLibrary *rl;
