@@ -11,6 +11,7 @@
 import glob
 import regex as re
 import argparse
+import numpy as np
 
 # ## Dictionary defined for converting three letter amino acid code to one letter ## #
 
@@ -119,6 +120,20 @@ def scoreSequence(sequence,self_table,pair_table):
             continue
 
     return(energy_score)
+
+def meanEnergy(self_table,pair_table):
+    nAA = 20
+    selfE = 0.0
+    for pos in self_table:
+        posE = np.sum([self_table[pos][aa_E] for aa_E in self_table[pos]])/nAA
+        selfE += posE
+    
+    pairE = 0.0
+    for pos_pair in pair_table:
+        posPairE = np.sum([pair_table[pos_pair][aaPair_E] for aaPair_E in pair_table[pos_pair]])/nAA**2
+        pairE += posPairE
+    
+    return selfE + pairE
 
 def readSequences(sequence_path):
     sequences = list()
