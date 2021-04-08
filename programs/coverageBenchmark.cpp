@@ -6,6 +6,8 @@
 //  Copyright © 2020 Sebastian Swanson. All rights reserved.
 //
 
+#include <cstdio>
+
 //mst dependencies
 #include "mstsystem.h"
 #include "mstoptions.h"
@@ -14,18 +16,22 @@
 #include "utilities.h"
 #include "coverage.h"
 #include "benchmarkutilities.h"
-#include "termextension.h"
+//#include "termextension.h"
 #include "secondarystructure.h"
 
 int main(int argc, char *argv[]) {
     MstOptions op;
-    op.setTitle("Maps seeds to the peptide in a peptide-protein complex and computes various statistics.");
+    op.setTitle("Maps seeds to the peptide in a peptide-protein complex and computes various statistics. At the end, a minimum covering set is determined and these seeds are fused together.");
     op.addOption("bin_path", "path to a seed binary file.",true);
     op.addOption("pdb", "Structure file containing peptide chain and protein chain(s)", true);
     op.addOption("peptide", "Peptide chain ID", true);
     op.addOption("max_rmsd", "The max RMSD threshold used when determining whether a seed aligns to the peptide or not. (default 2.0)");
     op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
     op.addOption("hist","Path to the histogram file with the seed distance distribution that will be matched in the null model seeds");
+    op.addOption("write_all_aligned","If provided, write all seeds that align to the peptide with rmsd < max_rmsd. Omitting this option speeds up the runtime and saves space");
+    op.addOption("max_seed_length_fuse","The maximum length of seed segment we should try to use for fusing. The algorithm will try to search for seeds of this length first and only try using shorter seed segments if there is nothing at this length with with rmsd < max_rmsd. The minimum length of seed segments is 3. (default 5)");
+    op.addOption("force_chimera","If provided, then the seed segments that are selected as covering the peptide must all be sourced from different seeds.");
+    op.addOption("two_step_fuse","When fusing, optimize without and then with internal coordinate constraints.");
     op.addOption("no_clash_check", "Filter seed poses by clashes to the protein");
     op.setOptions(argc, argv);
     
@@ -42,6 +48,13 @@ int main(int argc, char *argv[]) {
     mstreal max_rmsd = op.getReal("max_rmsd",2.0);
     configFile config(op.getString("config"));
     string hist_path = op.getString("hist","");
+    bool write_all_aligned = op.isGiven("write_all_aligned");
+    int max_seed_length_fuse = op.getInt("max_seed_length_fuse",5);
+    bool force_chimera = op.isGiven("force_chimera");
+    bool two_step_fuse = op.isGiven("two_step_fuse");
+    
+    string complex_name = MstSys::splitPath(complex.getName(), 1);
+    string pdb_id = complex_name.substr(0,4); //PDB ID is always 4 characters
     
     // Set the sequence of the peptide to "unknown"
     selector sel(complex);
@@ -56,16 +69,23 @@ int main(int argc, char *argv[]) {
     // Fragment output folder
     string outDir = "output/";
     string covDir = "coverage_output/";
+    string fusDir = "fuse_coverage_output/";
     MstSys::cmkdir(outDir,makeParents);
     MstSys::cmkdir(covDir,makeParents);
+    MstSys::cmkdir(fusDir,makeParents);
     
     //Initialize the interface coverage class
     interfaceCoverage IC(complex, p_cid, config.getRL());
     IC.setMaxRMSD(max_rmsd);
     IC.setMaxSegmentLength(max_seed_length);
     
+    // remove the chain from a copy of the complex
+    Structure target(complex);
+    Chain* peptideChain = target.getChainByID(p_cid);
+    target.deleteChain(peptideChain);
+        
     //Randomize seeds
-    /*
+    /**
      Two types of randomized seeds
      Type 1 randomized orientation, position sampled from previous seed
      Type 2 randomized position and orientation
@@ -158,8 +178,8 @@ int main(int argc, char *argv[]) {
     }
     
     
-    //Map the seed coverage
-    /*
+    //Map the seed coverage and, if possible, fuse covering seeds
+    /**
      Vary parameters that filter the seeds
      - match RMSD. The RMSD of the match that generated the seed (depends on the complexity of the fragment)
      - sequence constraint. When applied, only matches with the same residue at the central position are accepted
@@ -172,48 +192,42 @@ int main(int argc, char *argv[]) {
     cout << "Search for segments of seed chains (TERM Extension) that map to the peptide..." << endl;
     IC.findCoveringSeeds();
     cout << "Write coverage to files..." << endl;
-    IC.writeAllAlignedSeedsInfo(covDir+"termext_");
+    if (write_all_aligned) IC.writeAllAlignedSeedsInfo(covDir+"termext_");
     IC.writeBestAlignedSeeds(covDir+"termext_",1,true);
+    
+    coverageBenchmarkUtils::fuseCoveringSeeds(&IC, force_chimera, max_seed_length_fuse, fusDir+"termext", pdb_id, target, complex, two_step_fuse, config.getRL());
     
     if (hist_path != "") {
         IC.setSeeds(type1_bin);
         cout << "Search for segments of seed chains (type 1) that map to the peptide..." << endl;
         IC.findCoveringSeeds();
         cout << "Write coverage to files..." << endl;
-        IC.writeAllAlignedSeedsInfo(covDir+"type1_");
+        if (write_all_aligned) IC.writeAllAlignedSeedsInfo(covDir+"type1_");
         IC.writeBestAlignedSeeds(covDir+"type1_",1,true);
+
+        coverageBenchmarkUtils::fuseCoveringSeeds(&IC, force_chimera, max_seed_length_fuse, fusDir+"type1", pdb_id, target, complex, two_step_fuse, config.getRL());
+
         
         IC.setSeeds(type2_bin);
         cout << "Search for segments of seed chains (type 2) that map to the peptide..." << endl;
         IC.findCoveringSeeds();
         cout << "Write coverage to files..." << endl;
-        IC.writeAllAlignedSeedsInfo(covDir+"type2_");
+        if (write_all_aligned) IC.writeAllAlignedSeedsInfo(covDir+"type2_");
         IC.writeBestAlignedSeeds(covDir+"type2_",1,true);
+        
+        coverageBenchmarkUtils::fuseCoveringSeeds(&IC, force_chimera, max_seed_length_fuse, fusDir+"type2", pdb_id, target, complex, two_step_fuse, config.getRL());
     }
     
-    // leave commented until future commit where the rest of the pathFromCoveringSeeds is introduced
-//    /*
-//     Lastly, find the set optimally covering seeds and output as a path string. These can be fused later.
-//
-//     This is obtained by the following algorithm
-//     1) Define the peptide residues to be covered
-//     2) Find the seed that covers the most peptide residues. If there is a tie between two seeds, choose
-//     the seed with the lowest RMSD. Note: the terminal residues of the seed do not count as covering the peptide
-//     unless there is some other seed residue also covering that peptide residue. This is because junctions
-//     between seeds *must* have overlap with other seeds (or else they could not be sampled by our method)
-//     3) If all peptide residues are covered, terminate. Otherwise, return to step 2
-//
-//     */
-//
-//    pathFromCoveringSeeds generatePath(&IC);
-//
-//    string pathString = generatePath.getCoveringPath();
-//
-//    if (pathString == "") cout << "Was not able to generate a covering path" << endl;
-//    else cout << "path string: " << pathString;
-//
-//    generatePath.printCoveringSeeds();
+    // Delete the random baseline seed binary files (they could be regenerated later)
+    char *type1_bin_char = &type1_bin[0];
+    remove(type1_bin_char);
     
-    cout << "done" << endl;
+    char *type2_proposal_bin_char = &type2_proposal_bin[0];
+    remove(type2_proposal_bin_char);
+    
+    char *type2_bin_char = &type2_bin[0];
+    remove(type2_bin_char);
+    
+    cout << "Done" << endl;
     return 0;
 }

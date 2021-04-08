@@ -74,6 +74,8 @@ int main (int argc, char *argv[]) {
     opts.addOption("reqSeed", "The name of a seed in the binary file that all paths should extend from",false);
     opts.addOption("reqSeedSel", "A selection that specifies the residues in reqSeed that should always be included in sampled paths. Must be a continuous range: e.g. resid 3-5. (note: 'chain 0' is always assumed)",false);
     opts.addOption("fixedSeed", "If residues from the specified seed are included in a path, they will be fixed during fusing.",false);
+    opts.addOption("numResFlank", "The number of flanking residues taken on each side of a contact when defining fragments during scoring (default 2)",false);
+    opts.addOption("homCut","The sequence identity cutoff to use when determining whether a match used in scoring is homologous, and thus redundant, to the query. If the provided value is greater than 1.0, this is not checked (default 2.0)",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
     opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format: seed_A:residue_i;seed_B:residue_j;etc...", false);
     opts.addOption("score_structures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
@@ -91,6 +93,8 @@ int main (int argc, char *argv[]) {
     string configFilePath = opts.getString("config");
     string base = opts.getString("base");
     string seedChain = opts.getString("seedChain", "0");
+    int flankingRes = opts.getInt("numResFlank",2);
+    mstreal homCut = opts.getReal("homCut",2.0);
     bool shouldScore = !opts.isGiven("noScore");
     
     //The base name sets the seed, since this varies between batches, this should give unique sampling
@@ -116,10 +120,12 @@ int main (int argc, char *argv[]) {
     // Set up scorer, if shouldScore provided
     SeedDesignabilityScorer *scorer = nullptr;
     if (shouldScore) {
-        FragmentParams fParams(2, true);
+        FragmentParams fParams(flankingRes, true);
         rmsdParams rParams(1.2, 15, 1);
         contactParams cParams;
         scorer = new SeedDesignabilityScorer(&complex, fParams, rParams, cParams, configFilePath, 0.4, 1, 8000, 0.7, true);
+        scorer->scoresWritePath = base + "_fragments" + ".csv";
+        scorer->setQueryHomologyCutoff(homCut);
     }
 
     int numPaths = opts.getInt("numPaths", 200);
@@ -287,10 +293,9 @@ int main (int argc, char *argv[]) {
     if (opts.isGiven("seedGraph")) {
         delete cache;
         delete seedG;
+        delete sampler;
     }
-    delete sampler;
-    if (shouldScore)
-        delete scorer;
+    if (shouldScore) delete scorer;
 
     cout << "Done" << endl;
     out.close();

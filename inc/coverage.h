@@ -15,22 +15,25 @@
 #include "mstmagic.h"
 #include "mstfasst.h"
 
-#include "utilities.h"
-#include "termextension.h"
+#include "pathsampler.h"
 #include "structure_iter.h"
+#include "termextension.h"
+#include "utilities.h"
+#include "mstsystem_exts.h"
 
 using namespace MST;
 
 class benchmarkUtils;
 
-
 /* --------- seedSubstructureInfo --------- */
 
 struct seedSubstructureInfo {
 public:
-    string structure_name;
+    string structure_name = "";
     string chain_ID;
+    // N-terminal residue within seed
     int res_idx;
+    // number of residues in segment
     int res_length;
     //the rank of the match which the seed was generated from
     int match_number;
@@ -44,10 +47,29 @@ public:
     
     seedSubstructureInfo() {};
     seedSubstructureInfo(string name, string ID, int idx, int length, int _match_number, mstreal _match_rmsd, bool _sequence_match, mstreal _rmsd, mstreal _alignment_cos_angle) : structure_name(name), chain_ID(ID), res_idx(idx), res_length(length), match_number(_match_number), match_rmsd(_match_rmsd), sequence_match(_sequence_match), rmsd(_rmsd), alignment_cos_angle(_alignment_cos_angle) {};
-//    seedSubstructureInfo(const seedSubstructureInfo& other) : structure_name(other.structure_name), chain_ID(other.chain_ID), res_idx(other.res_idx), res_length(other.res_length), rmsd(other.rmsd) {};
     
     bool operator < (const seedSubstructureInfo& other) const {
         return (rmsd < other.rmsd);
+    }
+    
+    vector<Residue*> loadSeedSubstructureFromCache(StructureCache *seedCache, bool loadAnchor = false) {
+        vector<Residue*> seedRes;
+        string seedChainID = "0";
+        Structure* seed = seedCache->getStructure(structure_name);
+        Chain* seedChain = seed->getChainByID(seedChainID);
+        for (int i = res_idx; i < res_idx+res_length; i++) {
+            if (i < 0 || i >= seedChain->residueSize()) MstUtils::error("Seed residue ID not in seed chain","seedSubstructureInfo::loadSeedSubstructureFromCache");
+            seedRes.push_back(&seedChain->getResidue(i));
+        }
+        if (loadAnchor) {
+            for (int chain_idx = 0; chain_idx < seed->chainSize(); chain_idx++) {
+                Chain* C = &seed->getChain(chain_idx);
+                if (C->getID() == seedChainID) continue;
+                vector<Residue*> anchorRes = C->getResidues();
+                seedRes.insert(seedRes.end(),anchorRes.begin(),anchorRes.end());
+            }
+        }
+        return seedRes;
     }
 };
 
@@ -55,7 +77,7 @@ public:
 
 class sortedBins {
 public:
-    sortedBins() {};
+    sortedBins() {}
     
     sortedBins(mstreal _max_val, mstreal _interval = 0.1) {
         max_val = _max_val;
@@ -68,6 +90,8 @@ public:
     
     vector<seedSubstructureInfo> getBinByValue(mstreal val);
     vector<seedSubstructureInfo> getLowestValuePopulatedBin();
+    bool allBinsEmpty() {return empty;}
+    seedSubstructureInfo getLowestRMSDSeed(set<string> seedNames = {});
     //min_rmsd, max_rmsd, number of seeds aligned to segment
     vector<tuple<mstreal,mstreal,long>> getSeedsByBin();
     
@@ -79,6 +103,7 @@ public:
     
     //sorts the entries within each bin by RMSD
     void sortBins();
+    bool areBinsSorted() {return sorted;}
     
     void reset();
     
@@ -93,6 +118,7 @@ protected:
 private:
     vector<vector<seedSubstructureInfo>> bins;
     mstreal max_val, interval;
+    bool sorted = true, empty = true;
 };
 
 /* --------- interfaceCoverage --------- */
@@ -114,12 +140,14 @@ public:
     
     //map seeds to peptide segments
     void findCoveringSeeds();
-    void mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, int match_number, mstreal match_rmsd, bool seq_match);
+    bool mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, int match_number, mstreal match_rmsd, bool seq_match, bool only_check_if_aligned = false);
     
     //report the results
     //Info pertaining to the peptide (which is to be covered)
     void writePeptideResidues(string outDir);
-    void writeContacts(string outDir);
+    
+    // Method rewritten to allow for writing any set of contacts
+    void writeContacts(string outDir, set<pair<Residue*,Residue*>> provided_contact_residues = {}, map<string,contactList> provided_all_types_contacts = map<string,contactList>());
     
     //Info pertaining to coverage
     void writeAllAlignedSeedsInfo(string outDir);
@@ -130,12 +158,15 @@ public:
     vector<Residue*> getBindingSiteRes() {return bindingSiteRes;}
     set<pair<Residue*,Residue*>> getContactingResidues() {return contact_residues;}
     
+    Chain* getPeptideChain() {return peptide_chain;}
+    
     void resetBins();
+    
+    map<string,contactList> defineContacts(Structure& complex, vector<Residue*> peptide_residues);
     
 protected:
     //methods called by constructor
     void setParams(string RL_path);
-    void defineCoverageElements();
     
     //this function assumes the peptide comes after the protein
     void prepareForTERMExtension();
@@ -199,6 +230,92 @@ private:
     // seed structures binary file
     string binFilePath;
     StructuresBinaryFile* seeds;
+    
+    friend class pathFromCoveringSeeds;
+};
+
+
+class pathFromCoveringSeeds {
+public:
+    typedef vector<Residue*> residueSegment;
+    
+    pathFromCoveringSeeds(interfaceCoverage *_coverage, int _segmentLength = 3, bool _forceChimera = false) : segmentLength(_segmentLength), forceChimera(_forceChimera) {
+        coverage = _coverage;
+        seedCache = new StructureCache(coverage->seeds);
+        terminalRes = segmentLength / 2;
+        // get the peptide residue segments that will be covered
+        vector<residueSegment> peptideResidueSegmentsVector = coverage->chainResidueSubsegments[segmentLength-1];
+        peptideResidueSegments = set<residueSegment>(peptideResidueSegmentsVector.begin(),peptideResidueSegmentsVector.end());
+    };
+    
+    ~pathFromCoveringSeeds() {
+        delete seedCache;
+    }
+    
+    vector<string> getCoveringPath(int maxSeedLength = 5, int minSeedLength = 3);
+        
+    map<int,vector<Residue*>> getCoveringResiduePath() {return coveringResiduesPath;}
+    
+    void writeCoveringSeeds(string outputPath);
+protected:
+    /**
+     Finds the seed segment that 1)  covers the most of the not-yet-covered peptide segments and 2) has
+     the lowest RMSD and returns the seed info as well as all of the covered segments
+     
+     Note: function ensures that the seed segment is from a seed that has not already been used to
+     cover the peptide
+     
+     int terminalRes; this is equivalent to overlapLength in pathSampler
+     // seed segments may be no longer than maxSeedLength
+     // and no shorter than minSeedLength
+     int maxSeedLength, minSeedLength;
+     
+     @param maxSeedLength the maximum length seed that will be used to
+     @return a pair where the first element is all the info about the seed and the second
+     element is the peptide residues that were covered by this seed
+     */
+    pair<seedSubstructureInfo,residueSegment> getBestCoveringSeed(int maxSeedLength, int minSeedLength);
+    
+    /**
+     Given the vector of all peptide residue pointers that are covered by the seed segment, finds
+     how many of the not-yet-covered peptide residues would be covered by this segment.
+     
+     @param peptideResiduesCoveredBySeedSegment a window of peptide residue pointers covered by the seed segment
+     @return all residues that would be newly covered by the addition of this seed
+     */
+    
+    set<residueSegment> getResidueSegmentsCoveredBySeed(vector<Residue*> peptideResiduesCoveredBySeedSegment, bool removeSeg = false);
+    
+    /**
+     Selects seed residues from seeds in coveringSeeds and arranges them from the N to C terminus
+     of the peptide that they cover, such that they can be properly fused by PathSampler
+     
+     @return a vector of residues that can converted to a path string
+     */
+    map<int,vector<Residue*>> getPathResidues();
+
+private:
+    interfaceCoverage *coverage;
+    
+    int terminalRes;
+    
+    /*
+     The peptide residue segments are the elements that are covered by aligned seeds. The length
+     of these segments is dictated by segmentLengths.
+     */
+    int segmentLength = 3;
+    set<residueSegment> peptideResidueSegments;
+    
+    bool forceChimera; //if true, requires that every seed segment comes from a different seed
+    
+    set<string> seedNames;
+    map<int,seedSubstructureInfo> coveringSeeds; //the key is the idx in the peptide chain
+    map<int,vector<Residue*>> coveringResiduesPath; //pointers to residues in the seeds
+    vector<string> coveringPathString;
+    
+    bool verbose = true;
+    
+    StructureCache* seedCache;
 };
 
 /* --------- benchmarkUtils --------- */

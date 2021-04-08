@@ -24,8 +24,7 @@ int main (int argc, char *argv[]) {
     
     // Get command-line arguments
     MstOptions opts;
-    opts.setTitle("Performs seed scoring using the sequence compatibility score, using seed adjacency graphs for improved performance.");
-    opts.addOption("mode", "0 = score seeds, 1 = count contacts for each target residue", false);
+    opts.setTitle("Scores peptide structures.");
     opts.addOption("target", "The target PDB structure", true);
     opts.addOption("structures", "Directory with structures to be scored", true);
     opts.addOption("contacts", "Directory into which to write contact counts, if in contact counting mode, or from which to read the counts if in scoring mode", false);
@@ -64,55 +63,14 @@ int main (int argc, char *argv[]) {
     Structure *target = new Structure(targetPath);
     rmsdParams rParams(1.2, 15, 1);
     contactParams cParams;
-    SequenceCompatibilityScorer scorer(target, rParams, cParams, configFile, numTargetFlank, numSeedFlank, 0.4, 0.05, 0.25, 1, 8000, 0.3);
+    SequenceStructureCompatibilityScorer scorer(target, rParams, cParams, configFile, numTargetFlank, numSeedFlank, 0.4, 0.05, 0.25, 1, 8000, 0.3);
 
-    if (mode == 1) {
-//        // Count contacts only
-//        scorer.noQueries = true;
-//
-//        if (!MstSys::fileExists(contactsPath))
-//            MstSys::cmkdir(contactsPath);
-//
-//        int i = 0;
-//        unordered_set<string> scoredSeeds;
-//        for (int taskIdx = workerIndex - 1; taskIdx < tasks.size(); taskIdx += numWorkers) {
-//            string graphFile = tasks[taskIdx];
-//            cout << "graph file: " << graphFile << endl;
-//            // Load adjacency graph
-//            SeedGraphMap<mstreal> graph;
-//            graph.read(MstSystemExtension::join(graphsPath, graphFile), dataPath);
-//            scorer.adjacencyGraph = &graph;
-//            StructureCache *structures = graph.getStructures();
-//
-//            for (auto it = structures->begin(); it != structures->end(); it++) {
-//                Structure *seed = *it;
-//                if (scoredSeeds.count(seed->getName()) != 0) {
-//                    cout << "redundant seed!" << endl;
-//                    continue;
-//                }
-//                scoredSeeds.insert(seed->getName());
-//
-//                if ((i++) % 100 == 0)
-//                    cout << "Structure " << i << endl;
-//                if (seed->chainSize() > 1)
-//                    continue;
-//                cout << "Loaded structure " << seed->getName() << endl;
-//
-//                // Collect contacts from the seed
-//                scorer.collectContacts(seed);
-//            }
-//        }
-//
-//        cout << "Done counting contacts!" << endl;
-//        scorer.writeContactCounts(MstSystemExtension::join(contactsPath, "contact_scores_" + to_string(workerIndex) + ".csv"));
-    } else if (mode == 0) {
-        // Score seeds
-        
-        MstSys::cmkdir(outPath);
+    // Score seeds
+    MstSys::cmkdir(outPath);
 
-        // Appending condition
-        unordered_set<string> scoredSeeds;
-        unordered_map<string, mstreal> preScoredResidues;
+    // Appending condition
+    unordered_set<string> scoredSeeds;
+    unordered_map<string, mstreal> preScoredResidues;
 //        if (append) {
 //            string tempOutPath = MstSystemExtension::join(outPath, "seed_scores_" + to_string(workerIndex) + ".csv");
 //            while (MstSys::fileExists(tempOutPath)) {
@@ -127,14 +85,14 @@ int main (int argc, char *argv[]) {
 //            }
 //            cout << "New worker index " << workerIndex << ", " << scoredSeeds.size() << " seeds already scored" << endl;
 //        }
-        
-        string fragmentScoresPath = MstSystemExtension::join(outPath, "all_fragment_scores");
-        if (!MstSys::fileExists(fragmentScoresPath))
-            MstSys::cmkdir(fragmentScoresPath);
-        string scoreWritePath = MstSystemExtension::join(fragmentScoresPath, "frag_scores_" + to_string(workerIndex) + ".csv");
-        scorer.scoresWritePath = &scoreWritePath;
-        
-        // Read contact counts
+    
+    string fragmentScoresPath = MstSystemExtension::join(outPath, "all_fragment_scores");
+    if (!MstSys::fileExists(fragmentScoresPath))
+        MstSys::cmkdir(fragmentScoresPath);
+    string scoreWritePath = MstSystemExtension::join(fragmentScoresPath, "frag_scores_" + to_string(workerIndex) + ".csv");
+    scorer.scoresWritePath = &scoreWritePath;
+    
+    // Read contact counts
 //        if (contactsPath.size() > 0) {
 //            int contactFileIdx = 1;
 //            string path = MstSystemExtension::join(contactsPath, "contact_scores_" + to_string(contactFileIdx++) + ".txt");
@@ -144,70 +102,69 @@ int main (int argc, char *argv[]) {
 //            }
 //        }
 
-        double totalTime = 0.0;
-        int numTimes = 0;
-        
-        ofstream outputSS(MstSystemExtension::join(outPath,"structure_scores_") + to_string(workerIndex) + ".tsv", ios::out);
-        if (!outputSS.is_open()) {
-            cerr << "couldn't open out stream" << endl;
-            return 1;
+    double totalTime = 0.0;
+    int numTimes = 0;
+    
+    ofstream outputSS(MstSystemExtension::join(outPath,"structure_scores_") + to_string(workerIndex) + ".tsv", ios::out);
+    if (!outputSS.is_open()) {
+        cerr << "couldn't open out stream" << endl;
+        return 1;
+    }
+    outputSS << "structure_name\tresidue_name\tscore" << endl;
+    
+    cout << "loading structure cache. List: " << structuresList << " Prefix: " << structuresPath << endl;
+    StructureCache* structures = new StructureCache(structuresPath);
+    structures->preloadFromPDBList(structuresList);
+    long cache_size = structures->size();
+    
+    int i = 0;
+    auto it = structures->begin();
+    for (int i = 0; i < workerIndex-1; i++) {
+        it++;
+        if (it == structures->end()) break;
+    }
+    while (it != structures->end()) {
+        Structure *s = *it;
+        if (scoredSeeds.count(s->getName()) != 0) {
+            continue;
         }
-        outputSS << "structure_name\tresidue_name\tscore" << endl;
+        scoredSeeds.insert(s->getName());
         
-        cout << "loading structure cache. List: " << structuresList << " Prefix: " << structuresPath << endl;
-        StructureCache* structures = new StructureCache(structuresPath);
-        structures->preloadFromPDBList(structuresList);
-        long cache_size = structures->size();
+        if ((i++) % 100 == 0)
+            cout << "Structure " << i << endl;
+        if (s->chainSize() > 1)
+            continue;
+        cout << "Loaded structure " << s->getName() << endl;
         
-        int i = 0;
-        auto it = structures->begin();
-        for (int i = 0; i < workerIndex-1; i++) {
+        // Score the seed
+        high_resolution_clock::time_point startTime = high_resolution_clock::now();
+        auto result = scorer.score(s);
+        high_resolution_clock::time_point endTime = high_resolution_clock::now();
+        double time = duration_cast<seconds>( endTime - startTime ).count();
+        cout << "time: " << time << endl;
+        totalTime += time;
+        numTimes += 1;
+        
+        //outputSeedFile.write(seed->getName(), seed->getChain(0).getID(), { writePerResidueScores(result) });
+        for (auto resScore: result) {
+            outputSS << s->getName() << "\t" << resScore.first->getChainID() << resScore.first->getNum() << "\t" << resScore.second << endl;
+        }
+        
+        // advance the iterator
+        for (int i = 0; i < numWorkers; i++) {
             it++;
             if (it == structures->end()) break;
         }
-        while (it != structures->end()) {
-            Structure *s = *it;
-            if (scoredSeeds.count(s->getName()) != 0) {
-                continue;
-            }
-            scoredSeeds.insert(s->getName());
-            
-            if ((i++) % 100 == 0)
-                cout << "Structure " << i << endl;
-            if (s->chainSize() > 1)
-                continue;
-            cout << "Loaded structure " << s->getName() << endl;
-            
-            // Score the seed
-            high_resolution_clock::time_point startTime = high_resolution_clock::now();
-            auto result = scorer.score(s);
-            high_resolution_clock::time_point endTime = high_resolution_clock::now();
-            double time = duration_cast<seconds>( endTime - startTime ).count();
-            cout << "time: " << time << endl;
-            totalTime += time;
-            numTimes += 1;
-            
-            //outputSeedFile.write(seed->getName(), seed->getChain(0).getID(), { writePerResidueScores(result) });
-            for (auto resScore: result) {
-                outputSS << s->getName() << "\t" << resScore.first->getChainID() << resScore.first->getNum() << "\t" << resScore.second << endl;
-            }
-            
-            // advance the iterator
-            for (int i = 0; i < numWorkers; i++) {
-                it++;
-                if (it == structures->end()) break;
-            }
-        }
-        delete structures;
-        
-        cout << "Done! Average time per structures: " << totalTime << "/" << numTimes << " = " << totalTime / numTimes << endl;
-        cout << "Scoring statistics: " << endl;
-        cout << "\t" << scorer.numResiduesScored() << " residues scored" << endl;
-        cout << "\t" << scorer.numUniqueResiduesScored() << " unique residues scored" << endl;
-        cout << "\t" << scorer.numSeedQueries() << " seed queries" << endl;
-        cout << "\t" << scorer.numTargetQueries() << " target queries" << endl;
-
     }
+    delete structures;
+    
+    cout << "Done! Average time per structures: " << totalTime << "/" << numTimes << " = " << totalTime / numTimes << endl;
+    cout << "Scoring statistics: " << endl;
+    cout << "\t" << scorer.numResiduesScored() << " residues scored" << endl;
+    cout << "\t" << scorer.numUniqueResiduesScored() << " unique residues scored" << endl;
+    cout << "\t" << scorer.numSeedQueries() << " seed queries" << endl;
+    cout << "\t" << scorer.numTargetQueries() << " target queries" << endl;
+
     
     delete target;
 

@@ -141,7 +141,7 @@ public:
      Generates a seed structure by sampling a random window structures in the FASST DB.
      
      Note: the provided FASST DB must created with the option "s" in fasstdb.cpp, which splits
-     chains with breaks into separate structures.
+     chains with gaps. Otherwise, sampled seeds will have gaps.
      */
     generateRandomSeed(const string& dbFile, int max_len);
     
@@ -415,4 +415,33 @@ private:
     int top_N_matches;
 
     MstTimer timer;
+};
+
+// Functions for the coverage benchmark
+
+class coverageBenchmarkUtils {
+public:
+    /**
+     Writes out a tsv file with the paired positions between the fused backbone and native peptide and rmsd per position. Also computes RMSD
+     over the entire structure and reports this value.
+     
+     Note: assumes that even if the two structures have unequal numbers of residues, that they have complete backbones and the residue number
+     can be used to unambiguously pair the residues.
+     */
+    mstreal static writeRMSDtoFile(string outputPath, Structure& fusedBackbone, Structure& nativePeptide);
+    
+    /**
+     Writes out the contacts between all residues from fused chains (there could be more than one) in a similar format to the interfaceCoverage
+     */
+    void static writeContactstoFile(string outputPath, interfaceCoverage *IC, Structure& fusedPathandTarget, set<string> peptideChains, string rotLibFile);
+    
+    /**
+     Find the set optimally covering seeds and fuse together
+
+     The set of covering seeds is obtained by the following algorithm
+     1) Define the structural elements to be covered: in this case, overlapping 3-res windows (aka segments) of the peptide.
+     2) Find the seed that covers the most windows. If there is a tie between two seeds, choose the seed with the lowest RMSD.
+     3) If all segments are covered, terminate. Otherwise, return to step 2
+     */
+    void static fuseCoveringSeeds(interfaceCoverage* IC, bool force_chimera, int max_seed_length_fuse, string fusDir, string pdb_id, Structure& target, Structure& complex, bool two_step_fuse, string RL);
 };

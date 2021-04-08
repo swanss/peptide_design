@@ -41,7 +41,7 @@ int main (int argc, char *argv[]) {
     // Initialize
     rmsdParams rParams(1.2, 15, 1);
     contactParams cParams;
-    SequenceCompatibilityScorer scorer(&target, rParams, cParams, fasstDB, numTargetFlank, numSeedFlank, 0.4, 0.05, 0.25, 1, 8000, 0.7);
+    SequenceStructureCompatibilityScorer scorer(&target, rParams, cParams, fasstDB, numTargetFlank, numSeedFlank, 0.4, 0.05, 0.25, 1, 8000, 0.7);
     int fusionIndex = 0;
 
     for (string line: paths) {

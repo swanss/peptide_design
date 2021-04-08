@@ -14,6 +14,8 @@ void sortedBins::insert(seedSubstructureInfo& entry, mstreal val) {
     if (val > max_val) return;
     if (bins.empty()) MstUtils::error("Tried to insert an entry to an improperly constructed instance of sortedBins");
     bins[val2Bin(val)].push_back(entry);
+    sorted = false;
+    empty = false;
 }
 
 vector<seedSubstructureInfo> sortedBins::getBinByValue(mstreal val) {
@@ -29,6 +31,16 @@ vector<seedSubstructureInfo> sortedBins::getLowestValuePopulatedBin() {
         if (!bin.empty()) return bin;
     }
     return bins.front();
+}
+
+seedSubstructureInfo sortedBins::getLowestRMSDSeed(set<string> seedNames) {
+    for (auto& bin : bins){
+        if (!bin.empty()) {
+            if (seedNames.count(bin.front().structure_name) == 0) return bin.front();
+            else continue;
+        }
+    }
+    return seedSubstructureInfo();
 }
 
 vector<tuple<mstreal,mstreal,long>> sortedBins::getSeedsByBin() {
@@ -69,6 +81,7 @@ void sortedBins::sortBins() {
     for (int i = 0; i < bins.size(); i++) {
         sort(bins[i].begin(),bins[i].end());
     }
+    sorted = true;
 }
 
 void sortedBins::reset() {
@@ -138,7 +151,17 @@ interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, string _RL_path
     
     //define coverage elements
     cout << "Identifying structural elements..." << endl;
-    defineCoverageElements();
+    peptide_residues = peptide_chain->getResidues();
+    cout << "Total number of peptide residue elements: " << peptide_residues.size() << endl;
+    
+    all_types_contacts = defineContacts(complex, peptide_residues);
+    
+    contact_residues = generalUtilities::mergeContactLists({all_types_contacts["contact"],all_types_contacts["interfering"],all_types_contacts["interfered"],all_types_contacts["bbinteraction"]});
+    
+    cout << "Total number of contact residue elements: " << contact_residues.size() << endl;
+    
+    for (pair<Residue*,Residue*> cont : contact_residues) cout << cont.first->getChainID() << cont.first->getNum() << "-" << cont.second->getChainID() << cont.second->getNum() << " ";
+    cout << endl;
     
     //construct target (protein chains only) and get binding site residues
     cout << "Constructing target structure and identifying binding site residues" << endl;
@@ -183,6 +206,7 @@ interfaceCoverage::~interfaceCoverage() {
     if (binFilePath != "") {
         delete seeds;
     }
+    delete target;
 }
 
 void interfaceCoverage::setSeeds(string _binFilePath) {
@@ -229,7 +253,8 @@ void interfaceCoverage::findCoveringSeeds() {
     seeds->reset();
 }
 
-void interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, int match_number, mstreal match_rmsd, bool sequence_match) {
+bool interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, int match_number, mstreal match_rmsd, bool sequence_match, bool only_check_if_aligned) {
+    bool aligned = false;
     int seed_length = seed_residues.size();
     int max_allowable_seed_segment_length = min(seed_length,max_allowable_segment_length);
     
@@ -251,21 +276,25 @@ void interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vect
                 
                 //check if passes the cutoff
                 if (rmsd < max_rmsd) {
-                    Atom* A = seed_segment[0];
-                    string structure_name = A->getStructure()->getName();
-                    string chain_ID = A->getChain()->getID();
-                    
-                    //compute the mean cosine angle between residue normal vectors
-                    vector<Residue*> seed_residue_segment(seed_residues.begin()+seed_position,seed_residues.begin()+seed_position+segment_length);
-                    mstreal alignment_cos_angle = generalUtilities::avgCosAngleBetweenSegments(seed_residue_segment,chainResidueSubsegments[segment_length-1][peptide_position]);
-                    
-                    seedSubstructureInfo info(structure_name,chain_ID,seed_position,segment_length,match_number,match_rmsd,sequence_match,rmsd,alignment_cos_angle);
-                    
-                    chainSubsegmentsBins[segment_length-1][peptide_position].insert(info, rmsd);
+                    aligned = true;
+                    if (!only_check_if_aligned) {
+                        Atom* A = seed_segment[0];
+                        string structure_name = A->getStructure()->getName();
+                        string chain_ID = A->getChain()->getID();
+                        
+                        //compute the mean cosine angle between residue normal vectors
+                        vector<Residue*> seed_residue_segment(seed_residues.begin()+seed_position,seed_residues.begin()+seed_position+segment_length);
+                        mstreal alignment_cos_angle = generalUtilities::avgCosAngleBetweenSegments(seed_residue_segment,chainResidueSubsegments[segment_length-1][peptide_position]);
+                        
+                        seedSubstructureInfo info(structure_name,chain_ID,seed_position,segment_length,match_number,match_rmsd,sequence_match,rmsd,alignment_cos_angle);
+                        
+                        chainSubsegmentsBins[segment_length-1][peptide_position].insert(info, rmsd);
+                    }
                 }
             }
         }
     }
+    return aligned;
 }
 
 void interfaceCoverage::writePeptideResidues(string outDir) {
@@ -293,8 +322,22 @@ void interfaceCoverage::writePeptideResidues(string outDir) {
     out.close();
 }
 
-void interfaceCoverage::writeContacts(string outDir) {
-    //contacts
+void interfaceCoverage::writeContacts(string outDir, set<pair<Residue*,Residue*>> provided_contact_residues, map<string,contactList> provided_all_types_contacts) {
+    
+    // decide whether to use provided contacts or those already defined in the object
+    set<pair<Residue*,Residue*>> _contact_residues;
+    map<string,contactList> _all_types_contacts;
+    if (provided_contact_residues.empty()) {
+        _contact_residues = contact_residues;
+        _all_types_contacts = all_types_contacts;
+        cout << "No contacts provided, using predefined set: " << _contact_residues.size() << endl;
+    } else {
+        _contact_residues = provided_contact_residues;
+        if (provided_all_types_contacts.empty()) MstUtils::error("If contacting residues are passed as arguments, a map defining all types of contacts must be as well","interfaceCoverage::writeContacts");
+        _all_types_contacts = provided_all_types_contacts;
+         cout << "Contacts provided: " << _contact_residues.size() << endl;
+    }
+    
     cout << "contact info..." << endl;
     fstream out;
     string output_path = outDir + "contacts.tsv";
@@ -302,13 +345,13 @@ void interfaceCoverage::writeContacts(string outDir) {
     
     out << "peptide_residue_number\tpeptide_chain\tprotein_residue_number\tprotein_chain\tcontact_name\tcontact\tinterference\tinterfering\tbbinteraction" << endl;
     
-    for (pair<Residue*,Residue*> cont : contact_residues) {
+    for (pair<Residue*,Residue*> cont : _contact_residues) {
         Residue* R_pep = cont.first;
         Residue* R_prot = cont.second;
-        mstreal contact = all_types_contacts["contact"].degree(R_pep,R_prot);
-        mstreal interference = all_types_contacts["interference"].degree(R_pep,R_prot);
-        mstreal interfering = all_types_contacts["interfering"].degree(R_pep,R_prot);
-        mstreal bbInteraction = all_types_contacts["bbinteraction"].degree(R_pep,R_prot);
+        mstreal contact = _all_types_contacts["contact"].degree(R_pep,R_prot);
+        mstreal interference = _all_types_contacts["interference"].degree(R_pep,R_prot);
+        mstreal interfering = _all_types_contacts["interfering"].degree(R_pep,R_prot);
+        mstreal bbInteraction = _all_types_contacts["bbinteraction"].degree(R_pep,R_prot);
         out << R_pep->getNum() << "\t" << R_pep->getChainID() << "\t";
         out << R_prot->getNum() << "\t" << R_prot->getChainID() << "\t";
         out << R_pep->getChainID() << R_pep->getNum() << "-" << R_prot->getChainID() << R_prot->getNum() << "\t";
@@ -362,7 +405,6 @@ void interfaceCoverage::writeBestAlignedSeeds(string outDir, int numSeeds, bool 
         seedOutDir = outDir + "best_aligned_seeds/";
         MstSys::cmkdir(seedOutDir);
     }
-
     
     //header
     output << "seed_name\tchain_id\tseed_n_terminal_res\tpeptide_n_terminal_res\tlength\tmatch_number\tmatch_rmsd\tsequence_match\trmsd\tavg_angle\tcontacts" << endl;
@@ -470,31 +512,26 @@ void interfaceCoverage::setParams(string _RL_path) {
     seq_const = false;
 }
 
-void interfaceCoverage::defineCoverageElements() {
+map<string,contactList> interfaceCoverage::defineContacts(Structure& complex, vector<Residue*> peptide_residues) {
+    
     // Structural Element: Residues
-    peptide_residues = peptide_chain->getResidues();
     cout << "Total number of residue elements: " << peptide_residues.size() << endl;
     
     // Structural Element: Contacts
     ConFind C(&RL,complex, true);
     
+    map<string,contactList> all_types_contacts_map;
     string contact_type;
     contact_type = "contact";
-    all_types_contacts[contact_type] = generalUtilities::getContactsWith(peptide_residues, C, cd_threshold, contact_type);
+    all_types_contacts_map[contact_type] = generalUtilities::getContactsWith(peptide_residues, C, cd_threshold, contact_type);
     contact_type = "interfering";
-    all_types_contacts[contact_type] = generalUtilities::getContactsWith(peptide_residues, C, int_threshold, contact_type);
+    all_types_contacts_map[contact_type] = generalUtilities::getContactsWith(peptide_residues, C, int_threshold, contact_type);
     contact_type = "interfered";
-    all_types_contacts[contact_type] = generalUtilities::getContactsWith(peptide_residues, C, int_threshold, contact_type);
+    all_types_contacts_map[contact_type] = generalUtilities::getContactsWith(peptide_residues, C, int_threshold, contact_type);
     contact_type = "bbinteraction";
-    all_types_contacts[contact_type] = generalUtilities::getContactsWith(peptide_residues, C, bbInt_cutoff, contact_type);
+    all_types_contacts_map[contact_type] = generalUtilities::getContactsWith(peptide_residues, C, bbInt_cutoff, contact_type);
     
-    
-    contact_residues = generalUtilities::mergeContactLists({all_types_contacts["contact"],all_types_contacts["interfering"],all_types_contacts["interfered"],all_types_contacts["bbinteraction"]});
-    
-    cout << "Total number of contact residue elements: " << contact_residues.size() << endl;
-    
-    for (pair<Residue*,Residue*> cont : contact_residues) cout << cont.first->getChainID() << cont.first->getNum() << "-" << cont.second->getChainID() << cont.second->getNum() << " ";
-    cout << endl;
+    return all_types_contacts_map;
 }
 
 void interfaceCoverage::prepareForTERMExtension() {
@@ -574,6 +611,231 @@ Structure* interfaceCoverage::getSeedSegment(seedSubstructureInfo info) {
     return seed_segment;
 }
 
+vector<string> pathFromCoveringSeeds::getCoveringPath(int maxSeedLength, int minSeedLength) {
+    
+    vector<seedSubstructureInfo> pathSeedInfo;
+    seedNames.clear();
+    coveringSeeds.clear();
+    coveringResiduesPath.clear();
+    coveringPathString.clear();
+    
+    /**
+     The goal of this function is to find the seeds that fuse to give a backbone that is as representative of the native peptide backbone as
+     possible. As our method works by finding overlaps between seeds (which must be at least two residues long) we require that the set
+     of covering seeds also contains these overlaps. To achieve this, we cover *segments* of the peptide. For example, by covering all
+     three residue segments of the peptide, we guarantee that there is no junction between seeds without at least a two residue overlap.
+     
+     To obtain the minimum number of low RMSD seeds required to cover the peptide, we employ a greedy algorithm. This algorithm works
+     by selecting the seed that covers the most not-yet-covered segments and breaking any ties by the seed with lower RMSD.
+     */
+    
+    set<residueSegment> peptideResidueSegmentsCopy = peptideResidueSegments;
+    
+    maxSeedLength = min(maxSeedLength,coverage->max_allowable_segment_length);
+    
+    MstUtils::assert(minSeedLength <= maxSeedLength,"minSeedLength must not be greater than maxSeedLength","pathFromCoveringSeeds::getBestCoveringSeed");
+    /*
+     The minSeedLength must be at least segmentLength. Smaller seed segments will not be able to
+     cover the peptide segments
+     */
+    minSeedLength = max(minSeedLength,segmentLength);
+    
+    if (verbose) cout << "Finding covering seeds with minLength: " << minSeedLength << " and maxSeedLength: " << maxSeedLength << endl;
+    
+    // Continue until all residues have been covered
+    int cycle = 0;
+    while (!peptideResidueSegments.empty()) {
+        cycle++;
+        if (verbose) {
+            cout << "Cycle " << cycle << endl;
+            cout << "peptideResidueSegments: " << peptideResidueSegments.size() << endl;
+        }
+        
+        // get the seed segment that covers the most peptide residues / has lowest RMSD
+        pair<seedSubstructureInfo,residueSegment> bestCoveringSeed = getBestCoveringSeed(maxSeedLength,minSeedLength);
+        if (bestCoveringSeed.second.empty()) break; //no seeds remaining to cover the peptide, take what is covering and make segments
+        if (verbose) cout << "Selected " << bestCoveringSeed.first.structure_name << "_" << bestCoveringSeed.first.res_idx << "_" << bestCoveringSeed.first.res_length << " as the best covering seed aligned to position" << bestCoveringSeed.second.front()->getResidueIndexInChain() << " on the peptide" << endl;
+            
+        // keep track of seeds that were added, so that only segments from new seeds can be added
+        if (forceChimera) seedNames.insert(bestCoveringSeed.first.structure_name);
+        auto ret = coveringSeeds.insert(pair<int,seedSubstructureInfo>(bestCoveringSeed.second.front()->getResidueIndexInChain(),bestCoveringSeed.first));
+        if (!ret.second) MstUtils::error("Could not insert seed to coveringSeeds, likely a duplicate","pathFromCoveringSeeds::getCoveringPath");
+        
+        // remove the residues from the set
+        bool removeSeg = true;
+        set<residueSegment> residueSegmentsCoveredBySeed = getResidueSegmentsCoveredBySeed(bestCoveringSeed.second,removeSeg);
+        
+        if (verbose) {
+            cout << "Covered " << residueSegmentsCoveredBySeed.size() << " peptide residue segments... " << peptideResidueSegments.size() << " segments remaining"  << endl;
+            cout << "The following segments were considered covered and removed: " << endl;
+            for (residueSegment segment : residueSegmentsCoveredBySeed) {
+                cout << *segment.front() << "-" << *segment.back() << endl;
+            }
+        }
+    }
+    
+    if (coveringSeeds.empty()) {
+        cout << "Couldn't find any covering seeds, terminating..." << endl;
+        return {};
+    }
+    cout << "Done finding covering seeds, now try to select residues for fusion" << endl;
+
+
+    // Get the path residues (as separate vectors if necessary)
+    coveringResiduesPath = getPathResidues();
+    
+    // Reset the coverage elements
+    peptideResidueSegments = peptideResidueSegmentsCopy;
+    
+    // Convert to string (multiple if necessary)
+    for (auto coveringRes : coveringResiduesPath) coveringPathString.push_back(PathSampler::getPathFromResidues(coveringRes.second));
+    return coveringPathString;
+}
+
+void pathFromCoveringSeeds::writeCoveringSeeds(string outputPath) {
+    cout << "Now writing seeds covering the peptide: " << endl;
+    int count = 0;
+    for (auto seed : coveringSeeds) {
+        cout << "Seed number: " << count << endl;
+        cout << "Seed name: " << seed.second.structure_name << endl;
+        cout << "Alignment to peptide:\t" << seed.first << endl;
+        cout << "Number of residues:\t" << seed.second.res_length << endl;
+        cout << "RMSD: " << seed.second.rmsd << endl;
+        
+        string seedName = seed.second.structure_name + "-" + MstUtils::toString(seed.first) + "-" + MstUtils::toString(seed.second.res_length) + "-" + MstUtils::toString(seed.second.rmsd);
+      
+        Structure seedSubstructure = seed.second.loadSeedSubstructureFromCache(seedCache,true);
+      
+        cout << "Writing pdb for seed substructure with name: " << seedName << endl;
+        seedSubstructure.writePDB(outputPath+seedName+".pdb");
+        
+        count++;
+    }
+}
+
+pair<seedSubstructureInfo,vector<Residue*>> pathFromCoveringSeeds::getBestCoveringSeed(int maxSeedLength, int minSeedLength) {
+    /*
+     Count how many not-yet-covered peptide residues would be covered by each seed segment, and take
+     the one that would cover the most peptide residues. If there is a tie between seed segments,
+     take the one with the lower RMSD. Note that this introduces a slight bias for shorter seeds,
+     but I'm assuming that it's not an issue (and this can be controlled with minSeedLength)
+     */
+    
+    multimap<int,pair<sortedBins&,vector<Residue*>>> sortedSeeds;
+    for (int i = 0; i < coverage->chainResidueSubsegments.size(); i++) {
+        // i+1 is the length of the seeds at this position of chainResidueSubsegments
+        if ((i+1 >= minSeedLength) && (i+1 <= maxSeedLength)) {
+            //seed length is acceptable
+            for (int j = 0; j < coverage->chainResidueSubsegments[i].size(); j++) {
+                vector<Residue*> peptideResidues = coverage->chainResidueSubsegments[i][j];
+                sortedBins& bins = coverage->chainSubsegmentsBins[i][j];
+                if (bins.allBinsEmpty()) continue; //no covering seeds, skip this subsegment
+                set<residueSegment> coveredSegments = getResidueSegmentsCoveredBySeed(peptideResidues,false);
+                if (coveredSegments.size() > 0) sortedSeeds.emplace(coveredSegments.size(),pair<sortedBins&,vector<Residue*>>(bins,peptideResidues));
+            }
+        }
+    }
+    
+    if (sortedSeeds.empty()) return pair<seedSubstructureInfo,vector<Residue*>>(seedSubstructureInfo(),{});
+    
+    // get the highest number of covered residues in the multimap
+    int mostCoveredRes = sortedSeeds.rbegin()->first;
+    auto ret = sortedSeeds.equal_range(mostCoveredRes);
+    
+    // get lowest RMSD seed segment
+    mstreal lowestRMSD = DBL_MAX;
+    pair<seedSubstructureInfo,vector<Residue*>> bestSeed;
+    for (auto it = ret.first; it != ret.second; it++) {
+        if (!it->second.first.areBinsSorted()) it->second.first.sortBins();
+        seedSubstructureInfo seed = it->second.first.getLowestRMSDSeed(seedNames);
+        if (seed.structure_name == "") continue;
+        
+        mstreal rmsd = seed.rmsd;
+        if (rmsd < lowestRMSD) {
+            lowestRMSD = rmsd;
+            bestSeed = pair<seedSubstructureInfo,vector<Residue*>>(seed,it->second.second);
+        }
+    }
+    return bestSeed;
+}
+
+set<vector<Residue*>> pathFromCoveringSeeds::getResidueSegmentsCoveredBySeed(vector<Residue*> peptideResiduesCoveredBySeedSegment, bool removeSeg) {
+    set<residueSegment> coveredSegments;
+    for (int i = 0; i < peptideResiduesCoveredBySeedSegment.size() - segmentLength + 1; i++) {
+        residueSegment seedSegment = vector<Residue*>(peptideResiduesCoveredBySeedSegment.begin() + i,peptideResiduesCoveredBySeedSegment.begin() + i + segmentLength);
+        
+        if (peptideResidueSegments.count(seedSegment) == 1) {
+            coveredSegments.insert(seedSegment);
+            if (removeSeg) peptideResidueSegments.erase(seedSegment);
+        }
+    }
+    return coveredSegments;
+}
+
+map<int,vector<Residue*>> pathFromCoveringSeeds::getPathResidues() {
+    /*
+     Walk through coveringSeeds, which is sorted by N-terminal residues of the seed segments. Jumping
+     points between the seeds are at the center of their overlaps.
+     */
+    if (coveringSeeds.empty()) {
+        cout << "No covering seeds, finding set..." << endl;
+        getCoveringPath();
+    }
+    
+    map<int,vector<Residue*>> pathRes;
+    vector<Residue*> pathResSegment;
+    int currPositionInPeptide = 0, segmentStartPositionInPeptide = 0;
+    for (auto it = coveringSeeds.begin(); it != coveringSeeds.end(); it++) {
+        /*
+         Choose where to start in the seed (positionInSeed) based on where we are in the peptide
+         (positionInPeptide) and how the seed maps to the peptide (it->first is the alignment of the
+         N-terminal residue of the seed to the peptide)
+         
+         e.g. if terminalRes = 1
+         
+         0-1-2-3-4-5-6-7    Peptide Residues
+         
+         0-1-2-3-4          Seed 1 Residues
+                \           crossing point
+               0-1-2-3-4    Seed 2 Residues
+         
+         The starting point within seed 2 is found by taking the position in the peptide (which is 4,
+         after adding the first four seed residues) and subtracting the alignment of seed 2 (3).
+         
+         21/02/03 update: now the class can handle disjoint covering segments. If a region of the
+         peptide is not covered (there is no seed aligned where it should be) then the path residue
+         vector stops growing, and another one is started. To avoid duplicated residues in the final
+         paths, up to the first terminalRes will be truncated from the seed if necessary.
+         */
+        int positionInSeed = currPositionInPeptide - it->first;
+        if (positionInSeed < terminalRes) {
+            // we are not where we expected to be in the next seed, there must be a missing seed
+            if (it != coveringSeeds.begin()) {
+                if (verbose) cout << "adding path segment with " << pathResSegment.size() << " residues" << endl;
+                pathRes[segmentStartPositionInPeptide] = pathResSegment;
+                pathResSegment.clear();
+            }
+            // a negative position in seed indicates that we skipped some residues
+            // find how many we skipped and set position in seed to beginning
+            currPositionInPeptide = currPositionInPeptide - min(positionInSeed,0);
+            segmentStartPositionInPeptide = currPositionInPeptide;
+            positionInSeed = max(positionInSeed,0);
+        }
+        
+        vector<Residue*> seedChainResidues = it->second.loadSeedSubstructureFromCache(seedCache);
+        // if last seed, go to the end
+        int skipRes = (next(it) == coveringSeeds.end()) ? 0 : terminalRes;
+        for (int i = positionInSeed; i < seedChainResidues.size() - skipRes; i++) {
+            pathResSegment.push_back(seedChainResidues[i]);
+            currPositionInPeptide++;
+        }
+    }
+    //final push to vector
+    if (verbose) cout << "adding path segment with " << pathResSegment.size() << " residues" << endl;
+    pathRes[segmentStartPositionInPeptide] = pathResSegment;
+        
+    return pathRes;
+}
 
 ///* --------- benchmarkUtils --------- */
 //seedScoring::seedScoring(const string& configFile):dTERMen(configFile){

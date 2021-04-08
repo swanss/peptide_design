@@ -21,6 +21,7 @@
 #include "msttransforms.h"
 #include "mstrotlib.h"
 #include "mstfasst.h"
+#include "dtermen.h"
 
 #include "seedgraph.h"
 
@@ -100,6 +101,10 @@ public:
      */
     void setIgnoreClash(bool _ignoreClash) {ignoreClash = _ignoreClash;}
     
+    void setQueryHomologyCutoff(double val) {
+        if (val <= 0.0) MstUtils::error("Query homology cutoff cannot be <= 0","FASSTScorer::setQueryHomologyCutoff");
+        else queryHomologyCutoff = val;}
+    
 protected:
     configFile config;
   
@@ -110,6 +115,12 @@ protected:
     int maxNumMatches;
     double vdwRadius;
     bool ignoreClash = false;
+    
+    /**
+     Any match with a sequence identity greater than this cutoff will be removed from the matches, as it is considered homologous to the
+     query and thus redundant. Any value above 1.0 signals that this should not be applied when searching
+     */
+    double queryHomologyCutoff = 2.0;
     
     // Backbone-only target
     Structure targetStructBB;
@@ -264,7 +275,7 @@ private:
  with the writeContactCounts and readContactCounts methods.
  
  */
-class SequenceCompatibilityScorer: public FASSTScorer {
+class SequenceStructureCompatibilityScorer: public FASSTScorer {
 public:
     
     /**
@@ -293,8 +304,8 @@ public:
             but the *ratio* of the maximum VDW radius for the specific atom within
             which clashes are checked
      */
-    SequenceCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank = 2, int seedFlank = 2, double fractionIdentity = 0.4, double minRatio = 0.05, double pseudocount = 0.25, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 1.0);
-    ~SequenceCompatibilityScorer();
+    SequenceStructureCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank = 2, int seedFlank = 2, double fractionIdentity = 0.4, double minRatio = 0.05, double pseudocount = 0.25, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 1.0);
+    ~SequenceStructureCompatibilityScorer();
     
     /**
      This currently only supports seeds with a single chain.
@@ -471,7 +482,9 @@ public:
      option added by sebastian on 20/07/19
      @param scoreAll search all contacts, regardless if some are found to be non-designable
      */
-  SeedDesignabilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity = 0.4, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 0.7, bool scoreAll = false);
+    SeedDesignabilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity = 0.4, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 0.7, bool _scoreAll = false): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), fragParams(fragParams), rParams(rParams), contParams(contParams), minNumMatches(minNumMatches), scoreAll(_scoreAll) {};
+    ~SeedDesignabilityScorer() {
+    }
     
     /**
      This currently only supports seeds with a single chain.
@@ -504,7 +517,13 @@ public:
      @return a map containing the number of designable contacts for each residue
              in seedResidues
      */
-    unordered_map<Residue *, mstreal> designabilityScore(Structure& combStruct, contactList& cl, vector<Residue*> seedResidues);
+    unordered_map<Residue *, mstreal> designabilityScore(Structure& combStruct, contactList& cl, vector<Residue*> seedResidues, string seedName = "");
+    
+//    /// Path at which to write out queries.
+//    string *queryWritePath = nullptr;
+    
+    /// Path at which to write out score breakdowns for each contact.
+    string scoresWritePath = "";
     
 private:
     FragmentParams fragParams;
@@ -517,6 +536,15 @@ private:
 
     // Statistics for current seed
     int _numDesignable = 0;
+    
+    /// Write stream for writing out scores
+    ofstream *scoreWriteOut = nullptr;
+    
+    /**
+     Initializes the score write stream if a path was provided, and returns it.
+     Returns null if scoresWritePath is null.
+     */
+    ofstream *getScoreWriteStream();
 };
 
 

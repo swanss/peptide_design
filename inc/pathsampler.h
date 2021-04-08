@@ -31,7 +31,7 @@
 class PathResult {
 public:
     vector<Residue *> getOriginalResidues() { return _originalResidues; }
-    int size() { return _originalResidues.size(); }
+    int size() { return residueSize; }
 
     Structure& getFusedStructure() { return _fusedPath; }
     void getFusedPathOnly(Structure &ret) {
@@ -45,7 +45,9 @@ public:
     fusionOutput getFuserScore() {return _fuserScore;}
     int getIntrachainClash() {return _intrachainClash;}
     int getInterchainClash() {return _interchainClash;}
-    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, fusionOutput fuserScore, int interchainClash = 0, int intrachainClash = 0): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _fuserScore(fuserScore), _interchainClash(interchainClash), _intrachainClash(intrachainClash) {}
+    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, fusionOutput fuserScore, int interchainClash = 0, int intrachainClash = 0): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _fuserScore(fuserScore), _interchainClash(interchainClash), _intrachainClash(intrachainClash) {
+        residueSize = _fusedPath.residueSize() - seedStartIdx;
+    }
 
 private:
     vector<Residue *> _originalResidues;
@@ -55,20 +57,24 @@ private:
     int _interchainClash;
     int _intrachainClash;
     string _chainID = "0";
+    int residueSize = 0; //the residue length of the fused path (no context)
     
 };
 
 class PathSampler {
 public:
     PathSampler(Structure *target, int overlapLength = 3): overlapLength(overlapLength), _target(target), targetAPV(target->getAtoms()), ps(targetAPV, 10.0) {};
-    virtual ~PathSampler() {};
+//    ~PathSampler() {};
     
     /**
      Samples the given number of paths from the seed graph or cluster tree.
      */
-    virtual vector<PathResult> sample(int numPaths) = 0;
+//    virtual vector<PathResult> sample(int numPaths) = 0;
     
     void setMinimumLength(int length) {minimumLength = length;}
+    
+    // Optimize without and then with internal coordinate constraints, if set to true
+    void setTwoStepFuse(bool val) {twoStepFuse = val;}
     
     static string getPathFromResidues(vector<Residue*> path) {
         string path_string = "";
@@ -78,6 +84,12 @@ public:
         }
         return path_string;
     }
+    
+    /**
+     * Generates a PathResult by fusing the given path together, making
+     * sure it is valid, and checking for clashes.
+     */
+    bool emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results, set<Residue*> fixedResidues = {}, bool ignore_clashes = false);
         
 protected:
     Structure *_target = nullptr;
@@ -88,13 +100,9 @@ protected:
     int overlapLength = 3;
     int minimumLength = 15;
     
+    bool twoStepFuse = true;
+    
     string chainID = "0";
-
-    /**
-     * Generates a PathResult by fusing the given path together, making
-     * sure it is valid, and checking for clashes.
-     */
-    bool emplacePathFromResidues(vector<Residue *> path, vector<PathResult> &results, set<Residue*> fixedResidues = {}, bool ignore_clashes = false);
 
     AtomPointerVector buildAPV(const vector<Residue *>::const_iterator &begin, const vector<Residue *>::const_iterator &end);
 
@@ -102,11 +110,11 @@ protected:
      * Gets the residues from the target that correspond to the non-seed
      * match residues in the given path.
      *
-     * @param residues a list of path residues
+     * @param pathResidues a list of path residues
      * @return a list of residues from _target that are marked as associated
      *  with the seeds that the path residues come from
      */
-    vector<Residue *> getTargetResidues(const vector<Residue *> &residues);
+    vector<Residue *> getTargetResidues(const vector<Residue *> &pathResidues);
     /**
      * Gets the match residues (which are not the seed residues in the path)
      * and maps them to the appropriate position in the topology.
@@ -118,7 +126,7 @@ protected:
      *  and the positions in the topology at which these residues should be
      *  added
      */
-    pair<vector<Residue *>, vector<int>> getMappedMatchResidues(const Structure &seedStructure, const unordered_map<pair<string, int>, int, pair_hash> &targetPositions);
+    pair<vector<Residue *>, vector<int>> getMappedMatchResidues(const Structure &seedStructure, const map<int,int> &targetPositions);
     int fusePath(const vector<Residue *> &residues, Structure &fusedPath, fusionOutput& fuserScore, set<Residue*> fixedResidues = {});
     bool pathClashes(const Structure &path, int seedStartIdx, int &interchain_clash, int &intrachain_clash);
 };
@@ -141,12 +149,12 @@ public:
         if (_startingResidues.size() >= INT_MAX) MstUtils::error("The number of residues in the graph exceeds the max value of an integer.");
     };
 
-    ~SeedGraphPathSampler() override {};
+    ~SeedGraphPathSampler() {};
     
     /**
      Samples the given number of paths from the seed graph or cluster tree.
      */
-    vector<PathResult> sample(int numPaths) override;
+    vector<PathResult> sample(int numPaths);
   
     /**
      Fuse prespecified paths.
@@ -215,7 +223,7 @@ private:
     set<Residue*> _fixedResidues;
   
     set<vector<Residue*>> _sampledPaths;
-    int attempts, no_overlaps, redundant, too_short, clashes = 0;
+    int attempts = 0, no_overlaps = 0, redundant = 0, too_short= 0, clashes = 0;
     
     vector<Residue*> pathResiduesFromSpecifier(string path_spec);
     
@@ -240,12 +248,12 @@ public:
      */
     ClusterTreePathSampler(Structure *target, FragmentFetcher *fetcher, ClusterTree *overlapTree, int overlapSize, mstreal overlapRMSD, vector<Residue *> residues): PathSampler(target, overlapSize), _fetcher(fetcher), _searchTree(overlapTree), _searchTreeResidues(residues), overlapRMSD(overlapRMSD) {};
 
-    ~ClusterTreePathSampler() override {};
+    ~ClusterTreePathSampler() {};
     
     /**
      Samples the given number of paths from the seed graph or cluster tree.
      */
-    vector<PathResult> sample(int numPaths) override;
+    vector<PathResult> sample(int numPaths);
   
     // If true, constrain sampled paths to never use seeds that have been used in previously-sampled paths
     bool uniqueSeeds = false;

@@ -9,7 +9,7 @@
 #include "structure_iter.h"
 #include "mstsystem_exts.h"
 #include <regex>
-#include <vector>
+#include <vector>Mo
 
 using namespace std;
 using namespace MST;
@@ -325,20 +325,18 @@ void StructureCache::clear() {
 
 // StructureIterator
 
-StructureIterator::StructureIterator(const vector<string>& filePaths, int batchSize, vector<string> *chainIDs): _filePaths(filePaths), _batchSize(batchSize), _chainIDs(chainIDs) {
+StructureIterator::StructureIterator(const vector<string>& filePaths, int batchSize, vector<string> *chainIDs, int workerIndex, int numWorkers): _filePaths(filePaths), _batchSize(batchSize), _chainIDs(chainIDs), _workerIndex(workerIndex), _numWorkers(numWorkers), _batchIndex(workerIndex) {
     if (chainIDs != nullptr)
         MstUtils::assert(chainIDs->size() == filePaths.size(), "must have same number of chain IDs and file paths");
 }
 
-StructureIterator::StructureIterator(const string binaryFilePath, int batchSize, string chainID): _batchSize(batchSize), defaultChainID(chainID) {
+StructureIterator::StructureIterator(const string binaryFilePath, int batchSize, string chainID, int workerIndex, int numWorkers): _batchSize(batchSize), defaultChainID(chainID), _workerIndex(workerIndex), _numWorkers(numWorkers), _batchIndex(workerIndex) {
     binaryFile = new StructuresBinaryFile(binaryFilePath);
 }
 
 bool StructureIterator::hasNext() {
-    if (binaryFile != nullptr) {
-        return binaryFile->hasNext();
-    }
-    return _batchIndex * _batchSize < _filePaths.size();
+    if (!nextResultAvailable) makeNextResult();
+    return nextResultAvailable;
 }
 
 void StructureIterator::reset() {
@@ -349,15 +347,27 @@ void StructureIterator::reset() {
 }
 
 vector<Structure *> StructureIterator::next() {
-    int startIndex = (_batchIndex++) * _batchSize;
+    if (!nextResultAvailable) makeNextResult();
+    nextResultAvailable = false;
+    return *_currentBatch;
+}
+
+void StructureIterator::makeNextResult() {
     vector<Structure *> result;
-   
+    
+    // get index in structures using the batch index
+    _batchIndex = _batchIndex + _numWorkers;
+    int startIndex = _batchIndex * _batchSize;
+    
     if (binaryFile != nullptr) {
+        // go to start index in binary file
+        binaryFile->jumpToStructureIndex(startIndex);
+        
         while (binaryFile->hasNext() && result.size() < _batchSize) {
             Structure *candidate = binaryFile->next();
             Structure floatingChains;
             extractChains(*candidate, splitChainIDs(defaultChainID), floatingChains);
-            result.push_back(new Structure(floatingChains)); 
+            result.push_back(new Structure(floatingChains));
             delete candidate;
         }
     } else {
@@ -376,24 +386,24 @@ vector<Structure *> StructureIterator::next() {
         }
     }
     
-    // Remove last batch
-    if (_lastBatch != nullptr)
-        delete _lastBatch;
-    _lastBatch = new vector<Structure *>(result);
+    // Replace the current batch with the new structures
+    if (_currentBatch != nullptr) {
+        if (maintainsOwnership) for (Structure* seed : *_currentBatch) delete seed;
+        delete _currentBatch;
+    }
+    _currentBatch = new vector<Structure *>(result);
     
-    return result;
+    if (!_currentBatch->empty()) nextResultAvailable = true;
 }
 
 void StructureIterator::skip() {
+    //increment the index
+    _batchIndex = _batchIndex + _numWorkers;
+    
     if (binaryFile != nullptr) {
-        int i = 0;
-        while (binaryFile->hasNext() && i < _batchSize) {
-            binaryFile->skip();
-            i++;
-        }
-        cout << "Skipped " << i << " structures" << endl;
+        int startIndex = _batchIndex * _batchSize;
+        binaryFile->jumpToStructureIndex(startIndex);
     }
-    _batchIndex++;
 }
 
 PairStructureIterator::PairStructureIterator(const vector<string>& filePaths, int batchSize, vector<string> *chainIDs): _first(filePaths, batchSize, chainIDs), _second(filePaths, batchSize, chainIDs) {}

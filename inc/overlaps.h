@@ -75,9 +75,9 @@ public:
 private:
     vector<MST::mstreal> _bbox;
     MST::mstreal _increment;
-    hash_type _xBinSize;
-    hash_type _yBinSize;
-    hash_type _zBinSize;
+    hash_type _numXBins;
+    hash_type _numYBins;
+    hash_type _numZBins;
 };
 
 
@@ -278,6 +278,59 @@ private:
     // Maps hash values to vectors of pairs containing each residue and its index in the chain
     unordered_map<typename Hasher::hash_type, vector<pair<MST::Residue *, int>>> _hashMap;
         
+    /**
+     Determines whether the given overlap candidate is a real overlap, using the
+     verifier if provided. If the overlap finder has no verifier, returns true.
+     */
+    bool checkOverlap(vector<MST::Residue *>::iterator begin, vector<MST::Residue *>::iterator end, const OverlapCandidate &candidate) const;
+};
+
+/**
+ Implements much of the same functionality of OverlapFinder, but has a lower memory footprint and returns the number of overlaps instead
+ of the identities of the overlaps
+ */
+
+template <class Hasher>
+class OverlapCounter {
+public:
+    /**
+     Initialize an OverlapCounter.
+     
+     @param hasher An instance of ResidueHasher that can hash and find regions using residues
+     @param cutoff The distance cutoff to use for finding overlaps (passed to the ResidueHasher's
+        region method)
+     @param seedChain The chain ID corresponding to the seed (if empty, assumes the structures
+        contain only the seeds)
+     @param verifier An instance of OverlapVerifier that returns true if two sets of residues
+        correspond to an overlap. If null, does not perform verification before returning
+        overlaps.
+     */
+    OverlapCounter(const Hasher& hasher, typename Hasher::distance_metric cutoff, string seedChain = "", OverlapVerifier *verifier = nullptr): _hasher(hasher), _cutoff(cutoff), _seedChain(seedChain), _verifier(verifier) {};
+    
+    /**
+     Reads a StructuresBinaryFile and loads structures in batches, inserting them into the hash map.
+     */
+    void insertStructures(string seedBinaryFile);
+    
+    /**
+     Finds overlaps with the given source residues and returns the total number.
+     
+     */
+    int countOverlaps(vector<MST::Residue *> &source) const;
+    
+    // Indicates whether to print progress to the console.
+    bool verbose = true;
+protected:
+private:
+    typename Hasher::distance_metric _cutoff;
+    string _seedChain;
+    const Hasher &_hasher;
+    OverlapVerifier *_verifier;
+    set<string> bbAtomNames = {"N","CA","C","O"};
+    
+    // Maps hash values to vectors of pairs containing each residue and its index in the chain
+    unordered_map<typename Hasher::hash_type, vector<pair<MST::Residue *, int>>> _hashMap;
+    
     /**
      Determines whether the given overlap candidate is a real overlap, using the
      verifier if provided. If the overlap finder has no verifier, returns true.

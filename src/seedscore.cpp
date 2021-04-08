@@ -93,7 +93,10 @@ bool FASSTScorer::prepareCombinedStructure(Structure *seed) {
     cleanStructure(tmpStructure, pose, true, true, true);
     
     if (pose.residueSize() == 0) {
-        cout << "pose has no residues" << endl;
+        cout << "seed has no residues" << endl;
+        return false;
+    } else if (pose.chainSize() > 1) {
+        cout << "seed has more than one chain" << endl;
         return false;
     }
     
@@ -229,18 +232,18 @@ void contactCounter::writeContactsFile(string contactsFile) {
     contacts.close();
 }
 
-#pragma mark - SequenceCompatibilityScorer
+#pragma mark - SequenceStructureCompatibilityScorer
 
-SequenceCompatibilityScorer::SequenceCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank, int seedFlank, double fractionIdentity, double minRatio, double pseudocount, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches,   vdwRadius), targetFlank(targetFlank), seedFlank(seedFlank), contParams(contParams), rParams(rParams), minRatio(minRatio), pseudocount(pseudocount), minNumMatches(minNumMatches) {
+SequenceStructureCompatibilityScorer::SequenceStructureCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank, int seedFlank, double fractionIdentity, double minRatio, double pseudocount, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches,   vdwRadius), targetFlank(targetFlank), seedFlank(seedFlank), contParams(contParams), rParams(rParams), minRatio(minRatio), pseudocount(pseudocount), minNumMatches(minNumMatches) {
     fragParams = FragmentParams(max(targetFlank, seedFlank), false);
 }
 
-SequenceCompatibilityScorer::~SequenceCompatibilityScorer() {
+SequenceStructureCompatibilityScorer::~SequenceStructureCompatibilityScorer() {
     if (scoreWriteOut != nullptr)
         delete scoreWriteOut;
 }
 
-unordered_map<Residue*, mstreal> SequenceCompatibilityScorer::score(Structure *seed) {
+unordered_map<Residue*, mstreal> SequenceStructureCompatibilityScorer::score(Structure *seed) {
     
     if (!prepareCombinedStructure(seed)) {
         return invalidScoreMap(seed);
@@ -291,7 +294,7 @@ unordered_map<Residue*, mstreal> SequenceCompatibilityScorer::score(Structure *s
     return result;
 }
 
-ofstream *SequenceCompatibilityScorer::getScoreWriteStream() {
+ofstream *SequenceStructureCompatibilityScorer::getScoreWriteStream() {
     if (scoreWriteOut != nullptr)
         return scoreWriteOut;
     if (scoresWritePath != nullptr) {
@@ -310,13 +313,13 @@ ofstream *SequenceCompatibilityScorer::getScoreWriteStream() {
     return scoreWriteOut;
 }
 
-void SequenceCompatibilityScorer::collectContacts(Structure *seed) {
+void SequenceStructureCompatibilityScorer::collectContacts(Structure *seed) {
     countingContacts = true;
     auto result = score(seed);
     countingContacts = false;
 }
 
-void SequenceCompatibilityScorer::writeContactCounts(string filePath) {
+void SequenceStructureCompatibilityScorer::writeContactCounts(string filePath) {
     ofstream outputSS(filePath, ios::out);
     if (!outputSS.is_open()) {
         cerr << "couldn't open out stream" << endl;
@@ -328,7 +331,7 @@ void SequenceCompatibilityScorer::writeContactCounts(string filePath) {
     }
 }
 
-void SequenceCompatibilityScorer::readContactCounts(string filePath) {
+void SequenceStructureCompatibilityScorer::readContactCounts(string filePath) {
     ifstream readstream(filePath);
     if (!readstream.is_open()) {
         cerr << "couldn't open contact counts file" << endl;
@@ -343,7 +346,7 @@ void SequenceCompatibilityScorer::readContactCounts(string filePath) {
     }
 }
 
-unordered_map<Residue *, mstreal> SequenceCompatibilityScorer::sequenceStructureScore(Structure *seed, Structure &combStruct, contactList &cl, set<Residue *> &toScore) {
+unordered_map<Residue *, mstreal> SequenceStructureCompatibilityScorer::sequenceStructureScore(Structure *seed, Structure &combStruct, contactList &cl, set<Residue *> &toScore) {
     // Store a map from each seed residue to its score. In this method we score
     // residues in the TARGET, but we will add the scores to the appropriate SEED
     // residue.
@@ -459,7 +462,7 @@ unordered_map<Residue *, mstreal> SequenceCompatibilityScorer::sequenceStructure
     return result;
 }
 
-vector<Residue *> SequenceCompatibilityScorer::trimFragment(Fragment &frag, Residue *scoringRes, Residue *seedRes, Structure &result) {
+vector<Residue *> SequenceStructureCompatibilityScorer::trimFragment(Fragment &frag, Residue *scoringRes, Residue *seedRes, Structure &result) {
     vector<Residue *> residues;
     int scoringResIndex = scoringRes->getResidueIndex();
     int seedResIndex = seedRes->getResidueIndex();
@@ -476,7 +479,7 @@ vector<Residue *> SequenceCompatibilityScorer::trimFragment(Fragment &frag, Resi
     return residues;
 }
 
-mstreal SequenceCompatibilityScorer::sequenceStructureScoreComponent(Fragment &frag, Residue *scoringRes, Residue *seedRes, map<Fragment, double> *seenProbs, bool cacheBackground) {
+mstreal SequenceStructureCompatibilityScorer::sequenceStructureScoreComponent(Fragment &frag, Residue *scoringRes, Residue *seedRes, map<Fragment, double> *seenProbs, bool cacheBackground) {
     cout << "Analyzing contact " << *scoringRes << " - " << *seedRes << " with " << frag.numResidues() << " residues in fragment" << endl;
     string resCode = SeqTools::tripleToSingle(scoringRes->getName());
     int resType = SeqTools::seqToIdx(resCode, "")[0];
@@ -591,7 +594,7 @@ mstreal SequenceCompatibilityScorer::sequenceStructureScoreComponent(Fragment &f
     return -log(ratio);
 }
 
-mstreal SequenceCompatibilityScorer::contactScore(Residue *seedRes, Residue *targetRes, double pseudocount) {
+mstreal SequenceStructureCompatibilityScorer::contactScore(Residue *seedRes, Residue *targetRes, double pseudocount) {
     if (targetContactCounts.size() == 0 || adjacencyGraph == nullptr)
         return 0.0;
     
@@ -604,7 +607,7 @@ mstreal SequenceCompatibilityScorer::contactScore(Residue *seedRes, Residue *tar
 
 #pragma mark - StructureCompatibilityScorer
 
-SeedDesignabilityScorer::SeedDesignabilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity, int minNumMatches, int maxNumMatches, double vdwRadius, bool _scoreAll): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches, vdwRadius), fragParams(fragParams), rParams(rParams), contParams(contParams), minNumMatches(minNumMatches), scoreAll(_scoreAll) {}
+//SeedDesignabilityScorer::SeedDesignabilityScorer(Structure *target, FragmentParams& fragParams, rmsdParams& rParams, contactParams& contParams, string configFilePath, double fractionIdentity, int minNumMatches, int maxNumMatches, double vdwRadius, bool _scoreAll)
 
 unordered_map<Residue*, mstreal> SeedDesignabilityScorer::score(Structure *seed) {
     _numDesignable = 0;
@@ -658,12 +661,13 @@ void SeedDesignabilityScorer::score(Structure *seed, mstreal &totalScore, int &n
     numContacts = 0;
     numDesignable = 0;
     totalScore = DBL_MAX;
-  
+      
     // Stores combined structure in targetStructBB
     if (!prepareCombinedStructure(seed)) {
         return;
     }
-    //cout << "Prepared combined structure" << endl;
+    
+    cout << "Prepared combined structure..." << endl;
     
     Chain* poseChain = &targetStructBB[targetStructBB.chainSize() - 1];
     vector<Residue*> poseResidues = poseChain->getResidues();
@@ -679,14 +683,15 @@ void SeedDesignabilityScorer::score(Structure *seed, mstreal &totalScore, int &n
     totalScore = 0.0;
     
     if (mustContact && conts.size() == 0) {
-        // doesn't contact the correct regions of the target
+        cout << "No contacts to score" << endl;
+        resetCombinedStructure();
         return;
     }
     
     writeContactList(cout, conts);
   
     // Compute designability score using the list of contacts
-    unordered_map<Residue *, mstreal> tempResult = designabilityScore(targetStructBB, conts, poseResidues);
+    unordered_map<Residue *, mstreal> tempResult = designabilityScore(targetStructBB, conts, poseResidues, seed->getName());
     for (auto item: tempResult) {
         totalScore += item.second;
     }
@@ -695,12 +700,15 @@ void SeedDesignabilityScorer::score(Structure *seed, mstreal &totalScore, int &n
     */
     totalScore /= poseResidues.size();
     numDesignable = _numDesignable;
-
+    
     // Clean up target structure
     resetCombinedStructure();
+    
 }
 
-unordered_map<Residue*, mstreal> SeedDesignabilityScorer::designabilityScore(Structure &combStruct, contactList &cl, vector<Residue*> seedResidues) {
+unordered_map<Residue*, mstreal> SeedDesignabilityScorer::designabilityScore(Structure &combStruct, contactList &cl, vector<Residue*> seedResidues, string seedName) {
+    ofstream* out = getScoreWriteStream();
+    
     // Fragment structure based on contacts
     FragmentParams newFragParams = fragParams;
     newFragParams.pair = true;
@@ -719,14 +727,19 @@ unordered_map<Residue*, mstreal> SeedDesignabilityScorer::designabilityScore(Str
     }
     
     int prevSufficientNumMatches = fasst->getSufficientNumMatches();
-    fasst->setSufficientNumMatches(minNumMatches);
+    /**
+        If the homology cutoff is in effect, we can't stop searching at minNumMatches, because some of the matches are later filtered
+     due to homology with the query, then we would not have enough in our solution set for the fragment to be considered designable.
+     Theoretically we should find all matches, but in practice since the DB is always pre-filtered by sequence similarity, we expect no more
+     than one match to be filtered out. To be safe, we try to find an extra five matches.
+     */
+    if (queryHomologyCutoff <= 1.0) fasst->setSufficientNumMatches(minNumMatches+5);
+    else fasst->setSufficientNumMatches(minNumMatches);
     
-    int numFragsSearched = 0;
     cout << "searching for matches to " << frags.size() << " fragments " << endl;
-    MstTimer timer; timer.start();
+    MstTimer timer;
     for (Fragment frag: frags) {
-        numFragsSearched++;
-        //cout << "Fragment " << numFragsSearched << " of " << frags.size() << endl;
+        cout << "Fragment with name: " << frag << endl;
         Structure fragStructure = frag.getStructure();
         
         // Get seed residues, which will be scored
@@ -738,14 +751,38 @@ unordered_map<Residue*, mstreal> SeedDesignabilityScorer::designabilityScore(Str
             continue;
         }
         
+        // if the homologyCut value is <= 1.0, will filter out homologous matches
+        termData tD;
+        if (queryHomologyCutoff <= 1.0) tD.define(contactPair, vector<int>(2,fragParams.maxNumFlank));
+        
         fasst->setQuery(fragStructure);
         double rmsdCut = rParams.rmsdCutoff(fragStructure);
         fasst->setRMSDCutoff(rmsdCut);
-//        cout << "Searching, " << fragStructure.atomSize() << " atoms, " << fragStructure.residueSize() << " residues, RMSD " << rmsdCut << endl;
-        fasst->search();
-//        cout << "Done searching. Found " << fasst->numMatches() << " matches. Took " << timer.getDuration() << "s" << endl;
+        timer.start();
+        cout << "Searching, " << fragStructure.atomSize() << " atoms, " << fragStructure.residueSize() << " residues, RMSD " << rmsdCut << endl;
+        fasstSolutionSet sols = fasst->search();
+        timer.stop();
         
-        if (fasst->numMatches() < minNumMatches) {
+        if (queryHomologyCutoff <= 1.0) {
+            cout << "Done searching. Found " << sols.size() << " matches. Took " << timer.getDuration() << "s" << " ... now filtering homologous matches at a cutoff of " << queryHomologyCutoff << endl;
+            tD.setMatches(sols, queryHomologyCutoff, fasst);
+            cout << "Done filtering. Now have " << tD.numMatches() << endl;
+        } else {
+            tD.setMatches(sols, queryHomologyCutoff, NULL);
+            cout << "Done searching. Found " << tD.numMatches() << " matches. Took " << timer.getDuration() << "s" << endl;
+        }
+                
+        // write to ofstream, if provided
+        if (out != nullptr ) {
+            vector<Residue*> centralResID = frag.getID();
+            if (centralResID.size() != 2) MstUtils::error("Interface fragment has wrong number of center residues","SeedDesignabilityScorer::designabilityScore");
+            *out << seedName << ",";
+            *out << centralResID[0]->getChainID() << "," << centralResID[0]->getNum() << ",";
+            *out << centralResID[1]->getChainID() << "," << centralResID[1]->getNum() << ",";
+            *out << rmsdCut << "," << timer.getDuration() << ",";
+        }
+        if (tD.numMatches() < minNumMatches) {
+            if (out != nullptr) *out << 0 << endl;
             if (!scoreAll) {
                 // Set the seed residue score to infinity
                 for (Residue *res: residuesToScore) {
@@ -755,6 +792,7 @@ unordered_map<Residue*, mstreal> SeedDesignabilityScorer::designabilityScore(Str
             }
         }
         else {
+            if (out != nullptr) *out << 1 << endl;
             _numDesignable++;
             for (Residue *res: residuesToScore) {
                 result[res] += 1;
@@ -764,4 +802,23 @@ unordered_map<Residue*, mstreal> SeedDesignabilityScorer::designabilityScore(Str
     cout << "took " << timer.getDuration() << "s to find matches to all fragments" << endl;
     fasst->setSufficientNumMatches(prevSufficientNumMatches);
     return result;
+}
+
+ofstream *SeedDesignabilityScorer::getScoreWriteStream() {
+    if (scoreWriteOut != nullptr)
+        return scoreWriteOut;
+    if (scoresWritePath != "") {
+        scoreWriteOut = new ofstream(scoresWritePath);
+        if (!scoreWriteOut->is_open()) {
+            cerr << "Couldn't open scores write path" << endl;
+            scoresWritePath = nullptr;
+            scoreWriteOut = nullptr;
+            return nullptr;
+        }
+        
+        // Write the header file
+        ofstream& out = *scoreWriteOut;
+        out << "seed,seed_res_chain_id,seed_res_num,target_res_chain_id,target_res_num,rmsd,search_time,match" << endl;
+    }
+    return scoreWriteOut;
 }

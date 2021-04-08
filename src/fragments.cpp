@@ -358,7 +358,6 @@ void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLib
 		}
 	}
 
-
 	conts = confind.getInterference(residuesToInclude, params.sbDeg);
 	for (int i = 0; i < conts.size(); i++) {
 		Residue* resA = conts.residueA(i); // side chain from A to BB of B
@@ -367,14 +366,15 @@ void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLib
         bool sourceIsInToCheck = toCheck.count(resA) == 1; //the source is in the residues to be designed
         int numIncluded = toCheck.count(resA) + toCheck.count(resB);
         if (!sourceIsInToCheck) { // BB of toCheck
-            if (!intra) bsConts.addContact(resA, resB, conts.degree(i)); // side chain coming from existing (target) region
+            if (!intra) bsConts.addContact(resB, resA, conts.degree(i)); // side chain coming from existing (target) region
         }
 		else if ((intra && numIncluded == 2) || (!intra && numIncluded == 1)) {
 			sbConts.addContact(resA, resB, conts.degree(i)); // side chain from toCheck
 		}
 	}
-
-	conts = backboneContacts(s, params.bbDeg);
+    
+    conts = confind.getBBInteraction(residuesToInclude, params.bbDeg);
+//    conts = backboneContacts(s, params.bbDeg);
 	for (int i = 0; i < conts.size(); i++) {
 		Residue* resA = conts.residueA(i);
 		Residue* resB = conts.residueB(i);

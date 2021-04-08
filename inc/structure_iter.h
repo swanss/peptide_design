@@ -302,21 +302,27 @@ public:
      @param batchSize the number of structures to load in each iteration
      @param chainIDs the chain IDs to use from the file paths; if non-null,
             should be the same length as filePaths
+     @param workerIndex assigns the worker to specific batches, should be in [1,numWorkers]
+     @param numWorkers the total number of workers
      */
     StructureIterator(const vector<string> &filePaths,
                       int batchSize = 1000,
-                      vector<string> *chainIDs = nullptr);
+                      vector<string> *chainIDs = nullptr,
+                      int workerIndex = 0,
+                      int numWorkers = 1);
     
     StructureIterator(const string binaryFilePath,
                       int batchSize = 1000,
-                      string chainID = "0");
+                      string chainID = "0",
+                      int workerIndex = 0,
+                      int numWorkers = 1);
 
     ~StructureIterator() {
         if (binaryFile != nullptr) {
             delete binaryFile;
         }
-        if (_lastBatch != nullptr)
-          delete _lastBatch;
+        if (_currentBatch != nullptr)
+          delete _currentBatch;
     }
     /**
      @return whether there are structures that have not been loaded and returned
@@ -340,16 +346,28 @@ public:
     void skip();
   
     int getBatchSize() {return _batchSize;}
+    
+    /**
+     Sets whether the class has ownership of the seed structures (is responsible for deleting them) or not.
+     */
+    void hasOwnership(bool val) {maintainsOwnership = val;}
 
 private:
-    vector<Structure *> *_lastBatch = nullptr;
+    vector<Structure *> *_currentBatch;
     StructuresBinaryFile *binaryFile = nullptr;
     const vector<string> _filePaths;
     vector<string> *_chainIDs;
     string defaultChainID;
     int _batchSize;
-    int _batchIndex = 0;
+    int _batchIndex;
     bool _seedChains;
+    int _workerIndex = 0;
+    int _numWorkers = 1;
+    bool maintainsOwnership = true;
+    
+    bool nextResultAvailable = false;
+    
+    void makeNextResult();
 };
 
 /**

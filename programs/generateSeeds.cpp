@@ -23,6 +23,8 @@ int main(int argc, char *argv[]) {
     op.addOption("peptide", "peptide chain ID. Only necessary if the provided .pdb file contains a peptide chain");
     op.addOption("sel","a selection string that specifies the protein residues to generate seeds around. Necessary if the provided PDB file does not include peptide chains");
     op.addOption("params_file","Path to the configuration file (specifies fasst database and rotamer library)",true);
+    op.addOption("only_store_covering","If provided, will only write the seeds that are covering, e.g. have some segment aligning to the peptide");
+    op.addOption("adaptive_fragments","Fragments grow as large as possible while still having the required number of matches");
     op.setOptions(argc, argv);
     
     if (op.isGiven("peptide") == op.isGiven("sel")) MstUtils::error("Either a peptide chain ID or a selection string must be provided, but not both");
@@ -34,6 +36,8 @@ int main(int argc, char *argv[]) {
     string params_file_path = op.getString("params_file");
     string p_cid = op.getString("peptide","");
     string sel_str = op.getString("sel","");
+    bool only_store_covering = op.isGiven("only_store_covering");
+    bool adaptive_fragments = op.isGiven("adaptive_fragments");
   
     // Open params file
     TEParams params(params_file_path);
@@ -79,13 +83,15 @@ int main(int argc, char *argv[]) {
     
     TermExtension TE(config.getDB(), config.getRL(), bindingSiteRes, params);
     timer.start();
-    TE.generateFragments(TermExtension::MATCH_NUM_REQ_CUTOFF);
+    if (adaptive_fragments) TE.generateFragments(TermExtension::ADAPTIVE_SIZE);
+    else TE.generateFragments(TermExtension::CEN_RES);
     timer.stop();
     cout << timer.getDuration() << " seconds to generate fragments" << endl;
     
     timer.start();
+    if (only_store_covering) TE.setIC(IC);
     TE.extendFragmentsandWriteStructures(seedTERM::MANY_CONTACT,outDir);
-    timer.start();
+    timer.stop();
     cout << timer.getDuration() << " seconds to generate seeds" << endl;
     
     //write fragments
@@ -98,6 +104,6 @@ int main(int argc, char *argv[]) {
     
     if (IC != nullptr) delete IC;
     
-    cout << "done" << endl;
+    cout << "Done" << endl;
     return 0;
 }

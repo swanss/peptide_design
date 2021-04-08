@@ -23,7 +23,6 @@
 #include "structure_iter.h"
 #include "vdwRadii.h"
 
-
 /* TO DO:
  */
 using namespace MST;
@@ -33,6 +32,7 @@ class TermExtension;
 class seedTERM;
 struct seed;
 class TEParams;
+class interfaceCoverage;
 
 struct Seed {
     Structure* extended_fragment;
@@ -48,12 +48,12 @@ class seedTERM {
 public:
     /* Constructor */
     seedTERM();
-    seedTERM(TermExtension* Fragmenter, vector<Residue*> all_res, bool search, mstreal max_rmsd, int flank);
-    /*
-     To do: fix copying Seeds. Currently, the pointers are copied, so if the parent object is deleted
-     the pointers in the child object would be null.
-     */
-    seedTERM(const seedTERM& F);
+    seedTERM(TermExtension* Fragmenter, vector<Residue*>_interactingRes, vector<int> _flankResPerSegment, bool search, mstreal max_rmsd);
+//    /*
+//     To do: fix copying Seeds. Currently, the pointers are copied, so if the parent object is deleted
+//     the pointers in the child object would be null.
+//     */
+//    seedTERM(const seedTERM& F);
     ~seedTERM();
     
     /* The seed type specifies how the residues from match proteins are selected to create the seed
@@ -68,24 +68,53 @@ public:
     
     // Fragment methods
     vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, int match_number, mstreal RMSD, bool same_res);
-    void writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out);
-    void writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct_out, StructuresBinaryFile* bin);
+    void writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out, interfaceCoverage* IC);
+    void writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct_out, StructuresBinaryFile* bin, interfaceCoverage* IC);
     //  void writeSecStruct(string outDir, fstream& secstruct_out);
     void deleteExtendedFragments();
+    
+    bool operator<(seedTERM* other) {
+        /**
+        Two step comparison:
+        1. Compare number of residues in fragment structure
+        2. If 1 is tied, compare number of matches.
+         */
+        if (fragmentStructure.residueSize() == other->fragmentStructure.residueSize()) {
+            if ((!search) || (!other->search)) MstUtils::error("Cannot compare two seedTERMs with equal number of residues unless they were also searched for matched","seedTERM::operator<");
+            return tD.numMatches() < other->tD.numMatches();
+        } else {
+            return fragmentStructure.residueSize() < other->fragmentStructure.residueSize();
+        }
+    }
+    
+    bool operator==(seedTERM* other) {
+        /**
+         Two fragments are the same only if they have all the same residues
+         */
+        if (fragmentStructure.residueSize() != other->fragmentStructure.residueSize()) return false;
+        else {
+            for (int i = 0; i < fragmentStructure.residueSize(); i++) {
+                if (&fragmentStructure.getResidue(i) != &other->fragmentStructure.getResidue(i)) return false;
+            }
+        }
+        return true;
+    }
     
     // Getters (objects)
     vector<int> getResIdx() const {return allResIdx;}
     const Structure& getStructure() const {return fragmentStructure;}
     vector<Residue*> getInteractingRes() const {return interactingRes;}
-    fasstSolutionSet& getMatches() {return matches;}
-    fasstSolution& getMatch(int i) {return matches[i];}
+    vector<int> getFlankingResPerInteractingRes() const {return flankResPerInteractingRes;}
+    fasstSolutionSet& getMatches() {return tD.getMatches();}
+    fasstSolution& getMatch(int i) {return tD.getMatch(i);}
     //  vector<Structure*> getExtendedFragments() const {return extended_fragments;}
     
     
     // Getters (properties)
     string getCenResName() {return cenResName;}
     int getNumRes() {return fragmentStructure.residueSize();}
-    int getNumMatches() {return matches.size();}
+    int getNumMatches() {return tD.numMatches();}
+    int getNumMatchesPreFiltering() {return numMatchesPreHomologyFiltering;}
     int getSegmentNum(mstreal maxPeptideBondLen = 2.0);
     vector<int> getSegmentLens(mstreal maxPeptideBondLen = 2.0); //ordered by the residue indices
     vector<int> getResIdx() {return allResIdx;}
@@ -97,7 +126,9 @@ public:
     bool searchMode() {return search;}
     int getExtendedFragmentNum() {return num_extended_fragments;}
     mstreal getComplexity() {return effective_degrees_of_freedom;}
-    mstreal getAdjRMSD() {return RMSD_cutoff;}
+    mstreal getMaxRMSD() {return max_RMSD_cutoff;}
+    mstreal getAdaptiveRMSD() {return adaptive_RMSD_cutoff;}
+    mstreal getSearchRMSD() {return RMSD_cutoff;}
     mstreal getConstructionTime() {return construction_time;}
     
 protected:
@@ -122,16 +153,22 @@ private:
     Residue* cenRes;
     string cenResName;
     vector<Residue*> interactingRes; // These point to residues in the target structure
+    vector<int> flankResPerInteractingRes;
     vector<int> allResIdx;
-    int cenResIdx; //index of the index of the central residue
-    int flank;
-    fasstSolutionSet matches;
+    int cenResIdx; //index of the central residue in fragmentStructure
+    string seed_chain_ID = "0";
+    
+    int numMatchesPreHomologyFiltering;
+    termData tD;
+    
     bool search;
     
     //  vector<Structure*> extended_fragments;
     //  vector<string> secondary_structure_classification;
     vector<Seed> seeds;
-    mstreal RMSD_cutoff;
+    mstreal max_RMSD_cutoff;
+    mstreal adaptive_RMSD_cutoff;
+    mstreal RMSD_cutoff; //this is the RMSD cutoff that is actually applied in the search
     mstreal effective_degrees_of_freedom;
     mstreal rmsd_adjust_factor;
     int num_extended_fragments;
@@ -141,14 +178,12 @@ private:
      -parent structure name
      -central residue chain AND number
      -chain AND number of all residues contacting the central residue
-     -protein flanking residue number
+     -the number of flanking residues for central res/contacting residues (no delim)
      
-     Ex: 5UUL-A12-A14A18A76-2
+     Ex: 5UUL-A12-A14A18A76-3223
      */
     string name;
     mstreal construction_time;
-    
-    
 };
 
 class TEParams {
@@ -177,6 +212,7 @@ private:
     bool seq_const = false;
     string config_file = "";
     int seed_flanking_res = 2;
+    mstreal homology_cutoff = 0.5;
     bool verbose = false;
 };
 
@@ -222,7 +258,7 @@ public:
      the number of residues in the neighbourhood.
      
      */
-    enum fragType {CEN_RES, CONTACT, ALL_COMBINATIONS, MATCH_NUM_REQ_SIZE, MATCH_NUM_REQ_CUTOFF, COMPLEXITY_SCAN};
+    enum fragType {CEN_RES, CONTACT, ADAPTIVE_SIZE};
     
     /* Constructor */
     TermExtension(string fasstDBPath, string rotLib, vector<Residue*> selection, TEParams& _params);
@@ -238,6 +274,7 @@ public:
     void setMaxRMSD(mstreal _max_rmsd) {params.max_rmsd = _max_rmsd;}
     void setAdaptiveRMSD(bool _adaptive_rmsd) {params.adaptive_rmsd = _adaptive_rmsd;}
     void setSeqConst(bool _seq_const) {params.seq_const = _seq_const;}
+    void setIC(interfaceCoverage* _IC) {IC = _IC;}
   
     void resetFragments() {
         for (seedTERM* f : all_fragments) delete f;
@@ -301,11 +338,29 @@ public:
     /* ExtendedFragment getters */
     vector<Structure*> getExtendedFragments();
     
-    
 protected:
     // Called by the constructor
     void set_params(string fasstDBPath, string rotLib);
     
+    /**
+     Takes a single seedTERM and finds all possible expansions. Expansions can be generated by 1) incrementing the number of flanking
+     residues on a segment or 2) adding a residue that contacts the center one (which creates a new segment)
+     
+     @param fragToExpand A fragment that we want to generate seedTERM expansions of
+     @param contactingRes Residues that could potentially be added to the fragment
+     @param search Controls whether the fragments are searched against the DB when constructed. In some cases not all fragments need to be compared when selecting the best, so avoiding the search can save time
+     @return All viable expansions of the fragToExpand
+     */
+    vector<seedTERM*> generateAllExpansions(seedTERM* fragToExpand, vector<Residue*> contactingRes, bool search);
+    
+    /**
+     Takes seedTERMs (from generateAllExpansions) and selects the one with 1) the most residues and 2) as a tie-breaker, the most matches.
+     If no seedTERM has sufficient matches, none are returned.
+     
+     @param fragExpansions The seedTERMs that will be compared
+     @return the seedTERM that satisifies the criteria, or if there is none, nullptr
+     */
+    seedTERM* bestFragment(vector<seedTERM*> fragExpansions);
     
     /* Called by extendFragments()
      Returns the indices of the residues that contact the central residue in the fasst target structure
@@ -331,15 +386,10 @@ private:
     FASST F;
     fasstSearchOptions foptsBase; // base FASST options that will be used with every search
     string fasstdbPath;
-//    int match_req; //if set to <= 0, does not influence process
+    
+    interfaceCoverage* IC = nullptr; //if not null, will check if seed overlaps peptide when deciding whether to store
     
     vector<Residue*> bindingSiteRes;
-//    mstreal cd_threshold, cdSeqConst_threshold, int_threshold, bbInteraction_cutoff;
-    
-    // Fragmentation parameters
-//    mstreal max_rmsd;
-//    int flanking_res; //must remain constant between fragment creation and seed extraction
-//    bool adaptive_rmsd, seq_const;
     
     // Fragments
     vector<seedTERM*> all_fragments;

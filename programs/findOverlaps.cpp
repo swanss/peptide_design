@@ -32,7 +32,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("minCosAngle", "Minimum cosine angle between residue normal vectors in an overlap segment (default -1.0)", false);
     opts.addOption("worker", "The index of this worker (from 1 to numWorkers)", false);
     opts.addOption("numWorkers", "The number of workers", false);
-    opts.addOption("batchSize", "The number of structures to use in each batch (default 200,000)", false);
+    opts.addOption("batchSize", "The number of structures to use in each batch. (default 200,000)", false);
     opts.addOption("bruteForce", "If provided, use a brute-force all-to-all comparison", false);
     opts.addOption("limitBatches", "Number of batches to run (to produce a smaller debugging set)", false);
     opts.addOption("mock", "If provided, do not perform any overlap calculations, just list the batches that would be computed", false);

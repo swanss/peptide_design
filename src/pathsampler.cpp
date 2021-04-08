@@ -61,10 +61,14 @@ AtomPointerVector PathSampler::buildAPV(const vector<Residue *>::const_iterator 
     return result;
 }
 
-vector<Residue *> PathSampler::getTargetResidues(const vector<Residue *> &residues) {
-    unordered_set<pair<string, int>, pair_hash> targetResidueCodes;
+vector<Residue *> PathSampler::getTargetResidues(const vector<Residue *> &pathResidues) {
+//    unordered_set<pair<string, int>, pair_hash> targetResidueCodes;
+    /**
+     When writing seed + anchor (extended fragment) files the residue number of the anchor residues were set to the residue index in the structure
+    */
+    set<int> targetResidueIdx;
     Structure *lastStructure = nullptr;
-    for (Residue *res: residues) {
+    for (Residue *res: pathResidues) {
         if (res->getStructure() == lastStructure)
             continue;
         Structure *s = res->getStructure();
@@ -72,8 +76,7 @@ vector<Residue *> PathSampler::getTargetResidues(const vector<Residue *> &residu
             Chain &chain = s->getChain(i);
             if (chain.getID() == "0") continue;
             for (int j = 0; j < chain.residueSize(); j++) {
-                // Refer to target residue by its labeled number in the match, NOT residue index
-                targetResidueCodes.insert(make_pair(chain.getID(), chain.getResidue(j).getNum()));
+                targetResidueIdx.insert(chain.getResidue(j).getNum());
             }
         }
         lastStructure = s;
@@ -83,15 +86,14 @@ vector<Residue *> PathSampler::getTargetResidues(const vector<Residue *> &residu
     vector<Residue *> targetResidues;
     for (int i = 0; i < _target->residueSize(); i++) {
         Residue &res = _target->getResidue(i);
-        // Retrieve residue from target by index in chain, NOT number
-        if (targetResidueCodes.count(make_pair(res.getChain()->getID(), res.getResidueIndexInChain())) != 0) {
+        if (targetResidueIdx.count(res.getResidueIndex()) != 0) {
             targetResidues.push_back(&res);
         }
     }
     return targetResidues;
 }
 
-pair<vector<Residue *>, vector<int>> PathSampler::getMappedMatchResidues(const Structure &seedStructure, const unordered_map<pair<string, int>, int, pair_hash> &targetPositions) {
+pair<vector<Residue *>, vector<int>> PathSampler::getMappedMatchResidues(const Structure &seedStructure, const map<int,int> &targetPositions) {
     vector<Residue *> residues;
     vector<int> indexes;
 
@@ -99,10 +101,10 @@ pair<vector<Residue *>, vector<int>> PathSampler::getMappedMatchResidues(const S
         Chain &chain = seedStructure.getChain(i);
         if (chain.getID() == "0") continue;
         for (int j = 0; j < chain.residueSize(); j++) {
-            residues.push_back(&chain.getResidue(j));
-            pair<string, int> residueCode(chain.getID(), chain.getResidue(j).getNum());
-            MstUtils::assert(targetPositions.count(residueCode) != 0, "Missing target position: " + residueCode.first + to_string(residueCode.second));
-            indexes.push_back(targetPositions.at(residueCode));
+            Residue* R = &chain.getResidue(j);
+            residues.push_back(R);
+            MstUtils::assert(targetPositions.count(R->getNum()) != 0, "Missing target position with index: " + to_string(R->getNum()),"PathSampler::getMappedMatchResidues");
+            indexes.push_back(targetPositions.at(R->getNum()));
         }
     }
 
@@ -113,19 +115,22 @@ int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPat
     vector<Residue *> targetResidues = getTargetResidues(residues);
     fusionTopology topology(residues.size() + targetResidues.size());
 
-    // Add target residues
+    // Add target residues (there are anchor positions)
     int topologyIndex = 0;
-    unordered_map<pair<string, int>, int, pair_hash> targetPositions;
+    map<int,int> targetPositions;
     vector<int> targetIndexes;
     for (int i = 0; i < targetResidues.size(); i++) {
         targetIndexes.push_back(i);
         Residue *res = targetResidues[i];
-        targetPositions[make_pair(res->getChain()->getID(), res->getResidueIndexInChain())] = i;
+        // map residue index in target structure to index in topology
+        targetPositions[res->getResidueIndex()] = i;
     }
-    topology.addFragment(targetResidues, targetIndexes);
-    topology.addFixedPositions(targetIndexes);
-    //cout << "Added " << targetResidues.size() << " target residues, " << targetIndexes.front() << " to " << targetIndexes.back() << endl;
-    topologyIndex += targetResidues.size();
+    if (!targetResidues.empty()) {
+        topology.addFragment(targetResidues, targetIndexes);
+        topology.addFixedPositions(targetIndexes);
+        cout << "Added " << targetResidues.size() << " target residues, " << targetIndexes.front() << " to " << targetIndexes.back() << endl;
+        topologyIndex += targetResidues.size();
+    }
     
     // Split path residues by which seed they came from
     vector<vector<Residue *>> residuesBySeed;
@@ -189,8 +194,16 @@ int PathSampler::fusePath(const vector<Residue *> &residues, Structure &fusedPat
         topology.addFragment(allResidues, allIndexes, weight);
         topologyIndex += seedRes.size();
     }
-    
-    fusedPath = Fuser::fuse(topology, scores);
+    if (twoStepFuse) {
+        cout << "two step fuse" << endl;
+        fusionParams opts;
+        vector<mstreal> ics = opts.getIntCoorFCs();
+        opts.setIntCoorFCs({0, 0, 0});
+        Structure initialFusedPath = Fuser::fuse(topology, scores, opts);
+        opts.setIntCoorFCs(ics);
+        opts.setStartingStructure(initialFusedPath);
+        fusedPath = Fuser::fuse(topology, scores, opts);
+    } else fusedPath = Fuser::fuse(topology, scores);
     return seedStartIdx;
 }
 

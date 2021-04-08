@@ -21,7 +21,7 @@ int main (int argc, char *argv[]) {
     Structure *target = new Structure("/home/ifs-users/venkats/dtermen/1DUY_decorate_sample/ATarget.pdb");
     rmsdParams rParams(1.2, 15, 1);
     contactParams cParams;
-    SequenceCompatibilityScorer scorer(target, rParams, cParams, fasstDB, 2, 2, 0.4, 0.05, 0.25, 1, 8000, 0.7); // new StructureCompatibilityScorer(target, fParams, rParams, cParams, fasstDB);
+    SequenceStructureCompatibilityScorer scorer(target, rParams, cParams, fasstDB, 2, 2, 0.4, 0.05, 0.25, 1, 8000, 0.7); // new StructureCompatibilityScorer(target, fParams, rParams, cParams, fasstDB);
     string scoreWritePath = outPath + "frag_scores.csv";
     scorer.scoresWritePath = &scoreWritePath;
 
