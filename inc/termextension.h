@@ -258,7 +258,7 @@ public:
      the number of residues in the neighbourhood.
      
      */
-    enum fragType {CEN_RES, CONTACT, ADAPTIVE_SIZE};
+    enum fragType {CEN_RES, CONTACT, ADAPTIVE_SIZE, ADAPTIVE_LENGTH};
     
     /* Constructor */
     TermExtension(string fasstDBPath, string rotLib, vector<Residue*> selection, TEParams& _params);

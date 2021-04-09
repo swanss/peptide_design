@@ -497,8 +497,8 @@ void TermExtension::generateFragments(fragType option, bool search) {
             /* CONTACT */
         } else if (option == CONTACT) {
             /* ALL_COMBINATIONS */
-        } else if (option == ADAPTIVE_SIZE) {
-            if (!search) MstUtils::error("Cannot use ADAPTIVE_SIZE mode to generate fragments when search is set to false","TermExtension::generateFragments");
+        } else if ((option == ADAPTIVE_SIZE) || (option == ADAPTIVE_LENGTH)) {
+            if (!search) MstUtils::error("Cannot use ADAPTIVE_SIZE/ADAPTIVE_LENGTH mode to generate fragments when search is set to false","TermExtension::generateFragments");
             
             seedTERM* current_f;
             int current_flank_res = 1;
@@ -564,6 +564,12 @@ void TermExtension::generateFragments(fragType option, bool search) {
                 current_flank_res++;
             }
             if (should_continue) continue;
+            
+            // if ADAPTIVE_LENGTH, stop before new segments are added
+            if (option == ADAPTIVE_LENGTH) {
+                all_fragments.push_back(current_f);
+                continue;
+            }
             
             // The segment defined around the central segment is now the maximum possible length,
             // expand by adding new segments (residues contacting the central segment)

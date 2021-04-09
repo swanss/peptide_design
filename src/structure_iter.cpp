@@ -9,7 +9,7 @@
 #include "structure_iter.h"
 #include "mstsystem_exts.h"
 #include <regex>
-#include <vector>Mo
+#include <vector>
 
 using namespace std;
 using namespace MST;
