@@ -78,9 +78,62 @@ The parameters to this program are as follows:
 
 - `--sel`: an alternative to `--peptide`, a selection string specifying the protein residues that should be used to define fragments.
 
-- `--flanking_res` *(required)*: when defining fragments from a set of residues, will include this many residues +/- the selected residues. (recommended: 2)
+- `--params_file` *(required)*: a file specifying all parameter values 
 
 - `--config` *(required)*: the configuration file that specifies the FASSTDB/rotamer library (same the configuration file used by dTERMen).
+
+`params_file` formatting:
+
+Each line consists of two fields: the name and value of each parameter separated by a space. Parameters may be provided in any order. Example:
+
+```
+param_name1 param_value1
+param_name2 param_value2
+```
+
+Parameters that must be manually specified:
+
+- `config_file` An additional parameters file specifying the location of the protein structure database and rotamer library. Example:
+
+```
+fasstdb=/path/to/dbrotlib=/path/to/db
+rotlib=/path/to/db
+```
+
+Parameters with default values that may be tweaked
+
+- `fragment_type` The method that is used to generate binding site fragments. May be either CEN_RES, ALL_COMBINATIONS, ADAPTIVE_SIZE, ADAPTIVE_LENGTH (default value), or COMPLEXITY_SCAN.
+
+- `cd_threshold` The threshold used to define sidechain-sidechain interactions. May be between [0,1], default value = 0.01.
+
+- `int_threshold` The threshold used to define sidechain-backbone interactions. May be between [0,1] , default value = 0.01.
+
+- `bbInteraction_cutoff` The cutoff used to define backbone-backbone interactions. Default value = 3.5 angstroms
+
+- `max_rmsd` When `adaptive_RMSD` is set to off, then this is just the RMSD cutoff used to define structural matches to a binding site fragment.  Default value = 1.2 angstroms
+
+- `flanking_res` This is the maximum number of residues +/- a binding site residue that could be included in the fragment. Default value = 2
+
+- `match_req` The number of matches required for each binding site fragment. Only applies when the `ADAPTIVE_X` `fragment_type` modes are used. Fragments will grow until they can not incorporate more residues without having less than the required number of matches. Not applied when less than 0. Default value = -1
+
+- `adaptive_rmsd` When true, then the max RMSD cutoff is scaled by a factor that is determined by the size and topology of the fragment. See [https://doi.org/10.1073/pnas.1607178113](https://doi-org.libproxy.mit.edu/10.1073/pnas.1607178113) for more information. Default = 0.
+
+- `seq_const` Constrains the structural matches to those that match the sequence of the query fragment. Modes include NONE (default), CEN_RES_ONLY, or ALL_RES
+
+- `seed_flanking_res` The number of residues +/- a central seed residue that are included as structural context in the seed. Default = 2.
+
+- `homology_cutoff` The sequence identity cutoff used to determine whether a structural match should be considered a homolog. The sequence of the aligned region and up to 30 residues +/- this region are considered. Default = 0.5
+
+- `allow_sidechain_clash` Controls whether seeds (which consist of backbone atoms only) are allowed to clash with the sidechain atoms of the protein. If false, then clashing seeds will be removed. Default = 1.
+
+- `verbose` Controls whether extra information is output. Useful for debugging. Default = 0.
+
+```
+fasstdb=/path/to/db
+rotlib=/path/to/db
+```
+
+- `fragment_type` *(required)*: when defining fragments from a set of residues, will include this many residues +/- the selected residues. (recommended: 2)
 
 - `--match_req`: The maximum number of matches per fragment. If selected, will use a greedy algoritm to search for the largest possible protein fragments (defined by number of residues) that still have this many matches.
 
