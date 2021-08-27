@@ -472,3 +472,190 @@ Structure BatchWorkerFragmentFetcher::getResultStructure(FragmentInfo *info) {
     return _fetcher->getResultStructure(info);
 }
 
+/*
+ Loads each seed and finds the windows
+ */
+GreedyClusterer::GreedyClusterer(string seedBin_path, int _window_length) {
+    window_length = _window_length;
+    
+    cout << "Loading seeds and finding windows..." << endl;
+    StructureIterator* structIt = new StructureIterator(seedBin_path);
+    
+    while (structIt->hasNext()) {
+        vector<Structure*> seedStructures = structIt->next();
+        for (Structure* seed : seedStructures) {
+            int num_windows = seed->residueSize() - window_length + 1;
+            for (int i = 0; i < num_windows; i++) {
+                seedWindowInfo info(seed->getName(),i);
+                int unique_ID = seedWindows.size();
+                seedWindows[unique_ID] = info;
+                seedWindowsRev[info] = unique_ID;
+                remainingSeedWindows.insert(unique_ID);
+            }
+        }
+    }
+    delete structIt;
+    
+    cout << "Constructing seed cache..." << endl;
+    seedBin = new StructuresBinaryFile(seedBin_path);
+    seedStructures = StructureCache(seedBin,10000);
+    
+    // initialize overlaps variable
+    for (int ID : remainingSeedWindows) {
+        seedWindowOverlaps[ID] = set<int>();
+    }
+    numTotalSeedWindows = remainingSeedWindows.size();
+    cout << "Found " << seedBin->structureCount() << " seeds and "<< seedWindows.size() << " windows" << endl;
+};
+
+void GreedyClusterer::addOverlapInfo(FuseCandidateFile file) {
+    vector<FuseCandidate> candidateBatch;
+    int count = 0;
+    while ((candidateBatch = file.read(1)).size() > 0) {
+        FuseCandidate cand = candidateBatch[0];
+        if (cand.overlapSize != window_length) MstUtils::error("Overlap size in fuse candidate file does not match the window size that was specified during construction");
+        seedWindowInfo window_A(cand.file1,cand.overlapPosition1);
+        seedWindowInfo window_B(cand.file2,cand.overlapPosition2);
+        
+        // verify that the overlapping windows are in the set we're trying to cover
+        if (seedWindowsRev.count(window_A) == 0) MstUtils::error("Window provided in overlap not in the set that will be covered: "+window_A.getName(),"GreedyClusterer::addOverlapInfo");
+        if (seedWindowsRev.count(window_B) == 0) MstUtils::error("Window provided in overlap not in the set that will be covered: "+window_B.getName(),"GreedyClusterer::addOverlapInfo");
+        
+        // store the overlap information
+        seedWindowOverlaps[seedWindowsRev[window_A]].insert(seedWindowsRev[window_B]);
+        seedWindowOverlaps[seedWindowsRev[window_B]].insert(seedWindowsRev[window_A]);
+        count++;
+    }
+    cout << "Added " << count << " overlaps." << endl;
+};
+
+void GreedyClusterer::performClustering(mstreal max_coverage) {
+    int numCoveredReq = max_coverage*numTotalSeedWindows;
+    int numCovered = 0;
+    cout << "Goal is to reach " << numCoveredReq << " covered." << endl;
+    
+    int count = 0;
+    while (numCovered < numCoveredReq) {
+        // find the largest cluster
+        int max_cluster_ID = *remainingSeedWindows.begin();
+        for (int ID : remainingSeedWindows) {
+            if (seedWindowOverlaps[ID].size() > seedWindowOverlaps[max_cluster_ID].size()) max_cluster_ID = ID;
+        }
+        
+        clusters.push_back(pair<int,set<int>>(max_cluster_ID,seedWindowOverlaps[max_cluster_ID]));
+        
+        /*
+        In order to prepare for the next iteration ALL information pertaining to members of this cluster
+        must be removed. This includes the following:
+        A) All covered windows must be removed from remainingSeedWindows
+        B) All overlaps to the covered windows from seedWindowOverlaps
+         
+        Since the overlap information is duplicated, we will need to delete each overlap twice. Consider
+        the following overlap data:
+         
+          A  B  C
+        A X  X
+        B X  X  X
+        C    X  X
+         
+        If cluster A is removed, we will need to delete row A since it contains all of the overlaps to
+        A, row B since it overlaps A, and entry B from row C since B is covered.
+         
+          A  B  C
+        A -  -
+        B -  -  -
+        C    -  X
+        
+        */
+        
+        // remove the cluster center from the set of remaining windows
+        remainingSeedWindows.erase(max_cluster_ID);
+        for (int ID_b : seedWindowOverlaps[max_cluster_ID]) {
+            // remove cluster member from the set of remaining windows
+            remainingSeedWindows.erase(ID_b);
+            
+            for (int ID_c : seedWindowOverlaps[ID_b]) {
+                // remove the overlap between cluster member and other window
+                seedWindowOverlaps[ID_c].erase(ID_b);
+            }
+            // remove all overlaps to the cluster member
+            seedWindowOverlaps.erase(ID_b);
+        }
+        // remove all overlaps to the cluster center
+        seedWindowOverlaps.erase(max_cluster_ID);
+        
+        // check coverage progress
+        numCovered = numTotalSeedWindows - remainingSeedWindows.size();
+        
+        cout << "Cluster: " << count << " with " << clusters.back().second.size()+1 << " members. Overall " << numCovered << " of the seeds are covered" << endl;
+        count++;
+    }
+    cout << "Done clustering. In total there are " << clusters.size() << " clusters" << endl;
+}
+
+void GreedyClusterer::writeClusterInfo(string outDir, Chain* peptide, bool pdbs, bool verbose) {
+    map<int,pair<int,mstreal>> cluster2peptideWindow; // Maps the cluster ID to the N-terminal residue of the overlapping peptide window
+    if (peptide != nullptr) {
+        // If a peptide chain is provided, try to map the clusters to the peptide chain
+        RMSDCalculator rmsdCalc;
+        
+        vector<Atom*> peptideAtoms;
+        for (Residue* R : peptide->getResidues()) {
+            if (RotamerLibrary::hasFullBackbone(R)) {
+                vector<Atom*> peptideResAtoms = RotamerLibrary::getBackbone(R);
+                peptideAtoms.insert(peptideAtoms.end(),peptideResAtoms.begin(),peptideResAtoms.end());
+            } else MstUtils::error("Residue "+R->getChainID()+MstUtils::toString(R->getNum())+" missing backbone atoms");
+        }
+        cout << "Peptide chain with " << peptide->residueSize() << " residues and " << peptideAtoms.size() << " atoms" << endl;
+        for (int i = 0; i < clusters.size(); i++) {
+            Structure cluster_rep_seed = getSeedWindowStructure(seedWindows[clusters[i].first]);
+            vector<Atom*> cluster_rep_seed_atoms = cluster_rep_seed.getAtoms();
+            for (int pos = 0; pos < peptide->residueSize() - window_length + 1; pos++) {
+                vector<Atom*> peptide_window(peptideAtoms.begin()+(pos*4),peptideAtoms.begin()+(pos+window_length)*4);
+                mstreal rmsd = rmsdCalc.rmsd(peptide_window,cluster_rep_seed_atoms);
+                if (pos == 0) cluster2peptideWindow[i] = pair<int,mstreal>(pos,rmsd);
+                else if (rmsd < cluster2peptideWindow[i].second) cluster2peptideWindow[i] = pair<int,mstreal>(pos,rmsd);
+            }
+        }
+    }
+    
+    fstream out;
+    string filename = outDir + "/cluster_info.csv";
+    MstUtils::openFile(out,filename,fstream::out);
+    out << "cluster_number,cluster_size,cluster_representative,overlapping_peptide_window,rmsd" << endl;
+    for (int i = 0; i < clusters.size(); i++) {
+        string seed_window_name = seedWindows[clusters[i].first].getName();
+        out << i << ",";
+        out << clusters[i].second.size()+1 << ",";
+        out << seed_window_name << ",";
+        out << ((peptide != nullptr) ? MstUtils::toString(cluster2peptideWindow[i].first) : "") << ",";
+        out << ((peptide != nullptr) ? MstUtils::toString(cluster2peptideWindow[i].second) : "") << endl;
+    }
+    out.close();
+    
+    fstream all_seed_windows;
+    filename = outDir + "/cluster_members.csv";
+    if (verbose) MstUtils::openFile(all_seed_windows,filename,fstream::out);
+    
+    if (pdbs) {
+        for (int i = 0; i < clusters.size(); i++) {
+            string cluster_centroid_name = seedWindows[clusters[i].first].getName();
+            Structure cluster_centroid = getSeedWindowStructure(seedWindows[clusters[i].first]);
+            string pdb_name = outDir+MstUtils::toString(i)+"_"+MstUtils::toString(0)+"_"+cluster_centroid_name+".pdb";
+            cluster_centroid.writePDB(pdb_name);
+            if (verbose) all_seed_windows << cluster_centroid_name;
+            int j = 1;
+            for (auto it = clusters[i].second.begin(); it != clusters[i].second.end(); it++) {
+                if (*it == clusters[i].first) continue; //duplicate of the representative seed
+                string seed_window_name = seedWindows[*it].getName();
+                Structure seed_window = getSeedWindowStructure(seedWindows[*it]);
+                string pdb_name = outDir+MstUtils::toString(i)+"_"+MstUtils::toString(j)+"_"+seed_window_name+".pdb";
+                seed_window.writePDB(pdb_name);
+                if (verbose) all_seed_windows << "," << seed_window_name;
+                j++;
+            }
+            if (verbose) all_seed_windows << endl;
+        }
+    }
+    all_seed_windows.close();
+}

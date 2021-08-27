@@ -339,7 +339,7 @@ contactList buildContacts(Structure& s, RotamerLibrary* rl, contactParams& param
 }
 
 
-void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLibrary* rl, contactParams& params, bool intra, contactList& bbConts, contactList& bsConts, contactList& sbConts, contactList& ssConts) {
+void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLibrary* rl, contactParams& params, bool intra, contactList& bbConts, contactList& bsConts, contactList& sbConts, contactList& ssConts, bool verbose) {
 	set<Residue*> toCheck(residuesToInclude.begin(), residuesToInclude.end());
 
 	bbConts = contactList(); // BB of toCheck and BB of s
@@ -349,38 +349,48 @@ void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLib
 
 	ConFind confind(rl, s);
 	contactList conts = confind.getContacts(residuesToInclude, params.ssDeg);
+    if (verbose) cout << "sidechain-sidechain contacts:" << conts.size() << endl;
 	for (int i = 0; i < conts.size(); i++) {
 		Residue* resA = conts.residueA(i);
 		Residue* resB = conts.residueB(i);
+        if (verbose) cout << *resA << " and " << *resB << endl;
 		int numIncluded = toCheck.count(resA) + toCheck.count(resB);
 		if ((!intra && numIncluded == 1) || (intra && numIncluded == 2)) {
+            if (verbose) cout << "adding..." << endl;
 			ssConts.addContact(resA, resB, conts.degree(i));
 		}
 	}
 
 	conts = confind.getInterference(residuesToInclude, params.sbDeg);
+    if (verbose) cout << "sidechain-backbone/backbone-sidechain contacts:" << conts.size() << endl;
 	for (int i = 0; i < conts.size(); i++) {
-		Residue* resA = conts.residueA(i); // side chain from A to BB of B
+		Residue* resA = conts.residueA(i); // side chain from A to backbone of B
 		Residue* resB = conts.residueB(i);
+        if (verbose) cout << *resA << " and " << *resB << endl;
         //the "source" residues is the one whose sidechain interferes with the others backbone
         bool sourceIsInToCheck = toCheck.count(resA) == 1; //the source is in the residues to be designed
         int numIncluded = toCheck.count(resA) + toCheck.count(resB);
-        if (!sourceIsInToCheck) { // BB of toCheck
-            if (!intra) bsConts.addContact(resB, resA, conts.degree(i)); // side chain coming from existing (target) region
+        if (!sourceIsInToCheck && ((intra && numIncluded == 2) || (!intra && numIncluded == 1))) { // BB of toCheck
+            if (verbose) cout << "adding... (and swapping direction)" << endl;
+            bsConts.addContact(resB, resA, conts.degree(i)); // side chain coming from existing (target) region
         }
-		else if ((intra && numIncluded == 2) || (!intra && numIncluded == 1)) {
-			sbConts.addContact(resA, resB, conts.degree(i)); // side chain from toCheck
+		else if (sourceIsInToCheck && ((intra && numIncluded == 2) || (!intra && numIncluded == 1))) {
+			if (verbose) cout << "adding..." << endl;
+            sbConts.addContact(resA, resB, conts.degree(i)); // side chain from toCheck
 		}
 	}
     
     conts = confind.getBBInteraction(residuesToInclude, params.bbDeg);
 //    conts = backboneContacts(s, params.bbDeg);
+    if (verbose) cout << "backbone-backbone contacts:" << conts.size() << endl;
 	for (int i = 0; i < conts.size(); i++) {
 		Residue* resA = conts.residueA(i);
 		Residue* resB = conts.residueB(i);
+        if (verbose) cout << *resA << " and " << *resB << endl;
 		int numIncluded = toCheck.count(resA) + toCheck.count(resB);
 		if ((!intra && numIncluded == 1) || (intra && numIncluded == 2)) { // exaclty one residue must be from the loop region - could think about allowing two for intra
-			bbConts.addContact(resA, resB, conts.degree(i));
+			if (verbose) cout << "adding..." << endl;
+            bbConts.addContact(resA, resB, conts.degree(i));
 		}
 	}
 }

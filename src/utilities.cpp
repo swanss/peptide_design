@@ -859,7 +859,7 @@ void cleanStructure(Structure& s, Structure& cleaned, bool reassignChains, bool 
     // check that all backbone atoms are present
     for (int i = 0; i < residues.size(); i++) {
         Residue* res = residues[i];
-        if (res->atomSize() >= 4 && hasBackbone(*res) && res->getName().length() == 3) {
+        if (res->atomSize() >= 4 && hasBackbone(*res)) {
             //previously residues were not added if they were named 'UNK' or '-'.
 //            res_t idx = SeqTools::aaToIdx(res->getName());
 //            if (idx != SeqTools::unknownIdx() && idx != SeqTools::gapIdx()) {
@@ -1236,13 +1236,15 @@ contactList backboneContacts(Structure& s, double dist, vector<Residue*> queryRe
 // union of contact list
 // does not allow duplicates
 // orders the contacts - perhaps give an option to not do this
-contactList contactListUnion(const vector<contactList>& contLists) {
+contactList contactListUnion(const vector<contactList>& contLists, bool order) {
     set<pair<Residue*, Residue*> > seen;
     contactList combined;
     for (int i = 0; i < contLists.size(); i++) {
         contactList cl = contLists.at(i);
         for (int j = 0; j < cl.size(); j++) {
-            pair<Residue*, Residue*> cont = orderedPair(cl.residueA(j), cl.residueB(j));
+            pair<Residue*, Residue*> cont;
+            if (order) cont = orderedPair(cl.residueA(j), cl.residueB(j));
+            else cont = make_pair(cl.residueA(j), cl.residueB(j));
             if (seen.count(cont) == 0) {
                 combined.addContact(cont.first, cont.second, cl.degree(j));
                 seen.insert(cont);

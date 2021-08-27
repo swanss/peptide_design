@@ -47,13 +47,15 @@ int main(int argc, char *argv[]) {
     
     //load the complex and construct a ConFind object
     Structure complex(pdb_path);
-    ConFind C(config.getRL(),complex);
+    Structure cleaned_complex;
+    RotamerLibrary::extractProtein(cleaned_complex,complex);
+    ConFind C(config.getRL(),cleaned_complex);
     
     //get the protein residues and find all peptide residues that contact these
-    Chain* pep_chain = complex.getChainByID(peptide_ID);
+    Chain* pep_chain = cleaned_complex.getChainByID(peptide_ID);
     vector<Residue*> protein_residue;
-    for (int i = 0; i < complex.chainSize(); i++) {
-      Chain* C = &complex.getChain(i);
+    for (int i = 0; i < cleaned_complex.chainSize(); i++) {
+      Chain* C = &cleaned_complex.getChain(i);
       if (C != pep_chain) {
         vector<Residue*> chain_res = C->getResidues();
         protein_residue.insert(protein_residue.end(),chain_res.begin(),chain_res.end());
@@ -68,7 +70,7 @@ int main(int argc, char *argv[]) {
     Structure peptide_backbone(RotamerLibrary::getBackbone(peptide));
     cout << "got backbone of peptide" << endl;
     
-    seedStatistics seedStat(complex,peptide_ID);
+    seedStatistics seedStat(cleaned_complex,peptide_ID);
     for (Residue* R: peptide_contacts) {
       //get the residue in the peptide_backbone structure
       Residue* R_pep = peptide_backbone[0].findResidue(R->getName(),R->getNum());

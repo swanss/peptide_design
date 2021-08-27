@@ -127,11 +127,14 @@ Structure * StructuresBinaryFile::getStructureNamed(string name) {
 
 void StructuresBinaryFile::jumpToStructureIndex(int idx) {
     MstUtils::assert(readMode, "jumpToStructureIndex not supported in write mode");
-    if (idx < 0)
+    if (_structureNames.size() == 0) {
+        scanFilePositions();
+    }
+    if (idx < 0) {
         fs.seekg(0, fs.beg);
-    else if (idx >= _structureNames.size())
+    } else if (idx >= _structureNames.size()) {
         fs.seekg(0, fs.end);
-    else {
+    } else {
         string name = _structureNames[idx];
         fs.clear();
         fs.seekg(_filePositions[name], fs.beg);
@@ -293,7 +296,7 @@ Structure* StructureCache::getStructure(string name, string prefix) {
     // Push the new structure to the front
     cache.push_front(structure);
     cachePointers[name] = cache.begin();
-    MstUtils::assert(structure->getName() == name, "Names don't match");
+    MstUtils::assert(structure->getName() == name, "Names don't match: "+structure->getName()+" vs "+name);
     return structure;
 }
 
@@ -340,7 +343,7 @@ bool StructureIterator::hasNext() {
 }
 
 void StructureIterator::reset() {
-    _batchIndex = 0;
+    _batchIndex = _workerIndex;
     if (binaryFile != nullptr) {
         binaryFile->reset();
     }
@@ -352,12 +355,17 @@ vector<Structure *> StructureIterator::next() {
     return *_currentBatch;
 }
 
+/**
+ 1) Find the structure index using the batch index
+ 2) Load the structures
+ 2) Advance the batch index
+ */
+
 void StructureIterator::makeNextResult() {
     vector<Structure *> result;
     
-    // get index in structures using the batch index
-    _batchIndex = _batchIndex + _numWorkers;
-    int startIndex = _batchIndex * _batchSize;
+    // get structure index using the batch index
+    int startIndex = (_batchIndex - 1) * _batchSize;
     
     if (binaryFile != nullptr) {
         // go to start index in binary file
@@ -392,18 +400,20 @@ void StructureIterator::makeNextResult() {
         delete _currentBatch;
     }
     _currentBatch = new vector<Structure *>(result);
-    
     if (!_currentBatch->empty()) nextResultAvailable = true;
+    
+    // Advance the batch index
+    _batchIndex = _batchIndex + _numWorkers;
 }
 
 void StructureIterator::skip() {
-    //increment the index
-    _batchIndex = _batchIndex + _numWorkers;
-    
     if (binaryFile != nullptr) {
-        int startIndex = _batchIndex * _batchSize;
+        int startIndex = (_batchIndex - 1) * _batchSize;
         binaryFile->jumpToStructureIndex(startIndex);
     }
+    
+    //increment the batch index
+    _batchIndex = _batchIndex + _numWorkers;
 }
 
 PairStructureIterator::PairStructureIterator(const vector<string>& filePaths, int batchSize, vector<string> *chainIDs): _first(filePaths, batchSize, chainIDs), _second(filePaths, batchSize, chainIDs) {}

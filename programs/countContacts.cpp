@@ -46,8 +46,10 @@ int main (int argc, char *argv[]) {
     opts.setTitle("Counts the number of contacts between protein residues and seeds and reports this as contacts per protein residue.");
     opts.addOption("target", "The target PDB structure", false);
     opts.addOption("base","The name that shold be appended to the output filename (inferred in concat mode)",false);
+    opts.addOption("seed_out","If provided, will also output a .txt file with the number of contacts per each seed residue");
     opts.addOption("bin", "A seed binary file containing all seeds", false);
     opts.addOption("configFile","A configuration file specifying the rotamer library/fasstDB",false);
+    opts.addOption("flankRes","If provided, only counts contacts that have this many flanking residues on each side",false);
     opts.addOption("worker", "The worker number (from 1 to numWorkers)", false);
     opts.addOption("numWorkers", "The number of workers", false);
     opts.addOption("combine","A file where each line is a contacts file. Contact counts from each file are combined into a single file.",false);
@@ -59,6 +61,9 @@ int main (int argc, char *argv[]) {
     string baseName = opts.getString("base");
     string seedBin = opts.getString("bin");
     string configFile = opts.getString("configFile");
+    int flankRes = opts.getInt("flankRes",0);
+    int workerIndex = opts.getInt("worker",1);
+    int numWorkers = opts.getInt("numWorkers",1);
     
     class configFile configObj(configFile);
     
@@ -67,8 +72,13 @@ int main (int argc, char *argv[]) {
     
     Structure *target = new Structure(targetPath);
     contactParams cParams(3.5,0.01,0.01);
-
-    contactCounter cCounter(target,&RL,cParams,1);
+    
+    contactCounter cCounter(target,&RL,cParams,flankRes);
+    
+    if (opts.isGiven("seed_out")) {
+        string allSeedContactsFile = baseName + "_" + MstUtils::toString(workerIndex) + "_" + "seedConts.tsv";
+        cCounter.setWriteSeedContacts(allSeedContactsFile);
+    }
     
     if (opts.isGiven("combine")) {
         
@@ -84,8 +94,6 @@ int main (int argc, char *argv[]) {
     } else {
         int batchSize = 1000;
         string chainID = "0";
-        int workerIndex = opts.getInt("worker",0);
-        int numWorkers = opts.getInt("numWorkers",1);
         StructureIterator structIter = StructureIterator(seedBin,batchSize,chainID,workerIndex,numWorkers);
         
         while (structIter.hasNext()) {
@@ -95,7 +103,6 @@ int main (int argc, char *argv[]) {
                 cCounter.countContacts(s);
             }
         }
-        
         string contactsFile = baseName + "_" + MstUtils::toString(workerIndex) + "_" + "conts.tsv";
         cCounter.writeContactsFile(contactsFile);
     }

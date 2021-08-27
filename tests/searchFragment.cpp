@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
   op.addOption("max_matches", "Will search for up to this many matches, given the specified criteria", true);
   op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library",true);
   op.addOption("seq", "If provided, specified positions will be searched with a sequence constraint (should be formatted as a selection)");
-  op.addOption("sidechains", "If specified, the sidechains of the matches will be stored along with xthe backbone atoms");
+  op.addOption("sidechains", "If specified, the sidechains of the matches will be stored along with the backbone atoms");
   op.setOptions(argc, argv);
   
   // fasstDB and rotlib are defined at the time of compilation

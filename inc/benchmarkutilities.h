@@ -287,7 +287,8 @@ private:
     rejectionSampler* sampler;
     seedStatistics stat;
     
-    int max_attempts;
+    int max_attempts_ori;
+    int max_attempts_pos;
     mstreal distance;
     int neighbors;
     bool clash_check;
@@ -434,6 +435,8 @@ public:
      Writes out the contacts between all residues from fused chains (there could be more than one) in a similar format to the interfaceCoverage
      */
     void static writeContactstoFile(string outputPath, interfaceCoverage *IC, Structure& fusedPathandTarget, set<string> peptideChains, string rotLibFile);
+    
+    void static getResiduesFromMap(string resMapPath, Structure& structureA, Structure& structureB, vector<Residue*>& selectedResA, vector<Residue*>& selectedResB);
     
     /**
      Find the set optimally covering seeds and fuse together

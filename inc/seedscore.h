@@ -189,7 +189,14 @@ public:
     
     ~contactCounter() {
         delete targetCopy;
+        if (contact_out != nullptr) delete contact_out;
     };
+    
+    void setWriteSeedContacts(string contactsFile) {
+        contact_out = new fstream();
+        MstUtils::openFile(*contact_out,contactsFile,fstream::out);
+        *contact_out << "seed_name,residue_num,num_contacts" << endl;
+    }
     
     /**
      Counts the number of unique contacts between the target protein and the provided seed and
@@ -237,13 +244,13 @@ protected:
         for (Residue* R : target->getResidues()) contactCounts[R] = 0;
     }
     
-    vector<Residue*> getSeedRes(Chain* seedChain) {
-        vector<Residue*> seedRes;
-        if (seedChain->residueSize() > flankingRes*2) {
-            for (int i = flankingRes; i < seedChain->residueSize() - flankingRes; i++) seedRes.push_back(&seedChain->getResidue(i));
-        }
-        return seedRes;
-    }
+//    vector<Residue*> getSeedRes(Chain* seedChain) {
+//        vector<Residue*> seedRes;
+//        if (seedChain->residueSize() > flankingRes*2) {
+//            for (int i = flankingRes; i < seedChain->residueSize() - flankingRes; i++) seedRes.push_back(&seedChain->getResidue(i));
+//        }
+//        return seedRes;
+//    }
     
     Residue* getTargetResidue(Residue* targetCopyRes) {
         /*
@@ -251,6 +258,18 @@ protected:
          in the previous chains (i.e. the target) should not change
          */
         return &target->getResidue(targetCopyRes->getResidueIndex());
+    }
+    
+    vector<Residue*> eliminateFlankingRes(vector<Residue*> allRes) {
+        vector<Residue*> filtRes;
+        for (Residue* R : allRes) {
+            int idxInChain = R->getResidueIndexInChain();
+            if (min(int(allRes.size())-1-idxInChain,idxInChain-0) >= flankingRes) {
+                // if source residue is not less than flankRes from either termini, add
+                filtRes.push_back(R);
+            }
+        }
+        return filtRes;
     }
     
 private:
@@ -261,6 +280,7 @@ private:
     contactParams cParams;
     RotamerLibrary *RL;
     bool verbose = true;
+    fstream* contact_out = nullptr;
 };
 
 /**

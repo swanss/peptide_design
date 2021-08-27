@@ -26,6 +26,7 @@ int main(int argc, char *argv[]) {
     op.addOption("pdb", "Structure file containing peptide chain and protein chain(s)", true);
     op.addOption("peptide", "Peptide chain ID", true);
     op.addOption("max_rmsd", "The max RMSD threshold used when determining whether a seed aligns to the peptide or not. (default 2.0)");
+    op.addOption("max_match_num", "The max match number (matches are ranked by RMSD) that is accepted when considering seeds. (default 100000)");
     op.addOption("config","Path to the configuration file (specifies fasst database and rotamer library)",true);
     op.addOption("hist","Path to the histogram file with the seed distance distribution that will be matched in the null model seeds");
     op.addOption("write_all_aligned","If provided, write all seeds that align to the peptide with rmsd < max_rmsd. Omitting this option speeds up the runtime and saves space");
@@ -46,6 +47,7 @@ int main(int argc, char *argv[]) {
     Structure complex(op.getString("pdb"));
     string p_cid = op.getString("peptide");
     mstreal max_rmsd = op.getReal("max_rmsd",2.0);
+    int max_match_num = op.getReal("max_match_num",100000);
     configFile config(op.getString("config"));
     string hist_path = op.getString("hist","");
     bool write_all_aligned = op.isGiven("write_all_aligned");
@@ -78,6 +80,7 @@ int main(int argc, char *argv[]) {
     interfaceCoverage IC(complex, p_cid, config.getRL());
     IC.setMaxRMSD(max_rmsd);
     IC.setMaxSegmentLength(max_seed_length);
+    IC.setMaxMatchNumber(max_match_num);
     
     // remove the chain from a copy of the complex
     Structure target(complex);

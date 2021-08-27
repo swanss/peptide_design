@@ -358,6 +358,6 @@ contactList vdwBackboneContacts(Structure& s, double lb, double ub, vector<Resid
 // union of contact list
 // does not allow duplicates
 // orders the contacts - perhaps give an option to not do this
-contactList contactListUnion(const vector<contactList>& contLists);
+contactList contactListUnion(const vector<contactList>& contLists, bool order = true);
 
 #endif /* utilities_h */

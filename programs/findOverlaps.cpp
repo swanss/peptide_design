@@ -52,7 +52,7 @@ int main (int argc, char *argv[]) {
     int batchSize = opts.getInt("batchSize", 200000);
     int limitBatches = opts.getInt("limitBatches", -1);
     
-    if (numResOverlap % 2 != 0) MstUtils::error("overlapSize must be even");
+    if (numResOverlap % 2 != 0) cout << "Warning: overlapSize is not even and can't be used to generate a seed graph" << endl;
     
     if (worker < 1 || worker > numWorkers) {
         cerr << "Batch index must be between 1 and numWorkers" << endl;

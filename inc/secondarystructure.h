@@ -74,6 +74,8 @@ public:
     string classifyChain(Chain* C);
     string classifyStruct(const Structure& S);
     string classifyResInStruct(Structure* S, vector<int> res_idx);
+    void assignSSToSequence(Structure* seed);
+    tuple<int,int,int> getSecStructAll(const Structure& S);
     tuple<mstreal,mstreal,mstreal> getSecStructFractions(const Structure& S);
     void writeResClassificationtoFile(Chain* C, fstream& out);
     void writeResClassificationtoTSV(Structure& S, fstream& out);

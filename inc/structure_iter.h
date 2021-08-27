@@ -308,13 +308,13 @@ public:
     StructureIterator(const vector<string> &filePaths,
                       int batchSize = 1000,
                       vector<string> *chainIDs = nullptr,
-                      int workerIndex = 0,
+                      int workerIndex = 1,
                       int numWorkers = 1);
     
     StructureIterator(const string binaryFilePath,
                       int batchSize = 1000,
                       string chainID = "0",
-                      int workerIndex = 0,
+                      int workerIndex = 1,
                       int numWorkers = 1);
 
     ~StructureIterator() {
@@ -353,7 +353,7 @@ public:
     void hasOwnership(bool val) {maintainsOwnership = val;}
 
 private:
-    vector<Structure *> *_currentBatch;
+    vector<Structure *> *_currentBatch = nullptr;
     StructuresBinaryFile *binaryFile = nullptr;
     const vector<string> _filePaths;
     vector<string> *_chainIDs;

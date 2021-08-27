@@ -393,4 +393,85 @@ private:
     bool _sharedCoordinates = false;
 };
 
+// Greedy Clustering Utils
+struct seedWindowInfo {
+public:
+    seedWindowInfo() {};
+    seedWindowInfo(string _structure_name, int _position) : structure_name(_structure_name), position(_position) {};
+    
+    string getName() {
+        return structure_name + "_" + MstUtils::toString(position);
+    }
+    
+    bool operator<(const seedWindowInfo& other) const {
+        if (structure_name != other.structure_name) {
+            return structure_name < other.structure_name;
+        } else {
+            return position < other.position;
+        }
+    }
+    
+    string structure_name;
+    int position;
+};
+
+class GreedyClusterer {
+public:
+    GreedyClusterer(string seedBin_path, int window_size);
+    
+    ~GreedyClusterer() {
+        delete seedBin;
+    }
+    
+    void addOverlapInfo(FuseCandidateFile file);
+    
+    // procedure borrowed from MST/src/msttypes.cpp Clusterer::greedyCluster
+    void performClustering(mstreal max_coverage);
+    
+    void writeClusterInfo(string path, Chain* peptide = nullptr, bool pdbs = true, bool verbose = false);
+    
+    Structure getSeedWindowStructure(seedWindowInfo info) {
+        Structure* extendedfragment = seedStructures.getStructure(info.structure_name);
+        vector<Residue*> seed_residues = extendedfragment->getChainByID(seed_chain_id)->getResidues();
+        vector<Residue*> seed_window_residues(seed_residues.begin()+info.position,seed_residues.begin()+info.position+window_length);
+        return (seed_window_residues);
+    }
+    
+private:
+    int window_length;
+//    mstreal cluster_radius = 1.0;
+//    int max_cluster_number = 10000;
+//    mstreal max_coverage = 1.0;
+    string seed_chain_id = "0";
+    
+    /*
+     The key is a unique seed window ID and the value is the information needed to retrieve the seed
+     window from the structure cache.
+     */
+    map<int,seedWindowInfo> seedWindows;
+    map<seedWindowInfo,int> seedWindowsRev; //to lookup ID by seed name + position
+    
+    /*
+     The key is the seed window ID and the mapped value is all overlapping seed windows. For convenience,
+     each overlap is listed twice in the map. This means that if seed window A and B have an overlap, this can
+     be accessed by querying the map with the ID of either A or B.
+     */
+    map<int,set<int>> seedWindowOverlaps;
+    
+    /*
+     Keeps track of the seed windows that have not yet been covered in a cluster
+     */
+    set<int> remainingSeedWindows;
+    int numTotalSeedWindows;
+    
+    /* Stores all of the cluster data
+     pair<cluster_ID,set<cluster_ID>>
+     */
+    vector<pair<int,set<int>>> clusters;
+    
+    StructuresBinaryFile* seedBin;
+    StructureCache seedStructures;
+    
+};
+
 #endif

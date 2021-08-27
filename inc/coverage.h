@@ -136,6 +136,7 @@ public:
     void setMatchRMSDConst(mstreal rmsd) {match_rmsd_cutoff = rmsd;}
     void setMaxRMSD(mstreal _max_rmsd) {max_rmsd = _max_rmsd;}
     void setMaxSegmentLength(int max_length) {max_allowable_segment_length = min(peptide_chain->residueSize(),max_length);}
+    void setMaxMatchNumber(int _match_number_cutoff) {match_number_cutoff = _match_number_cutoff;}
     void setSeeds(string binFilePath);
     
     //map seeds to peptide segments
@@ -185,6 +186,10 @@ protected:
     
     Structure* getSeedSegment(seedSubstructureInfo);
     
+    mstreal getMaxRMSDForSegLength(mstreal max_rmsd, int segment_length) {
+        return max_rmsd + 0.25*segment_length;
+    }
+    
 private:
     // global variables
     RotamerLibrary RL;
@@ -197,6 +202,7 @@ private:
     string seed_chain_id;
     bool seq_const;
     mstreal match_rmsd_cutoff;
+    int match_number_cutoff;
     
     // peptide-protein complex
     Structure complex;

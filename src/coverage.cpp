@@ -188,6 +188,7 @@ interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, string _RL_path
         chainResidueSubsegments[segment_length-1].resize(total_num_segments);
         
         for (int segment_position = 0; segment_position < total_num_segments; segment_position++) {
+            // allocator is [start,end)
             int start_position = segment_position*4;
             int end_position = (segment_length+segment_position)*4;
             vector<Residue*> peptide_residue_segment(peptide_residues.begin()+segment_position,peptide_residues.begin()+segment_position+segment_length);
@@ -225,9 +226,13 @@ void interfaceCoverage::findCoveringSeeds() {
     while (seeds->hasNext()) {
         Structure* extended_fragment = seeds->next();
         
-        int match_number = seeds->getStructurePropertyInt("match_number",extended_fragment->getName());
-        
         //check if structure meets criteria
+        int match_number = seeds->getStructurePropertyInt("match_number",extended_fragment->getName());
+        if ((match_number > match_number_cutoff) || (match_number_cutoff == 0)) {
+            delete extended_fragment;
+            continue;
+        }
+        
         bool sequence_match = seeds->getStructurePropertyInt("seq",extended_fragment->getName());
         if (seq_const && !sequence_match) {
             //this match had a different amino acid at the central position, ignore
@@ -275,7 +280,7 @@ bool interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vect
                 mstreal rmsd = rmsd_calc.rmsd(peptide_segment,seed_segment);
                 
                 //check if passes the cutoff
-                if (rmsd < max_rmsd) {
+                if (rmsd < getMaxRMSDForSegLength(max_rmsd,segment_length)) {
                     aligned = true;
                     if (!only_check_if_aligned) {
                         Atom* A = seed_segment[0];
@@ -421,7 +426,7 @@ void interfaceCoverage::writeBestAlignedSeeds(string outDir, int numSeeds, bool 
                 
                 //get the seed segment and write it to a file
                 Structure* seed_segment = getSeedSegment(seed_info);
-                if (write_structures) seed_segment->writePDB(seedOutDir+seed_segment->getName()+".pdb");
+                if (write_structures) seed_segment->writePDB(seedOutDir+MstUtils::toString(segment_length)+"_"+MstUtils::toString(peptide_position)+"_"+seed_segment->getName()+".pdb");
                 
                 //get the contacts
                 set<pair<int,int>> seed_protein_contacts = getContacts(seed_segment->getAtoms(), peptide_position);
@@ -504,12 +509,13 @@ void interfaceCoverage::setParams(string _RL_path) {
     bbInt_cutoff = 3.25;
     
     //segments
-    max_seed_length = 10;
+    max_seed_length = 20;
     
     //coverage
-    max_rmsd = 3.0; //rmsd to the peptide
+    max_rmsd = 2.0; //rmsd to the peptide
     match_rmsd_cutoff = 0.0;  //rmsd of the match when generating seeds (not applied when 0)
     seq_const = false;
+    match_number_cutoff = 100000;
 }
 
 map<string,contactList> interfaceCoverage::defineContacts(Structure& complex, vector<Residue*> peptide_residues) {
@@ -605,7 +611,7 @@ Structure* interfaceCoverage::getSeedSegment(seedSubstructureInfo info) {
         if ((R->getResidueIndexInChain() >= info.res_idx) & (R->getResidueIndexInChain() < info.res_idx + info.res_length)) seed_segment_res.push_back(R);
     }
     Structure* seed_segment = new Structure(seed_segment_res);
-    string segment_name = info.structure_name + ":" + MstUtils::toString(info.res_idx)+ "-" + MstUtils::toString(info.res_idx+info.res_length);
+    string segment_name = MstUtils::toString(info.rmsd) + "_" + info.structure_name;
     seed_segment->setName(segment_name);
     delete ext_frag;
     return seed_segment;

@@ -149,36 +149,56 @@ unordered_map<Residue*, mstreal> FASSTScorer::remapResiduesFromCombinedStructure
 int contactCounter::countContacts(Structure* seed) {
     int totalNewContacts = 0;
     
-    // Add seed chain to target_copy
+    // Add copy of seed chain to target_copy
     if (seed->chainSize() != 1) MstUtils::error("Seed should have a single chain","contactCounter::countContacts");
-    
     Chain* seedChain = new Chain(seed->getChain(0));
     targetCopy->appendChain(seedChain,false);
     
     // Get seed residues, excluding those within flankingRes from the termini
-    vector<Residue*> seedRes = getSeedRes(seedChain);
+//    vector<Residue*> seedRes = getSeedRes(seedChain);
+    vector<Residue*> seedRes = seedChain->getResidues();
+    vector<Residue*> seedResToCount = eliminateFlankingRes(seedRes);
+    
     if (seedRes.empty()) return totalNewContacts;
     
-    if (verbose) cout << "Seed chain with " << seedRes.size()+flankingRes*2 << " residues total, " << seedRes.size() << " that will be searched for contacts to the target" << endl;
+    if (verbose) cout << "Seed chain with " << seedRes.size() << " residues total, " << seedResToCount.size() << " that will be searched for contacts to the target" << endl;
     
     // Get all kinds of contacts
     contactList bbConts; contactList sbConts; contactList bsConts; contactList ssConts;
-    bool intra = false;
+    bool intra = false, verbose = false;
     // note from craig: switched bsConts and sbConts here as we want sb to be SC from target
     // normal order bbConts, bsConts, sbConts, ssConts
-    splitContacts(*targetCopy, seedRes, RL, cParams, intra, bbConts, sbConts, bsConts, ssConts);
-    contactList conts = contactListUnion({bbConts, sbConts, bsConts, ssConts});
+    splitContacts(*targetCopy, seedResToCount, RL, cParams, intra, bbConts, sbConts, bsConts, ssConts, verbose);
+    bool order = false;
+    contactList conts = contactListUnion({bbConts, sbConts, bsConts, ssConts}, order);
     
-    if (verbose) cout << "Contacts between seed residues and the target: " << conts.size() << endl;
+    totalNewContacts = conts.size();
+    if (verbose) cout << "Contacts between seed residues and the target: " << totalNewContacts << endl;
     
+    map<Residue*,int> seedResContactCounts;
+    if (contact_out != nullptr) for (Residue* R : seedRes) seedResContactCounts[R] = 0;
+        
     for (int i = 0; i < conts.size(); i++) {
         Residue *sourceResInCopy = conts.srcResidue(i);
+        Residue *dstResInCopy = conts.dstResidue(i);
+        int idxInChain = sourceResInCopy->getResidueIndexInChain();
         
-        // Find the source residue in the target
-        Residue *sourceResInTarget = getTargetResidue(sourceResInCopy);
+        if (contact_out != nullptr) {
+           // Add to seed residue contact counts
+            seedResContactCounts[sourceResInCopy] += 1;
+        }
         
-        // Add to contact count
-        contactCounts[sourceResInTarget] += 1;
+        // Find the destination residue in the target and add to contact count
+        Residue *dstResInTarget = getTargetResidue(dstResInCopy);
+        contactCounts[dstResInTarget] += 1;
+    }
+    
+    if (contact_out != nullptr) {
+        for (auto it : seedResContactCounts) {
+            *contact_out << seed->getName() << ",";
+            *contact_out << it.first->getResidueIndexInChain() << ",";
+            *contact_out << it.second << endl;
+        }
     }
     
     // Reset targetCopy
@@ -213,7 +233,7 @@ void contactCounter::readContactsFile(string contactsFile) {
 void contactCounter::writeContactsFile(string contactsFile) {
     fstream contacts;
     MstUtils::openFile(contacts,contactsFile,fstream::out);
-    string sep = "\t";
+    string sep = ",";
     
     for (auto it : contactCounts) {
         // get the target residue and necessary info

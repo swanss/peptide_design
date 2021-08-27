@@ -14,7 +14,7 @@ seedTERM::seedTERM() {
     // compiler error thrown unless I include this
 }
 
-seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRes, vector<int> _flankResPerInteractingRes, bool _search, mstreal max_rmsd) : max_RMSD_cutoff(max_rmsd), flankResPerInteractingRes(_flankResPerInteractingRes), interactingRes(_interactingRes) {
+seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRes, vector<int> _flankResPerInteractingRes, bool _search, mstreal max_rmsd, bool discard_match_data) : max_RMSD_cutoff(max_rmsd), flankResPerInteractingRes(_flankResPerInteractingRes), interactingRes(_interactingRes) {
     MstTimer timer;
     timer.start();
     
@@ -38,12 +38,12 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRe
     
     //reset the residue numbers to the residue indices of the parent structure, so that they can be
     //easily added to a fusion topology.
-    for (int i = 0; i < fragmentStructure.residueSize(); i++) {
-        Residue* R = &fragmentStructure.getResidue(i);
-        R->setNum(allResIdx[i]);
-        
-        num_extended_fragments = 0;
-    }
+//    for (int i = 0; i < fragmentStructure.residueSize(); i++) {
+//        Residue* R = &fragmentStructure.getResidue(i);
+//        R->setNum(allResIdx[i]);
+//
+//        num_extended_fragments = 0;
+//    }
     
     // find the RMSD, regardless of whether fragment will be searched
     adaptive_RMSD_cutoff = RMSDCalculator::rmsdCutoff(allResIdx, *parent->getTarget(), max_RMSD_cutoff, 15); // NOTE: the residues in the same chain of the original structure are not by default assumed to be independent
@@ -56,12 +56,16 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRe
         FragmenterObj->F.setQuery(fragmentStructure);
         FragmenterObj->F.options().unsetSequenceConstraints();
         //if seq_const is true, apply
-        if (parent->params.seq_const) {
-            if (!SeqTools::isUnknown(cenRes->getName())) cout << "Warning: could not apply sequence constraint when constructing seedTERM centered around " << cenRes->getChainID() << cenRes->getNum() << endl;
+        if (parent->params.seq_const != TEParams::seqConstType::NONE) {
+            if (SeqTools::isUnknown(cenRes->getName())) cout << "Warning: could not apply sequence constraint when constructing seedTERM centered around " << cenRes->getChainID() << cenRes->getNum() << " residue name: " << cenRes->getName() << " is unknown" << endl;
             Structure splitQuery = FragmenterObj->F.getQuery();
             fasstSeqConstSimple seqConst(splitQuery.chainSize());
-            const Residue& res = splitQuery.getResidue(cenResIdx);
-            seqConst.addConstraint(res.getChain()->getIndex(), res.getResidueIndexInChain(), {res.getName()});
+            if (parent->params.seq_const == TEParams::seqConstType::CEN_RES_ONLY) {
+                const Residue& res = splitQuery.getResidue(cenResIdx);
+                seqConst.addConstraint(res.getChain()->getIndex(), res.getResidueIndexInChain(), {res.getName()});
+            } else if (parent->params.seq_const == TEParams::seqConstType::ALL_RES) {
+                for (Residue* R : splitQuery.getResidues()) seqConst.addConstraint(R->getChain()->getIndex(), R->getResidueIndexInChain(), {R->getName()});
+            }
             FragmenterObj->F.options().setSequenceConstraints(seqConst);
         }
         
@@ -71,12 +75,22 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRe
         numMatchesPreHomologyFiltering = sols.size();
         if (parent->params.verbose) cout << "When searching found " << sols.size() << " matches. Now filtering by homology cutoff: " << parent->params.homology_cutoff << endl;
         tD.setMatches(sols,parent->params.homology_cutoff,&parent->F);
+        numMatches = tD.numMatches();
         if (parent->params.verbose) cout << "After filtering have " << tD.numMatches() << " matches" << endl;
     }
     
     timer.stop();
     construction_time = timer.getDuration();
-    if (parent->params.verbose) cout << "It took " << construction_time << " s to construct " << name << " with " << tD.numMatches() << " matches with RMSD cutoff: " << RMSD_cutoff << endl;
+    if (discard_match_data) tD = termData();
+    if (parent->params.verbose) cout << "It took " << construction_time << " s to construct " << name << " with " << numMatches << " matches with RMSD cutoff: " << RMSD_cutoff << endl;
+    
+    //store the secondary structure in the resname field of the fragmentStructure residues;
+    vector<Residue*> fragmentResidues = fragmentStructure.getResidues();
+    for (int i = 0; i < allResIdx.size(); i++) {
+        Residue* R_original = &(parent->target_structure->getResidue(allResIdx[i]));
+        Residue* R_fragmentCopy = fragmentResidues[i];
+        R_fragmentCopy->setName(parent->sec_structure.classifyResidue(R_original));
+    }
 };
 
 //seedTERM::seedTERM(const seedTERM& F) {
@@ -124,7 +138,7 @@ void seedTERM::setName() {
     cout << "Fragment name set to:  " << name << endl;
 }
 
-vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, int match_number, mstreal RMSD, bool same_res) {
+vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments, vector<string> seed_sec_struct, int match_number, mstreal RMSD, int match_protein_ID, bool same_res) {
     vector<Structure*> new_structures;
     
     // for each seed segment, make a new extended fragment that includes the anchor
@@ -143,7 +157,7 @@ vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* ma
         
         // use fragment name + extendedFragment number to construct a unique name
         num_extended_fragments++;
-        string ext_frag_name = extendedFragmentName(RMSD);
+        string ext_frag_name = extendedFragmentName(RMSD,match_protein_ID);
 //        cout << "Extended fragment with name: " << ext_frag_name << endl;
         extended_fragment->setName(ext_frag_name);
         
@@ -154,6 +168,16 @@ vector<Structure*> seedTERM::extendMatch(seedType seed_type, const Structure* ma
         s.rmsd = RMSD;
         s.secondary_structure_classification = seed_sec_struct[i];
         s.sequence_match = same_res;
+        
+        // reassign resname to secondary structure classification
+        vector<Residue*> seedChainRes = extended_fragment->getChainByID(parent->seed_chain_ID)->getResidues();
+        for (int j = 0; j < seedChainRes.size(); j++) {
+            Residue* R = seedChainRes[j];
+            char resSSchar = s.secondary_structure_classification[j];
+            string resSS = string(1,resSSchar);
+            R->setName(resSS);
+        }
+        
         seeds.push_back(s);
         new_structures.push_back(extended_fragment);
     }
@@ -165,7 +189,7 @@ void seedTERM::writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fst
         Structure* ext_frag = seeds[i].extended_fragment;
         if (IC != nullptr) {
             // get seed chain atoms/residues
-            Chain* seed_chain = ext_frag->getChainByID(seed_chain_ID);
+            Chain* seed_chain = ext_frag->getChainByID(parent->seed_chain_ID);
             
             bool overlap_peptide = IC->mapSeedToChainSubsegments(seed_chain->getAtoms(), seed_chain->getResidues(), 0, -1.0, 0);
             if (!overlap_peptide) continue;
@@ -182,7 +206,7 @@ void seedTERM::writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct
         
         if (IC != nullptr) {
             // get seed chain atoms/residues
-            Chain* seed_chain = ext_frag->getChainByID(seed_chain_ID);
+            Chain* seed_chain = ext_frag->getChainByID(parent->seed_chain_ID);
             
             bool overlap_peptide = IC->mapSeedToChainSubsegments(seed_chain->getAtoms(), seed_chain->getResidues(), 0, -1.0, 0);
             if (!overlap_peptide) continue;
@@ -266,7 +290,7 @@ void seedTERM::addResToStructure(vector<int> res_idx, bool keep_chain, const Str
         } else {
             // as far as I know, no structures in the PDB use numbers as chain names, so I will use 0
             // set the chain ID to 0, so that residue can be added to new chain
-            R_frag_chain_id = seed_chain_ID;
+            R_frag_chain_id = parent->seed_chain_ID;
             
             // construct/allocate memory for new residue, based on match res
             R_new = new Residue(*R_match);
@@ -289,9 +313,10 @@ void seedTERM::addResToStructure(vector<int> res_idx, bool keep_chain, const Str
     }
 }
 
-string seedTERM::extendedFragmentName(mstreal RMSD) {
+string seedTERM::extendedFragmentName(mstreal RMSD, int match_protein_ID) {
     stringstream ss;
     ss << name << "_";
+    ss << match_protein_ID << "_";
     ss << parent->params.seed_flanking_res << "-";
     ss << RMSD << "-";
     ss << num_extended_fragments; //a unique ID
@@ -305,8 +330,16 @@ void TEParams::setParamsFromFile(string params_file_path) {
     // get values from file
     for (string line : all_lines) {
         vector<string> line_split = MstUtils::split(line," ");
-        if (line_split.size() != 2) MstUtils::error("Wrong number of elements in the following line: "+line,"TEParams::TEParams");;
-        if (line_split[0] == "cd_threshold") {
+        if (line_split.size() != 2) MstUtils::error("Wrong number of fields ("+MstUtils::toString(line_split.size())+") in this line: "+line,"TEParams::TEParams");
+        if (line_split[0] == "fragment_type") {
+            string option = MstUtils::toString(line_split[1]);
+            if (option == "CEN_RES") fragment_type = CEN_RES;
+            else if (option == "ALL_COMBINATIONS") fragment_type = ALL_COMBINATIONS;
+            else if (option == "ADAPTIVE_SIZE") fragment_type = ADAPTIVE_SIZE;
+            else if (option == "ADAPTIVE_LENGTH") fragment_type = ADAPTIVE_LENGTH;
+            else if (option == "COMPLEXITY_SCAN") fragment_type = COMPLEXITY_SCAN;
+            else MstUtils::error("Provided value: "+option+" for option "+line_split[0]+" not recognized");
+        } else if (line_split[0] == "cd_threshold") {
             cd_threshold = MstUtils::toReal(line_split[1]);
         } else if (line_split[0] == "cdSeqConst_threshold") {
             cdSeqConst_threshold = MstUtils::toReal(line_split[1]);
@@ -323,13 +356,21 @@ void TEParams::setParamsFromFile(string params_file_path) {
         } else if (line_split[0] == "adaptive_rmsd") {
             adaptive_rmsd = MstUtils::toInt(line_split[1]);
         } else if (line_split[0] == "seq_const") {
-            seq_const = MstUtils::toInt(line_split[1]);
+            string option = MstUtils::toString(line_split[1]);
+            if (option == "NONE") seq_const = NONE;
+            else if (option == "CEN_RES_ONLY") seq_const = CEN_RES_ONLY;
+            else if (option == "ALL_RES") seq_const = ALL_RES;
+            else MstUtils::error("Provided value: "+option+" for option "+line_split[0]+" not recognized");
         } else if (line_split[0] == "config_file") {
             config_file = line_split[1];
         } else if (line_split[0] == "seed_flanking_res") {
             seed_flanking_res = MstUtils::toInt(line_split[1]);
         } else if (line_split[0] == "homology_cutoff") {
             homology_cutoff = MstUtils::toReal(line_split[1]);
+        } else if (line_split[0] == "allow_sidechain_clash") {
+            allow_sidechain_clash = MstUtils::toInt(line_split[1]);
+        } else if (line_split[0] == "freedom_cutoff") {
+            freedom_cutoff = MstUtils::toReal(line_split[1]);
         } else if (line_split[0] == "verbose") {
             verbose = MstUtils::toInt(line_split[1]);
         } else MstUtils::error("Option: '"+line_split[0]+"' not recognized","TEParams::TEParams");
@@ -365,7 +406,11 @@ TermExtension::TermExtension(string fasstDBPath, string rotLib, vector<Residue*>
     
     cout << "Extracting target backbone to construct a promixity search object..." << endl;
     if (!RotamerLibrary::hasFullBackbone(*target_structure)) cout << "warning: target structure is missing backbone atoms!" << endl;
-    target_BB_atoms = RotamerLibrary::getBackbone(*target_structure);
+    if (params.allow_sidechain_clash) {
+        target_BB_atoms = RotamerLibrary::getBackbone(*target_structure);
+    } else {
+        target_BB_atoms = AtomPointerVector(target_structure->getAtoms());
+    }
     target_BB_structure = Structure(target_BB_atoms);
     target_PS = new ProximitySearch(target_BB_atoms, vdwRadii::maxSumRadii()/2);
     
@@ -467,8 +512,8 @@ void TermExtension::storeParameters(string Dir) {
     params_out.close();
 }
 
-void TermExtension::generateFragments(fragType option, bool search) {
-    if (((option == ADAPTIVE_SIZE)) && (!search)) {
+void TermExtension::generateFragments(bool search) {
+    if (((params.fragment_type == TEParams::ADAPTIVE_SIZE)) && (!search)) {
         MstUtils::error("The algorithm used to create the selected fragment type requires that search is enabled");
     }
     
@@ -480,7 +525,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
         cout << "Generate fragment (" << cenResID+1 << "/" << bindingSiteRes.size() << ") centered on residue " << *(cenRes) << endl;
         
             /* CEN_RES */
-        if (option == CEN_RES) {
+        if (params.fragment_type == TEParams::CEN_RES) {
             // Need to turn adaptive RMSD off for initial search
             bool originalAdaptiveRMSD = params.adaptive_rmsd; // store to be reset later
             params.adaptive_rmsd = false;
@@ -494,11 +539,34 @@ void TermExtension::generateFragments(fragType option, bool search) {
             params.adaptive_rmsd = originalAdaptiveRMSD;
             F.setMaxNumMatches(-1);
             
-            /* CONTACT */
-        } else if (option == CONTACT) {
             /* ALL_COMBINATIONS */
-        } else if ((option == ADAPTIVE_SIZE) || (option == ADAPTIVE_LENGTH)) {
-            if (!search) MstUtils::error("Cannot use ADAPTIVE_SIZE/ADAPTIVE_LENGTH mode to generate fragments when search is set to false","TermExtension::generateFragments");
+        } else if (params.fragment_type == TEParams::ALL_COMBINATIONS) {
+            // Need to turn adaptive RMSD off for initial search
+            bool originalAdaptiveRMSD = params.adaptive_rmsd; // store to be reset later
+            params.adaptive_rmsd = false;
+            F.setMaxNumMatches(-1);
+            
+            // Find the residues contacting the central residue
+            vector<pair<Residue*,Residue*>> conts = generalUtilities::getContactsWith({cenRes}, C, 0, params.cd_threshold, params.int_threshold, params.bbInteraction_cutoff, params.verbose);
+            vector<Residue*> contResidues = generalUtilities::getContactingResidues(conts);
+            
+            // Generate all possible combinations
+            vector<vector<Residue*>> residueCombinations = generalUtilities::generateAllCombinationsRes(contResidues);
+            
+            for (vector<Residue*> resSet : residueCombinations) {
+                resSet.push_back(cenRes);
+                reverse(resSet.begin(),resSet.end()); //cenRes should be at front
+                vector<int> flankRes(resSet.size(),params.flanking_res);
+                bool discard_data = true; //otherwise will run out of memory
+                seedTERM* frag = new seedTERM(this, resSet, flankRes, search, params.max_rmsd, discard_data);
+                all_fragments.push_back(frag);
+            }
+            
+            params.adaptive_rmsd = originalAdaptiveRMSD;
+
+            /* ADAPTIVE_SIZE */
+        } else if ((params.fragment_type == TEParams::ADAPTIVE_SIZE) || (params.fragment_type == TEParams::ADAPTIVE_LENGTH)) {
+            if (!search) MstUtils::error("Cannot use ADAPTIVE_SIZE/ADAPTIVE_LENGTH/COMPLEXITY_SCAN mode to generate fragments when search is set to false","TermExtension::generateFragments");
             
             seedTERM* current_f;
             int current_flank_res = 1;
@@ -566,7 +634,7 @@ void TermExtension::generateFragments(fragType option, bool search) {
             if (should_continue) continue;
             
             // if ADAPTIVE_LENGTH, stop before new segments are added
-            if (option == ADAPTIVE_LENGTH) {
+            if (params.fragment_type == TEParams::ADAPTIVE_LENGTH) {
                 all_fragments.push_back(current_f);
                 continue;
             }
@@ -701,14 +769,12 @@ void TermExtension::writeFragmentClassification(string outDir) {
     MstUtils::openFile(info_out, infoFile, fstream::out);
     
     info_out << "fragment_name\tchain_id\tres_num\tclassification" << endl;
-    
-    secondaryStructureClassifier classifier;
-    
+        
     for (seedTERM* f : all_fragments) {
         vector<int> all_res_idx = f->getResIdx();
         for (int res_idx : all_res_idx){
             Residue* R = &target_structure->getResidue(res_idx);
-            string classification = classifier.classifyResidue(R);
+            string classification = sec_structure.classifyResidue(R);
             info_out << f->getName() << "\t" << R->getChainID() << "\t" << R->getNum() << "\t" << classification << endl;
         }
     }
@@ -803,7 +869,16 @@ int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, Str
         bool same_res = (R_match_aaName == R_query_aaName);
         
         //use the match_idx/extension_idx to make a fragment extension
-        vector<Structure*> new_structures = frag->extendMatch(option,transformed_match_structure,match_idx,seed_segments,seed_sec_structure,sol_id,sol.getRMSD(),same_res);
+        vector<Structure*> new_structures = frag->extendMatch(option,transformed_match_structure,match_idx,seed_segments,seed_sec_structure,sol_id,sol.getRMSD(),target_idx,same_res);
+        
+        if (storeAll) {
+            transformed_match_structure->writePDB(wholeMatchProteinDir+frag->getName()+"_"+MstUtils::toString(target_idx)+"_wholeMatch.pdb");
+            for (Structure* S : new_structures) {
+                S->writePDB(extFragDir+S->getName()+"_extendedFragment.pdb");
+                Structure seed = Structure(*S->getChainByID(seed_chain_ID));
+                seed.writePDB(seedDir+S->getName()+"_seed.pdb");
+            }
+        }
         
         frag->writeExtendedFragmentstoBIN(info,sec_struct,bin,IC);
         

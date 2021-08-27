@@ -23,12 +23,14 @@ int main(int argc, char *argv[]) {
     op.addOption("peptide", "peptide chain ID. Only necessary if the provided .pdb file contains a peptide chain");
     op.addOption("sel","a selection string that specifies the protein residues to generate seeds around. Necessary if the provided PDB file does not include peptide chains");
     op.addOption("params_file","Path to the configuration file (specifies fasst database and rotamer library)",true);
-    op.addOption("only_store_covering","If provided, will only write the seeds that are covering, e.g. have some segment aligning to the peptide");
-    op.addOption("adaptive_fragments","Fragments grow as large as possible while still having the required number of matches");
-    op.addOption("disjoint_segments","Fragments grow by adding disjoint segments (if not provided, fragments only grow by adding flanking residues)");
+    op.addOption("no_seeds","If provided will skip generating seeds");
+    op.addOption("only_store_covering","If provided will only write the seeds that are covering, e.g. have some segment aligning to the peptide");
+//    op.addOption("adaptive_fragments","Fragments grow as large as possible while still having the required number of matches");
+//    op.addOption("disjoint_segments","Fragments grow by adding disjoint segments (if not provided, fragments only grow by adding flanking residues)");
+    op.addOption("write_all_files","Writes additional files (helpful for making figures and diagnosing issues)");
     op.setOptions(argc, argv);
     
-    if (op.isGiven("peptide") == op.isGiven("sel")) MstUtils::error("Either a peptide chain ID or a selection string must be provided, but not both");
+    if (op.isGiven("peptide") && op.isGiven("sel")) MstUtils::error("Either a peptide chain ID or a selection string must be provided, but not both");
     
     MstTimer timer;
     
@@ -37,9 +39,11 @@ int main(int argc, char *argv[]) {
     string params_file_path = op.getString("params_file");
     string p_cid = op.getString("peptide","");
     string sel_str = op.getString("sel","");
+    bool no_seeds = op.isGiven("no_seeds");
     bool only_store_covering = op.isGiven("only_store_covering");
-    bool adaptive_fragments = op.isGiven("adaptive_fragments");
-    bool disjoint_segments = op.isGiven("disjoint_segments");
+//    bool adaptive_fragments = op.isGiven("adaptive_fragments");
+//    bool disjoint_segments = op.isGiven("disjoint_segments");
+    bool write_all_files = op.isGiven("write_all_files");
   
     // Open params file
     TEParams params(params_file_path);
@@ -51,6 +55,15 @@ int main(int argc, char *argv[]) {
     // Fragment output folder
     string outDir = "output/";
     MstSys::cmkdir(outDir,makeParents);
+    string filesDir = "files/";
+    string extFragDir = filesDir + "extFrag/";
+    string wholeMatchProteinDir = filesDir + "wholeMatchProtein/";
+    string seedDir = filesDir + "seedDir/";
+    if (write_all_files) {
+        MstSys::cmkdir(extFragDir,makeParents);
+        MstSys::cmkdir(wholeMatchProteinDir,makeParents);
+        MstSys::cmkdir(seedDir,makeParents);
+    }
     
     selector sel(target);
     vector<Residue*> bindingSiteRes;
@@ -65,8 +78,16 @@ int main(int argc, char *argv[]) {
         //Initialize the interface coverage class now, so that the binding site residues can be used in TERM Extension
         IC = new interfaceCoverage(target, p_cid, config.getRL());
         bindingSiteRes = IC->getBindingSiteRes();
-    } else {
+    } else if (sel_str != "") {
         bindingSiteRes = sel.selectRes(sel_str);
+    } else {
+        // select all residues with a freedom above the threshold
+        cout << "Select residues with freedom above the threshold: " << params.freedom_cutoff << endl;
+        ConFind C(config.getRL(),target);
+        for (Residue* R : target.getResidues()) {
+            mstreal freedom = C.getFreedom(R);
+            if (freedom > params.freedom_cutoff) bindingSiteRes.push_back(R);
+        }
     }
     
     if (bindingSiteRes.empty()) MstUtils::error("No residues selected for TERM Extension");
@@ -84,16 +105,15 @@ int main(int argc, char *argv[]) {
     out.close();
     
     TermExtension TE(config.getDB(), config.getRL(), bindingSiteRes, params);
+    if (write_all_files) TE.setWriteAllFiles(extFragDir,wholeMatchProteinDir,seedDir);
     timer.start();
-    if (adaptive_fragments & disjoint_segments) TE.generateFragments(TermExtension::ADAPTIVE_SIZE);
-    else if (adaptive_fragments) TE.generateFragments(TermExtension::ADAPTIVE_LENGTH);
-    else TE.generateFragments(TermExtension::CEN_RES);
+    TE.generateFragments();
     timer.stop();
     cout << timer.getDuration() << " seconds to generate fragments" << endl;
     
     timer.start();
     if (only_store_covering) TE.setIC(IC);
-    TE.extendFragmentsandWriteStructures(seedTERM::MANY_CONTACT,outDir);
+    if (!no_seeds) TE.extendFragmentsandWriteStructures(seedTERM::MANY_CONTACT,outDir);
     timer.stop();
     cout << timer.getDuration() << " seconds to generate seeds" << endl;
     

@@ -79,6 +79,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
     opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format: seed_A:residue_i;seed_B:residue_j;etc...", false);
     opts.addOption("score_structures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
+    opts.addOption("writeTopology","If provided, will write out the complete seed topology of each path. Useful for debugging.",false);
     opts.addOption("config", "The path to a configfile",true);
     opts.addOption("base", "Prepended to filenames",true);
     opts.addOption("noScore", "If provided, disable designability and contact scoring", false);
@@ -86,6 +87,7 @@ int main (int argc, char *argv[]) {
 
 //    if (opts.isGiven("overlaps") == opts.isGiven("seedGraph")) MstUtils::error("Either 'overlaps' or 'seedGraph' must be provided, but not both.");
 //    if (opts.isGiven("overlaps") == true && opts.isGiven("req_seed") == true) MstUtils::error("req_seed parameter not implemented for cluster tree path sampling");
+    if (opts.isGiven("score_structures") && opts.isGiven("writeTopology")) MstUtils::error("Warning: will not write out topology in score structures mode");
     
     string complexPath = opts.getString("complex");
     string binaryFilePath = opts.getString("seeds");
@@ -96,6 +98,7 @@ int main (int argc, char *argv[]) {
     int flankingRes = opts.getInt("numResFlank",2);
     mstreal homCut = opts.getReal("homCut",2.0);
     bool shouldScore = !opts.isGiven("noScore");
+    bool writeTopology = opts.isGiven("writeTopology");
     
     //The base name sets the seed, since this varies between batches, this should give unique sampling
     hash<string> hash;
@@ -106,6 +109,10 @@ int main (int argc, char *argv[]) {
     string outputPath = "./path_structures";
     if (!MstSys::fileExists(outputPath)) {
         MstSys::cmkdir(outputPath);
+    }
+    string seedOutputPath = "./topology_seed_segments";
+    if (writeTopology && !MstSys::fileExists(seedOutputPath)) {
+        MstSys::cmkdir(seedOutputPath);
     }
 
     Structure complex(complexPath);
@@ -220,8 +227,8 @@ int main (int argc, char *argv[]) {
                 //verify that there is a single chain with ID = 0
                 if (S.chainSize() != 1) MstUtils::error("Structures provided for scoring should have a single chain");
                 if (S.getChainByID("0") == NULL) MstUtils::error("Structures provided for scoring must have a chain with ID = 0");
-                vector<Residue*> empty;
-                paths.emplace_back(empty,S,0,fusionOutput(),0,0);
+                vector<Residue*> empty; vector<vector<Residue*>> empty2;
+                paths.emplace_back(empty,S,empty2,0,fusionOutput(),0,0);
             }
             numPaths = paths.size();
         } else {
@@ -277,6 +284,17 @@ int main (int argc, char *argv[]) {
             // Write out the PDBs
             path_and_context.writePDB(MstSystemExtension::join(outputPath,path_and_context.getName()+".pdb"));
             path_only.writePDB(MstSystemExtension::join(outputPath,path_only.getName()+".pdb"));
+            
+            if (writeTopology) {
+                string seedOutputPathId = seedOutputPath + "/path_" + MstUtils::toString(pathIndex);
+                if (!MstSys::fileExists(seedOutputPathId)) {
+                    MstSys::cmkdir(seedOutputPathId);
+                }
+                vector<Structure> seedPathSegments = path_result.getTopologySeedResidues();
+                for (Structure& S : seedPathSegments) {
+                    S.writePDB(seedOutputPathId + "/" + S.getName()+".pdb");
+                }
+            }
             
             pathIndex++;
             if (pathIndex >= numPaths) break;

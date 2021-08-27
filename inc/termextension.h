@@ -27,7 +27,7 @@
  */
 using namespace MST;
 
-//// forward declarations
+// forward declarations
 class TermExtension;
 class seedTERM;
 struct seed;
@@ -48,7 +48,7 @@ class seedTERM {
 public:
     /* Constructor */
     seedTERM();
-    seedTERM(TermExtension* Fragmenter, vector<Residue*>_interactingRes, vector<int> _flankResPerSegment, bool search, mstreal max_rmsd);
+    seedTERM(TermExtension* Fragmenter, vector<Residue*>_interactingRes, vector<int> _flankResPerSegment, bool search, mstreal max_rmsd, bool discard_match_data = false);
 //    /*
 //     To do: fix copying Seeds. Currently, the pointers are copied, so if the parent object is deleted
 //     the pointers in the child object would be null.
@@ -67,7 +67,7 @@ public:
     enum seedType {MANY_CONTACT, PEPTIDE_EXTENSION};
     
     // Fragment methods
-    vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, int match_number, mstreal RMSD, bool same_res);
+    vector<Structure*> extendMatch(seedType seed_type, const Structure* match_structure, vector<int> match_idx, vector<vector<int>> seed_segments,vector<string> seed_sec_struct, int match_number, mstreal RMSD, int target_ID, bool same_res);
     void writeExtendedFragmentstoPDB(string outDir, fstream& info_out, fstream& secstruct_out, interfaceCoverage* IC);
     void writeExtendedFragmentstoBIN(fstream& info_out, fstream& secstruct_out, StructuresBinaryFile* bin, interfaceCoverage* IC);
     //  void writeSecStruct(string outDir, fstream& secstruct_out);
@@ -105,15 +105,16 @@ public:
     const Structure& getStructure() const {return fragmentStructure;}
     vector<Residue*> getInteractingRes() const {return interactingRes;}
     vector<int> getFlankingResPerInteractingRes() const {return flankResPerInteractingRes;}
+    
+    // Potentially unsafe to call if "discard_match_data" is set to true
     fasstSolutionSet& getMatches() {return tD.getMatches();}
     fasstSolution& getMatch(int i) {return tD.getMatch(i);}
-    //  vector<Structure*> getExtendedFragments() const {return extended_fragments;}
     
     
     // Getters (properties)
     string getCenResName() {return cenResName;}
     int getNumRes() {return fragmentStructure.residueSize();}
-    int getNumMatches() {return tD.numMatches();}
+    int getNumMatches() {return numMatches;}
     int getNumMatchesPreFiltering() {return numMatchesPreHomologyFiltering;}
     int getSegmentNum(mstreal maxPeptideBondLen = 2.0);
     vector<int> getSegmentLens(mstreal maxPeptideBondLen = 2.0); //ordered by the residue indices
@@ -140,12 +141,13 @@ protected:
     
     /* The extended fragment name is defined with the following components:
      -fragment name
+     -match protein ID in db
      -seed flanking number
      -RMSD of the fragment to the match
      -seed number (unique ID)
      e.g. fragname_2-0.52319-132
      */
-    string extendedFragmentName(mstreal RMSD);
+    string extendedFragmentName(mstreal RMSD, int match_protein_ID);
     
 private:
     TermExtension* parent;
@@ -156,9 +158,10 @@ private:
     vector<int> flankResPerInteractingRes;
     vector<int> allResIdx;
     int cenResIdx; //index of the central residue in fragmentStructure
-    string seed_chain_ID = "0";
+//    string seed_chain_ID = "0";
     
     int numMatchesPreHomologyFiltering;
+    int numMatches;
     termData tD;
     
     bool search;
@@ -199,8 +202,12 @@ public:
     void printValues();
     
     string getConfigFile() {return config_file;}
+
+    enum fragType {CEN_RES, ALL_COMBINATIONS, ADAPTIVE_SIZE, ADAPTIVE_LENGTH, COMPLEXITY_SCAN};
     
-private:
+    enum seqConstType {NONE, CEN_RES_ONLY, ALL_RES};
+    
+    fragType fragment_type = ADAPTIVE_LENGTH;
     mstreal cd_threshold = .01;
     mstreal cdSeqConst_threshold = .01;
     mstreal int_threshold = .01;
@@ -209,10 +216,12 @@ private:
     int flanking_res = 2;
     int match_req = -1; //only considered if value is > 0
     bool adaptive_rmsd = false;
-    bool seq_const = false;
+    seqConstType seq_const = NONE;
     string config_file = "";
     int seed_flanking_res = 2;
     mstreal homology_cutoff = 0.5;
+    bool allow_sidechain_clash = true;
+    mstreal freedom_cutoff = 0.4;
     bool verbose = false;
 };
 
@@ -258,7 +267,7 @@ public:
      the number of residues in the neighbourhood.
      
      */
-    enum fragType {CEN_RES, CONTACT, ADAPTIVE_SIZE, ADAPTIVE_LENGTH};
+//    enum fragType {CEN_RES, ALL_COMBINATIONS, ADAPTIVE_SIZE, ADAPTIVE_LENGTH, COMPLEXITY_SCAN};
     
     /* Constructor */
     TermExtension(string fasstDBPath, string rotLib, vector<Residue*> selection, TEParams& _params);
@@ -273,8 +282,14 @@ public:
     void setMinSeedLength(int len) {minimum_seed_length = len;}
     void setMaxRMSD(mstreal _max_rmsd) {params.max_rmsd = _max_rmsd;}
     void setAdaptiveRMSD(bool _adaptive_rmsd) {params.adaptive_rmsd = _adaptive_rmsd;}
-    void setSeqConst(bool _seq_const) {params.seq_const = _seq_const;}
+//    void setSeqConst(bool _seq_const) {params.seq_const = _seq_const;}
     void setIC(interfaceCoverage* _IC) {IC = _IC;}
+    void setWriteAllFiles(string _extFragDir, string _wholeMatchProteinDir, string _seedDir) {
+        storeAll = true;
+        extFragDir = _extFragDir;
+        wholeMatchProteinDir = _wholeMatchProteinDir;
+        seedDir = _seedDir;
+    }
   
     void resetFragments() {
         for (seedTERM* f : all_fragments) delete f;
@@ -301,7 +316,7 @@ public:
      search - By default, the fragments are searched during their construction, but if that is not
      desired, it can be controlled by changing this variable to false. */
     
-    void generateFragments(fragType option, bool search = true);
+    void generateFragments(bool search = true);
     
     /* Fragment getters */
     vector<seedTERM*> getFragments() {return all_fragments;}
@@ -337,6 +352,8 @@ public:
     
     /* ExtendedFragment getters */
     vector<Structure*> getExtendedFragments();
+    
+    string seed_chain_ID = "0";
     
 protected:
     // Called by the constructor
@@ -396,6 +413,7 @@ private:
     
     // Fragment extension parameters
     // variables stored for filtering seeds with clashes during TERM extension
+    // NOT necessarily all BB atoms: depends on user params
     Structure target_BB_structure;
     AtomPointerVector target_BB_atoms;
     ProximitySearch* target_PS;
@@ -410,6 +428,11 @@ private:
     secondaryStructureClassifier sec_structure;
     
     TEParams params; //handles all parameters
+    
+    bool storeAll = false; //controls whether extra files are written out
+    string extFragDir = "";
+    string wholeMatchProteinDir = "";
+    string seedDir = "";
 };
 
 

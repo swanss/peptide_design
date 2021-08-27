@@ -120,7 +120,13 @@ string secondaryStructureClassifier::classifyResInStruct(Structure* S, vector<in
     return classification;
 }
 
-tuple<mstreal,mstreal,mstreal> secondaryStructureClassifier::getSecStructFractions(const Structure& Str) {
+void secondaryStructureClassifier::assignSSToSequence(Structure* seed) {
+    for (Residue* R : seed->getResidues()) {
+        R->setName(classifyResidue(R));
+    }
+}
+
+tuple<int,int,int> secondaryStructureClassifier::getSecStructAll(const Structure& Str) {
     int H = 0; int S = 0; int C = 0; //for counting observations of each class
     mstreal H_frac; mstreal S_frac; mstreal C_frac;
     
@@ -135,9 +141,14 @@ tuple<mstreal,mstreal,mstreal> secondaryStructureClassifier::getSecStructFractio
             C += 1;
         }
     }
-    H_frac = mstreal(H)/residues.size();
-    S_frac = mstreal(S)/residues.size();
-    C_frac = mstreal(C)/residues.size();
+    return make_tuple(H,S,C);
+}
+
+tuple<mstreal,mstreal,mstreal> secondaryStructureClassifier::getSecStructFractions(const Structure& Str) {
+    tuple<int,int,int> sec_struct_all = getSecStructAll(Str);
+    mstreal H_frac = mstreal(get<0>(sec_struct_all))/Str.residueSize();
+    mstreal S_frac = mstreal(get<1>(sec_struct_all))/Str.residueSize();
+    mstreal C_frac = mstreal(get<2>(sec_struct_all))/Str.residueSize();
     return make_tuple(H_frac,S_frac,C_frac);
 }
 

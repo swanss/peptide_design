@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
     MstOptions op;
     op.setTitle("Reports which properties are defined in a FASSTDB");
     op.addOption("dbPath","The path to the DB",true);
+    op.addOption("secStruct","If given, assigns a secondary classification to each residue of each structure in the database",true);
     op.addOption("mem_save","0: no memory save, 1: no sidechains, 2: destroy structures after getting atoms",true);
     op.setOptions(argc, argv);
     
@@ -24,6 +25,10 @@ int main(int argc, char *argv[]) {
     //import DB
     FASST F;
     F.readDatabase(op.getString("dbPath"),mem_save);
+    
+    if (op.isGiven("secStruct")) {
+        
+    }
     
     //Structure properties
     int target_num = F.numTargets();

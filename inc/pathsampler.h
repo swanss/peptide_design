@@ -30,6 +30,10 @@
  */
 class PathResult {
 public:
+    PathResult(vector<Residue *> originalResidues, Structure fusedPath, vector<vector<Residue*>> topologySeedResidues, int seedStartIdx, fusionOutput fuserScore, int interchainClash = 0, int intrachainClash = 0): _originalResidues(originalResidues), _fusedPath(fusedPath), _topologySeedResidues(topologySeedResidues), _seedStartIdx(seedStartIdx), _fuserScore(fuserScore), _interchainClash(interchainClash), _intrachainClash(intrachainClash) {
+        residueSize = _fusedPath.residueSize() - seedStartIdx;
+    }
+    
     vector<Residue *> getOriginalResidues() { return _originalResidues; }
     int size() { return residueSize; }
 
@@ -42,16 +46,25 @@ public:
         c->setID(_chainID);
         ret.appendChain(c);
     }
+    vector<Structure> getTopologySeedResidues() {
+        vector<Structure> seedSegments;
+        for (int i = 0; i < _topologySeedResidues.size(); i++) {
+            seedSegments.emplace_back(_topologySeedResidues[i]);
+            Structure& seedSegment = seedSegments[i];
+            Residue* pathRes = _originalResidues[i];
+            string name = MstUtils::toString(i) + "_" + pathRes->getStructure()->getName() + ":" + MstUtils::toString(pathRes->getNum());
+            seedSegment.setName(name);
+        }
+        return seedSegments;
+    }
     fusionOutput getFuserScore() {return _fuserScore;}
     int getIntrachainClash() {return _intrachainClash;}
     int getInterchainClash() {return _interchainClash;}
-    PathResult(vector<Residue *> originalResidues, Structure fusedPath, int seedStartIdx, fusionOutput fuserScore, int interchainClash = 0, int intrachainClash = 0): _originalResidues(originalResidues), _fusedPath(fusedPath), _seedStartIdx(seedStartIdx), _fuserScore(fuserScore), _interchainClash(interchainClash), _intrachainClash(intrachainClash) {
-        residueSize = _fusedPath.residueSize() - seedStartIdx;
-    }
 
 private:
     vector<Residue *> _originalResidues;
     Structure _fusedPath;
+    vector<vector<Residue*>> _topologySeedResidues;
     int _seedStartIdx;
     fusionOutput _fuserScore;
     int _interchainClash;
@@ -127,7 +140,7 @@ protected:
      *  added
      */
     pair<vector<Residue *>, vector<int>> getMappedMatchResidues(const Structure &seedStructure, const map<int,int> &targetPositions);
-    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, fusionOutput& fuserScore, set<Residue*> fixedResidues = {});
+    int fusePath(const vector<Residue *> &residues, Structure &fusedPath, fusionOutput& fuserScore, vector<vector<Residue *>>& topologySeedResidues, set<Residue*> fixedResidues = {});
     bool pathClashes(const Structure &path, int seedStartIdx, int &interchain_clash, int &intrachain_clash);
 };
 
