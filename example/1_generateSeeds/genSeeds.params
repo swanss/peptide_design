@@ -1,0 +1,14 @@
+fragment_type ADAPTIVE_LENGTH
+cd_threshold 0.01
+int_threshold 0.01
+max_rmsd 1.2
+flanking_res 3
+match_req 5000
+adaptive_rmsd 0
+seq_const NONE
+config_file /scratch/users/swans/config/singlechainDB.configfile
+seed_flanking_res 2
+allow_sidechain_clash 0
+freedom_cutoff 0.0
+relSASA_cutoff -1.0
+verbose 1
