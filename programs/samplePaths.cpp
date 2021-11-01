@@ -57,40 +57,35 @@ int main (int argc, char *argv[]) {
     // Get command-line arguments
     MstOptions opts;
     opts.setTitle("Samples random paths from a seed graph/cluster tree and fuses the residues together into a peptide backbone structure.");
-    opts.addOption("complex", "Path to a PDB structure file containing the target protein", true);
-    opts.addOption("peptideChain", "Chain ID for the peptide chain in the target, if one exists - it will be removed (default false)", false);
-    opts.addOption("seeds", "Path to a binary file containing seed structures", false);
+    opts.addOption("targetPDB", "Path to a PDB file of the target protein", true);
+    opts.addOption("peptideChainID", "Single letter peptide chain ID. Will remove the peptide before generating seeds. Only necessary if the target_pdb contains a peptide chain that should be removed", false);
+    opts.addOption("seedBin", "Path to a binary file containing seed structures", true);
     opts.addOption("seedChain", "Chain ID for the seed structures (default '0')", false);
     opts.addOption("seedGraph", "Path to a text file defining a seed graph", false);
     opts.addOption("numPaths", "Number of paths to generate. (default 200)", false);
     opts.addOption("minLength", "The minimum residue length of the sampled paths. (default 15)", false);
-    opts.addOption("reqSeed", "The name of a seed in the binary file that all paths should extend from",false);
+    opts.addOption("reqSeed", "The name of a seed in the binary file that all paths should extend from (optional)",false);
     opts.addOption("reqSeedSel", "A selection that specifies the residues in reqSeed that should always be included in sampled paths. Must be a continuous range: e.g. resid 3-5. (note: 'chain 0' is always assumed)",false);
     opts.addOption("fixedSeed", "If residues from the specified seed are included in a path, they will be fixed during fusing.",false);
     opts.addOption("numResFlank", "The number of flanking residues taken on each side of a contact when defining fragments during scoring (default 2)",false);
-    opts.addOption("homCut","The sequence identity cutoff to use when determining whether a match used in scoring is homologous, and thus redundant, to the query. If the provided value is greater than 1.0, this is not checked (default 2.0)",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
-    opts.addOption("score_paths", "Instead of sampling new paths from the graph, samples pre-defined paths, and scores. path format: seed_A:residue_i;seed_B:residue_j;etc...", false);
-    opts.addOption("score_structures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
+    opts.addOption("scorePaths", "Instead of sampling new paths from the graph, scores pre-defined paths. path format: seed_A:residue_i;seed_B:residue_j;etc...", false);
+    opts.addOption("scoreStructures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
     opts.addOption("writeTopology","If provided, will write out the complete seed topology of each path. Useful for debugging.",false);
     opts.addOption("config", "The path to a configfile",true);
     opts.addOption("base", "Prepended to filenames",true);
-    opts.addOption("noScore", "If provided, disable designability and contact scoring", false);
     opts.setOptions(argc, argv);
 
-//    if (opts.isGiven("overlaps") == opts.isGiven("seedGraph")) MstUtils::error("Either 'overlaps' or 'seedGraph' must be provided, but not both.");
-//    if (opts.isGiven("overlaps") == true && opts.isGiven("req_seed") == true) MstUtils::error("req_seed parameter not implemented for cluster tree path sampling");
-    if (opts.isGiven("score_structures") && opts.isGiven("writeTopology")) MstUtils::error("Warning: will not write out topology in score structures mode");
+    if (opts.isGiven("scoreStructures") && opts.isGiven("writeTopology")) MstUtils::error("Warning: will not write out topology in score structures mode");
     
-    string complexPath = opts.getString("complex");
-    string binaryFilePath = opts.getString("seeds");
-    string overlapTreePath = opts.getString("overlaps");
+    string targetPath = opts.getString("targetPDB");
+    string binaryFilePath = opts.getString("seedBin");
+    int numPaths = opts.getInt("numPaths", 200);
+    int minLength = opts.getInt("minLength", 15);
     string configFilePath = opts.getString("config");
     string base = opts.getString("base");
     string seedChain = opts.getString("seedChain", "0");
     int flankingRes = opts.getInt("numResFlank",2);
-    mstreal homCut = opts.getReal("homCut",2.0);
-    bool shouldScore = !opts.isGiven("noScore");
     bool writeTopology = opts.isGiven("writeTopology");
     
     //The base name sets the seed, since this varies between batches, this should give unique sampling
@@ -108,55 +103,26 @@ int main (int argc, char *argv[]) {
         MstSys::cmkdir(seedOutputPath);
     }
 
-    Structure complex(complexPath);
+    Structure target(targetPath);
 
     // Remove native peptide from target
-    if (opts.isGiven("peptideChain")) {
-        Chain *peptide = complex.getChainByID(opts.getString("peptideChain", "B"));
+    if (opts.isGiven("peptideChainID")) {
+        Chain *peptide = target.getChainByID(opts.getString("peptideChainID", "B"));
         if (peptide != nullptr)
-            complex.deleteChain(peptide);
+            target.deleteChain(peptide);
     }
 
-    // Set up scorer, if shouldScore provided
-    SeedDesignabilityScorer *scorer = nullptr;
-    if (shouldScore) {
-        FragmentParams fParams(flankingRes, true);
-        rmsdParams rParams(1.2, 15, 1);
-        contactParams cParams;
-        scorer = new SeedDesignabilityScorer(&complex, fParams, rParams, cParams, configFilePath, 0.4, 1, 8000, 0.7, true);
-        scorer->scoresWritePath = base + "_fragments" + ".csv";
-        scorer->setQueryHomologyCutoff(homCut);
-    }
-
-    int numPaths = opts.getInt("numPaths", 200);
-    int minLength = opts.getInt("minLength", 15);
+    configFile config(configFilePath);
+    RotamerLibrary RL(config.getRL());
+    contactParams cParams(3.5,0.01,0.01);
+    contactCounter cCounter(&target,&RL,cParams,0);
     
-    StructuresBinaryFile* seedFile;
-    SeedGraphPathSampler* sampler;
-//    SingleFragmentFetcher* fetcher;
-//    ClusterTree* overlapTree;
-    StructureCache* cache;
-    SeedGraph* seedG;
-
-    // Handle configuration options separately for each input type, since different
-    // sets of options may be available
-//    if (opts.isGiven("overlaps")) {
-        //this is deprecated
-//        cout << "Loading cluster tree..." << endl;
-//        fetcher = new SingleFragmentFetcher(seedFile, 3, seedChain);
-//        overlapTree = new ClusterTree(fetcher, 4, true); // 4 children per level; shared coordinate system
-//        overlapTree->read(overlapTreePath);
-//
-//        // Stringent: 3-residue overlaps, 0.75A cutoff
-//        // Permissive: 3-residue overlaps, 1.25A cutoff
-//        ClusterTreePathSampler *cSampler = new ClusterTreePathSampler(&complex, fetcher, overlapTree, 3, 1.25, fetcher->getAllResidues());
-//        if (opts.isGiven("ss")) {
-//            cSampler->preferredSecondaryStructure = new string(opts.getString("ss"));
-//        }
-//
-//        sampler = cSampler;
-//        }
-    if (opts.isGiven("seedGraph") && !opts.isGiven("score_structures")) {
+    StructuresBinaryFile* seedFile = nullptr;
+    SeedGraphPathSampler* sampler = nullptr;
+    StructureCache* cache = nullptr;
+    SeedGraph* seedG = nullptr;
+    
+    if (opts.isGiven("seedGraph") && !opts.isGiven("scoreStructures")) {
         cout << "Loading seeds" << endl;
         seedFile = new StructuresBinaryFile(binaryFilePath);
         seedFile->scanFilePositions();
@@ -166,7 +132,7 @@ int main (int argc, char *argv[]) {
         seedG = new SeedGraph(opts.getString("seedGraph"), false, cache);
         
         int overlapLength = 1;
-        sampler = new SeedGraphPathSampler(&complex,seedG,overlapLength);
+        sampler = new SeedGraphPathSampler(&target,seedG,overlapLength);
         if (opts.isGiven("ss")) {
             sampler->preferredSecondaryStructure = new string(opts.getString("ss"));
         }
@@ -201,18 +167,18 @@ int main (int argc, char *argv[]) {
     if (!out.is_open())
         MstUtils::error("Could not open file stream");
     // CSV header
-    out << "name,path,path_len,fuser_score,rmsd_score,total_rmsd_score,bond_score,angle_score,dihedral_score,interchain_clash,intrachain_clash,interchain_designability,num_interchain_contacts,num_designable_interchain_contacts,intrachain_designability,num_intrachain_contacts,num_designable_intrachain_contacts,corroboration" << endl;
+    out << "name,path,path_len,fuser_score,rmsd_score,total_rmsd_score,bond_score,angle_score,dihedral_score,interchain_clash,intrachain_clash,num_interface_contacts,corroboration" << endl;
     
     cout << "Sample, fuse, and score " << numPaths << " fused paths..." << endl;
     int pathIndex = 0;
     while (pathIndex < numPaths) {
         vector<PathResult> paths;
-        if (opts.isGiven("score_paths")) {
-            vector<string> path_strings = MstUtils::fileToArray(opts.getString("score_paths"));
+        if (opts.isGiven("scorePaths")) {
+            vector<string> path_strings = MstUtils::fileToArray(opts.getString("scorePaths"));
             paths = sampler->fusePaths(path_strings);
             numPaths = paths.size();
-        } else if (opts.isGiven("score_structures")) {
-            vector<string> structure_paths = MstUtils::fileToArray(opts.getString("score_structures"));
+        } else if (opts.isGiven("scoreStructures")) {
+            vector<string> structure_paths = MstUtils::fileToArray(opts.getString("scoreStructures"));
             vector<Structure> structures;
             for (string structure_path : structure_paths) {
                 Structure S(structure_path);
@@ -231,7 +197,7 @@ int main (int argc, char *argv[]) {
             cout << "Path: " << pathIndex << endl;
             string name = base + "_fused-path_" + to_string(pathIndex);
             string name_whole = base + "_fused-path-and-context_" + to_string(pathIndex);
-            if (opts.isGiven("score_structures")) out << path_result.getFusedStructure().getName() << ",";
+            if (opts.isGiven("scoreStructures")) out << path_result.getFusedStructure().getName() << ",";
             else out << name << ",";
             
             for (Residue *res: path_result.getOriginalResidues()) {
@@ -254,23 +220,9 @@ int main (int argc, char *argv[]) {
             path_only.setName(name);
             path_and_context.setName(name_whole);
 
-            // Score the path
-            // Score the path (looking at inter-chain contacts)
-            mstreal totalScore = 0;
             int numContacts = 0;
-            int numDesignable = 0;
-            if (shouldScore) {
-                cout << "Score inter-chain contacts" << endl;
-                scorer->score(&path_only, totalScore, numContacts, numDesignable, false);
-            }
-            out << totalScore << "," << numContacts << "," << numDesignable << ",";
-            
-            if (shouldScore) {
-                // Score the path (looking at intra-chain contacts)
-                cout << "Score intra-chain contacts" << endl;
-                scorer->score(&path_only, totalScore, numContacts, numDesignable, true);
-            }
-            out << totalScore << "," << numContacts << "," << numDesignable << ",";
+            numContacts = cCounter.countContacts(&path_only);
+            out << numContacts << ",";
             
             out << corroborationScore(path_result, 2) << endl;
             
@@ -294,19 +246,13 @@ int main (int argc, char *argv[]) {
         }
     }
     
-    if (!opts.isGiven("score_structures")) sampler->reportSamplingStatistics();
+    if (!opts.isGiven("scoreStructures")) sampler->reportSamplingStatistics();
     
-    // Deallocate all memory on the heap
-//    if (opts.isGiven("overlaps")) {
-//        delete fetcher;
-//        delete overlapTree;
-//    }
     if (opts.isGiven("seedGraph")) {
         delete cache;
         delete seedG;
         delete sampler;
     }
-    if (shouldScore) delete scorer;
 
     cout << "Done" << endl;
     out.close();

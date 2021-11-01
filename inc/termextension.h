@@ -19,8 +19,6 @@
 #include "vdwRadii.h"
 #include "utilities.h" //for generateAllCombinationsKRes
 
-/* TO DO:
- */
 using namespace MST;
 
 // forward declarations
@@ -223,7 +221,7 @@ public:
     
     fragType fragment_type = ADAPTIVE_LENGTH;
     mstreal cd_threshold = .01;
-    mstreal cdSeqConst_threshold = .01;
+    mstreal cdSeqConst_threshold = 1.0;
     mstreal int_threshold = .01;
     mstreal bbInteraction_cutoff = 3.5;
     mstreal max_rmsd = 1.2;

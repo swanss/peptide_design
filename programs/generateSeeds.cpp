@@ -2,7 +2,7 @@
 #include "mstsystem.h"
 #include "mstoptions.h"
 
-//tpd dependencies
+//peptide_design dependencies
 #include "utilities.h"
 #include "coverage.h"
 #include "termextension.h"
@@ -10,15 +10,13 @@
 
 int main(int argc, char *argv[]) {
     MstOptions op;
-    op.setTitle("Generates segments of protein backbone, or 'interface seeds', around a target protein. Seeds are saved in a binary file. NOTE: depending on the size of the database that is searched, this can require a lot of memory (e.g. 20G)");
-    op.addOption("target_pdb", "The to the PDB file. Can include just protein chains, or both protein/peptide chains", true);
-    op.addOption("peptide", "peptide chain ID. Only necessary if the provided .pdb file contains a peptide chain");
-    op.addOption("sel","a selection string that specifies the protein residues to generate seeds around. Necessary if the provided PDB file does not include peptide chains");
-    op.addOption("params_file","Path to the configuration file (specifies fasst database and rotamer library)",true);
+    op.setTitle("Generates segments of protein backbone, or 'interface seeds', around a target protein.");
+    op.addOption("target_pdb", "Path to a PDB file of the target protein", true);
+    op.addOption("peptide_chainID", "Single letter peptide chain ID. Will define a peptide binding site and remove the peptide before generating seeds. Only necessary if the target_pdb contains a peptide chain that should be removed");
+    op.addOption("target_sel","A selection string specifying protein residues to generate seeds around. Only will be used if peptide_chainID is not provided. If neither are provided, will try to generate seeds around all residues. Ex: 'chain A and resid 122-130'");
+    op.addOption("params_file","Path to the configuration file (specifies FASST structure database and rotamer library)",true);
     op.addOption("no_seeds","If provided will skip generating seeds");
     op.addOption("only_store_covering","If provided will only write the seeds that are covering, e.g. have some segment aligning to the peptide");
-//    op.addOption("adaptive_fragments","Fragments grow as large as possible while still having the required number of matches");
-//    op.addOption("disjoint_segments","Fragments grow by adding disjoint segments (if not provided, fragments only grow by adding flanking residues)");
     op.addOption("write_all_files","Writes additional files (helpful for making figures and diagnosing issues)");
     op.setOptions(argc, argv);
         
@@ -27,12 +25,10 @@ int main(int argc, char *argv[]) {
     // Variables provided by user
     Structure target(op.getString("target_pdb"));
     string params_file_path = op.getString("params_file");
-    string p_cid = op.getString("peptide","");
-    string sel_str = op.getString("sel","");
+    string p_cid = op.getString("peptide_chainID","");
+    string sel_str = op.getString("target_sel","");
     bool no_seeds = op.isGiven("no_seeds");
     bool only_store_covering = op.isGiven("only_store_covering");
-//    bool adaptive_fragments = op.isGiven("adaptive_fragments");
-//    bool disjoint_segments = op.isGiven("disjoint_segments");
     bool write_all_files = op.isGiven("write_all_files");
   
     // Open params file

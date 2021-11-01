@@ -19,12 +19,12 @@ int main (int argc, char *argv[]) {
 
     // Get command-line arguments
     MstOptions opts;
-    opts.setTitle("Builds connectivity graphs using a provided set of overlaps, and deposits them into sets of clusters ('subgraphs') and remaining 'chunks'.");
+    opts.setTitle("Builds a graph describing seed residues and their potential connections and deposits them into sets of clusters ('subgraphs') and remaining 'chunks'.");
     opts.addOption("overlaps", "Directory or file defining overlaps (must be provided if --tree is not)", false);
     opts.addOption("tree", "File representing a cluster tree of k-mers (must be provided if --overlaps is not)", false);
-    opts.addOption("bin", "Binary file containing seed structures", true);
+    opts.addOption("seedBin", "Binary file containing seed structures", true);
     opts.addOption("out", "File path to write out adjacency list for graph", true);
-    opts.addOption("adj", "If 'same' (default) then write graphs where adjacencies correspond to equivalent residues; if 'bond', write graphs where adjacencies are potential bonds", false);
+    opts.addOption("adj", "If 'bond' (default) then write graphs where adjacencies are potential bonds; if 'same', write graphs where adjacencies correspond to equivalent residues", false);
     opts.addOption("subgraphDir", "If provided, write any disjoint subgraphs with at least --subgraphSize residues to this directory", false);
     opts.addOption("subgraphSize", "Number of residues required to write out a subgraph (default 100 for adj = same, 15 for adj = bond", false);
     opts.addOption("overlapSize", "The number of residues required to define an overlap (required if --tree is provided)", false);
@@ -35,7 +35,7 @@ int main (int argc, char *argv[]) {
     MstUtils::assert(opts.isGiven("overlaps") || opts.isGiven("tree"), "Either --overlaps or --tree must be provided");
     string overlapsPath = opts.getString("overlaps", "");
     string treePath = opts.getString("tree", "");
-    string binaryPath = opts.getString("bin");
+    string binaryPath = opts.getString("seedBin");
     string outPath = opts.getString("out");
     string subgraphPath = opts.getString("subgraphDir", "");
     if (!subgraphPath.empty() && !MstSys::fileExists(subgraphPath))

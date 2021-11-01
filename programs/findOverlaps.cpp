@@ -15,14 +15,12 @@ int main (int argc, char *argv[]) {
     
     // Get command-line arguments
     MstOptions opts;
-    opts.setTitle("Finds overlaps between all pairs of the given seed residues.");
-    //opts.addOption("files", "Text file containing a list of seed structures", true);
-    //opts.addOption("data", "Directory in which seed structures are stored", true);
-    opts.addOption("bin", "Path to a binary file containing seed structures", true);
+    opts.setTitle("Finds overlaps between all pairs of seeds.");
+    opts.addOption("seedBin", "Path to a binary file containing seed structures.", true);
     opts.addOption("out", "Path to file at which to write overlaps", true);
-    opts.addOption("overlapSize", "Number of residues that must overlap between two residues. Must be even (default 2)", false);
-    opts.addOption("deviation", "Maximum deviation allowed between individual residues in an overlap segment (default 1.0)", false);
-    opts.addOption("minCosAngle", "Minimum cosine angle between residue normal vectors in an overlap segment (default -1.0)", false);
+    opts.addOption("overlapSize", "Number of residues that must overlap between two residues. Must be even (default 4)", false);
+    opts.addOption("maxDeviation", "Distance cutoff (Å) between alpha-carbons in an overlap segment (default 1.0)", false);
+    opts.addOption("minCosAngle", "Cosine angle threshold between residue normal vectors in an overlap segment (default 0.5)", false);
     opts.addOption("worker", "The index of this worker (from 1 to numWorkers)", false);
     opts.addOption("numWorkers", "The number of workers", false);
     opts.addOption("batchSize", "The number of structures to use in each batch. (default 200,000)", false);
@@ -33,12 +31,12 @@ int main (int argc, char *argv[]) {
     
     //string filesPath = opts.getString("files");
     //string dataPath = opts.getString("data");
-    string binaryPath = opts.getString("bin");
+    string binaryPath = opts.getString("seedBin");
     string outPath = opts.getString("out") + ".csv";
 
-    int numResOverlap = opts.getInt("overlapSize", 2);
-    float maxDeviation = opts.getReal("deviation", 1.0);
-    float minCosAngle = opts.getReal("minCosAngle", -1.0);
+    int numResOverlap = opts.getInt("overlapSize", 4);
+    float maxDeviation = opts.getReal("maxDeviation", 1.0);
+    float minCosAngle = opts.getReal("minCosAngle", 0.5);
 
     int worker = opts.getInt("worker", 1);
     int numWorkers = opts.getInt("numWorkers", 1);

@@ -1,6 +1,6 @@
 # peptide_design
 
-This repository incorporates several tools that enable the de novo design of peptides to bind a given protein. The process begins with the generation of **seeds**, which are small segments of protein backbone arranged in the space around the selected binding site. Given these seeds, the programs enable the construction of a **seed graph** describing the overlaps between these seeds at various RMSD thresholds, the scoring of these seeds by various metrics, and the construction of **paths** that thread through the graph and optimize the score function.
+This repository incorporates several tools that enable the de novo design of peptides to bind a given protein. The process begins with the generation of  **seeds**, which are small segments of protein backbone arranged in the space around the selected binding site. Given these seeds, the programs enable the construction of a **seed graph** describing geometric overlaps between these seeds. Paths can be sampled from the graph and fused to form peptide backbones. Finally, paths can be scored and selected for sequence design.
 
 ## Build Instructions
 
@@ -11,6 +11,52 @@ Before building, adjust the `makefile` variable `MSTDIR` to be the path at which
 * `make bin/[executable name]` - builds the specific executable with its dependencies
 * `make clean` - removes build intermediates and products
 * `make python` - builds the Python library (see below)
+
+## Main pipeline
+
+See `peptide_design/example/` for an example of how to use this pipeline to design peptide backbones.
+
+Before starting, you will need to make a configuration file, which will be reused throughout the process. This will provide the path to 1) a FASST file, i.e. a database of structures that have been processed and can be searched and 2) the backbone-dependent rotamer library (which can be found in the MST repo). ex: `peptide_design/example/input_files/singlechain.configfile`
+
+### `generateSeeds`
+
+`peptide_design/example/01_generateSeeds/run_generateSeeds.sh`
+
+The details of how seeds are generated are controlled through the params file. Anything that is not included in this file
+will be set to the default value, with the exception of **config_file** which must always be provided.
+
+```
+fragment_type ADAPTIVE_LENGTH #fragments will grow in length until they have less matches than match_req
+max_rmsd 1.2 #the cutoff for defining matches to fragments
+flanking_res 3 #the max number of flanking residues that can be added when defining a fragment
+match_req 5000 #the number of matches that must be found for each target residue
+adaptive_rmsd 0 #if 1, will scale the max RMSD cutoff based on fragment size/complexity
+seq_const NONE #if NONE, no sequence constraint is applied when searching for matches
+config_file /scratch/users/swans/config/singlechain.configfile
+seed_flanking_res 2 #the number of flanking residues that are included around every central seed residue
+allow_sidechain_clash 0 #if 1, will allow seeds that clash with target sidechains
+relSASA_cutoff -1.0 #this threshold defines 'surface residues' that are used to generate seeds (ignored if -1.0)
+verbose 1
+```
+When complete, all seeds will be stored at `dir/output/extendedfragments.bin`
+
+### `findOverlaps`
+
+`peptide_design/example/02_findOverlaps/run_findoverlaps.sh`
+
+Depending on the number of seeds, finding overlaps can be slow. Options are provided to distribute the work via job arrays.
+
+### `buildSeedGraph`
+
+`peptide_design/example/02_findOverlaps/run_buildSeedGraph.sh`
+
+### `samplePaths`
+
+### `countContacts`
+
+### `buildPathDistanceMatrix`
+
+### `scoreStructures`
 
 ## Python Library
 
@@ -204,8 +250,3 @@ This program uses a dynamic programming algorithm to find the best-scoring paths
 
 The output of `findPaths` in the `out` directory consists of a `paths.txt` file containing the best-scoring sequences of residues as well as their estimated scores; and `fusion_[number].pdb` files containing the fused structures in the same order as specified in `paths.txt`.
 
-## Future Directions
-
-1. I am currently generating a clustered database using a variation of Craig's `structgen` repo, which should greatly speed up seed scoring tasks. It would be best to bring the `ClusterDatabase` class into this repository and adapt its search function to ensure the correct residue-to-residue alignment.
-2. The `findPaths` program would benefit from a randomized approach, i.e. sampling random paths from the graph and scoring them post-hoc. This is because the fusing process with high RMSD cutoffs tends to alter sequence scores dramatically, and the so-called "optimal" paths output by the DP algorithm may no longer be the best.
-3. If the randomized approach is implemented, better score functions are needed to rank the generated paths, measuring quantities such as compactness and designability.
