@@ -10,8 +10,8 @@
 
 int main(int argc, char *argv[]) {
     MstOptions op;
-    op.setTitle("Generates segments of protein backbone, referred to as 'seeds', that are potentially compatible with the surface of a target protein through TERM Extension. These are saved in a binary file.");
-    op.addOption("pdb", "path to a .pdb file. Can include just protein chains, or both protein/peptide chains", true);
+    op.setTitle("Generates segments of protein backbone, or 'interface seeds', around a target protein. Seeds are saved in a binary file. NOTE: depending on the size of the database that is searched, this can require a lot of memory (e.g. 20G)");
+    op.addOption("target_pdb", "The to the PDB file. Can include just protein chains, or both protein/peptide chains", true);
     op.addOption("peptide", "peptide chain ID. Only necessary if the provided .pdb file contains a peptide chain");
     op.addOption("sel","a selection string that specifies the protein residues to generate seeds around. Necessary if the provided PDB file does not include peptide chains");
     op.addOption("params_file","Path to the configuration file (specifies fasst database and rotamer library)",true);
@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
     MstTimer timer;
     
     // Variables provided by user
-    Structure target(op.getString("pdb"));
+    Structure target(op.getString("target_pdb"));
     string params_file_path = op.getString("params_file");
     string p_cid = op.getString("peptide","");
     string sel_str = op.getString("sel","");
