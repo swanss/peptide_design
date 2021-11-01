@@ -11,25 +11,25 @@
 int main(int argc, char *argv[]) {
     MstOptions op;
     op.setTitle("Generates segments of protein backbone, or 'interface seeds', around a target protein.");
-    op.addOption("target_pdb", "Path to a PDB file of the target protein", true);
-    op.addOption("peptide_chainID", "Single letter peptide chain ID. Will define a peptide binding site and remove the peptide before generating seeds. Only necessary if the target_pdb contains a peptide chain that should be removed");
-    op.addOption("target_sel","A selection string specifying protein residues to generate seeds around. Only will be used if peptide_chainID is not provided. If neither are provided, will try to generate seeds around all residues. Ex: 'chain A and resid 122-130'");
-    op.addOption("params_file","Path to the configuration file (specifies FASST structure database and rotamer library)",true);
-    op.addOption("no_seeds","If provided will skip generating seeds");
-    op.addOption("only_store_covering","If provided will only write the seeds that are covering, e.g. have some segment aligning to the peptide");
-    op.addOption("write_all_files","Writes additional files (helpful for making figures and diagnosing issues)");
+    op.addOption("targetPDB", "Path to a PDB file of the target protein", true);
+    op.addOption("peptideChainID", "Single letter peptide chain ID. Will define a peptide binding site and remove the peptide before generating seeds. Only necessary if the targetPDB contains a peptide chain that should be removed");
+    op.addOption("targetSel","A selection string specifying protein residues to generate seeds around. Only will be used if peptideChainID is not provided. If neither are provided, will try to generate seeds around all residues. Ex: 'chain A and resid 122-130'");
+    op.addOption("paramsFile","Path to the configuration file (specifies FASST structure database and rotamer library)",true);
+    op.addOption("noSeeds","If provided will skip generating seeds");
+    op.addOption("onlyStoreCovering","If provided will only write the seeds that are covering, e.g. have some segment aligning to the peptide");
+    op.addOption("writeAllFiles","Writes additional files (helpful for making figures and diagnosing issues)");
     op.setOptions(argc, argv);
         
     MstTimer timer;
     
     // Variables provided by user
-    Structure target(op.getString("target_pdb"));
-    string params_file_path = op.getString("params_file");
-    string p_cid = op.getString("peptide_chainID","");
-    string sel_str = op.getString("target_sel","");
-    bool no_seeds = op.isGiven("no_seeds");
-    bool only_store_covering = op.isGiven("only_store_covering");
-    bool write_all_files = op.isGiven("write_all_files");
+    Structure target(op.getString("targetPDB"));
+    string params_file_path = op.getString("paramsFile");
+    string p_cid = op.getString("peptideChainID","");
+    string sel_str = op.getString("targetSel","");
+    bool no_seeds = op.isGiven("noSeeds");
+    bool only_store_covering = op.isGiven("onlyStoreCovering");
+    bool write_all_files = op.isGiven("writeAllFiles");
   
     // Open params file
     TEParams params(params_file_path);

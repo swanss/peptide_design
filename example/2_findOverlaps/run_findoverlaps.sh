@@ -1,9 +1,9 @@
 #!/bin/bash
 #
 #SBATCH -a 1-20
-#SBATCH -J findoverlaps
-#SBATCH -o findoverlaps.%A_%a.out
-#SBATCH -e findoverlaps.%A_%a.err
+#SBATCH -J findOverlaps
+#SBATCH -o findOverlaps.%A_%a.out
+#SBATCH -e findOverlaps.%A_%a.err
 #SBATCH -p defq
 #SBATCH -t 0-03:00:00
 #SBATCH -n 1
