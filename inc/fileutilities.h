@@ -1,10 +1,3 @@
-//
-//  fileformats.h
-//  dtermen
-//
-//  Created by Venkatesh Sivaraman on 1/28/19.
-//
-
 #ifndef fileformats_h
 #define fileformats_h
 

@@ -1,10 +1,3 @@
-//
-//  buildClusterTree.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 1/9/2020.
-//
-
 #include <stdio.h>
 #include "clustertree.h"
 #include "clusterutils.h"

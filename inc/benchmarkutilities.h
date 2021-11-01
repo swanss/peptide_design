@@ -1,10 +1,5 @@
-//
-//  seedutilities.hpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 4/30/20.
-//  Copyright © 2020 Sebastian Swanson. All rights reserved.
-//
+#ifndef benchmarkutilities_h
+#define benchmarkutilities_h
 
 #include "msttypes.h"
 #include "mstsystem.h"
@@ -13,21 +8,23 @@
 #include "mstmagic.h"
 #include "mstfasst.h"
 
-#include "utilities.h"
+#include "pathsampler.h"
+#include "secondarystructure.h"
 #include "structure_iter.h"
-#include "termextension.h"
+#include "utilities.h"
+#include "vdwRadii.h"
 
 class seedStatistics;
 
 /* --------- histogram --------- */
-class histogram {
+class oneDimBinnedData {
 public:
-    histogram();
-    histogram(mstreal _min_value, mstreal _max_value, int num_bins) : min_value(_min_value), max_value(_max_value) {
+    oneDimBinnedData() {};
+    oneDimBinnedData(mstreal _min_value, mstreal _max_value, int num_bins) : min_value(_min_value), max_value(_max_value) {
         bin_size = (max_value - min_value) / num_bins;
         bins.resize(num_bins);
     }
-    histogram(string hist_file) {readHistFile(hist_file);}
+    oneDimBinnedData(string hist_file) {readHistFile(hist_file);}
     
     mstreal getMaxVal() {return max_value;}
     mstreal getMinVal() {return min_value;}
@@ -39,7 +36,7 @@ public:
     mstreal getVal(int bin_id);
     
     void setBinVal(int bin_id, mstreal value) {
-        if ((value < 0) || (value > bins.size())) MstUtils::error("Passed bin index outside of range for histogram: "+MstUtils::toString(bin_id)+" with max: "+MstUtils::toString(bins.size()));
+        if ((bin_id < 0) || (bin_id >= bins.size())) MstUtils::error("Passed bin index outside of range for histogram: "+MstUtils::toString(bin_id)+" with max: "+MstUtils::toString(bins.size()));
         bins[bin_id] = value;
     }
     
@@ -66,12 +63,15 @@ public:
         }
     };
     
+    void exceptOutOfRangeQueries() {outOfRangeException = true;}
+    
 private:
     vector<mstreal> bins;
     mstreal min_value;
     mstreal max_value;
     mstreal bin_size;
     
+    bool outOfRangeException = false;
 };
 
 /* --------- rejectionSampler --------- */
@@ -89,7 +89,7 @@ class rejectionSampler {
      */
     
 public:
-    rejectionSampler(histogram _proposal_hist, histogram _target_hist) : proposal_hist(_proposal_hist), target_hist(_target_hist) {
+    rejectionSampler(oneDimBinnedData _proposal_hist, oneDimBinnedData _target_hist) : proposal_hist(_proposal_hist), target_hist(_target_hist) {
         if (target_hist.getNumBins() != proposal_hist.getNumBins()) MstUtils::error("Provided proposal and target histograms have a different number of bins");
         if (target_hist.getMinVal() != proposal_hist.getMinVal()) MstUtils::error("Provided proposal and target histograms have a different minimum values");
         if (target_hist.getBinSize() != proposal_hist.getBinSize()) MstUtils::error("Provided proposal and target histograms have a different bin widths");
@@ -127,8 +127,8 @@ public:
 protected:
     mstreal getVal(mstreal value);
 private:
-    histogram proposal_hist;
-    histogram target_hist;
+    oneDimBinnedData proposal_hist;
+    oneDimBinnedData target_hist;
     mstreal M; //the constant by which the proposal histogram should be multiplied by so it "envelopes" the target hist
 };
 
@@ -205,7 +205,7 @@ public:
     
     void writeStatisticstoFile(string output_path, string output_name, int num_final_seeds);
     
-    histogram generateDistanceHistogram(mstreal min_value = 0, mstreal max_value = 50, int num_bins = 200, int sampled_seeds = 1000000);
+    oneDimBinnedData generateDistanceHistogram(mstreal min_value = 0, mstreal max_value = 50, int num_bins = 200, int sampled_seeds = 1000000);
     
     mstreal boundingSphereRadius(Structure* seed);
     mstreal centroid2NearestProteinAtom(Structure* seed);
@@ -418,33 +418,4 @@ private:
     MstTimer timer;
 };
 
-// Functions for the coverage benchmark
-
-class coverageBenchmarkUtils {
-public:
-    /**
-     Writes out a tsv file with the paired positions between the fused backbone and native peptide and rmsd per position. Also computes RMSD
-     over the entire structure and reports this value.
-     
-     Note: assumes that even if the two structures have unequal numbers of residues, that they have complete backbones and the residue number
-     can be used to unambiguously pair the residues.
-     */
-    mstreal static writeRMSDtoFile(string outputPath, Structure& fusedBackbone, Structure& nativePeptide);
-    
-    /**
-     Writes out the contacts between all residues from fused chains (there could be more than one) in a similar format to the interfaceCoverage
-     */
-    void static writeContactstoFile(string outputPath, interfaceCoverage *IC, Structure& fusedPathandTarget, set<string> peptideChains, string rotLibFile);
-    
-    void static getResiduesFromMap(string resMapPath, Structure& structureA, Structure& structureB, vector<Residue*>& selectedResA, vector<Residue*>& selectedResB);
-    
-    /**
-     Find the set optimally covering seeds and fuse together
-
-     The set of covering seeds is obtained by the following algorithm
-     1) Define the structural elements to be covered: in this case, overlapping 3-res windows (aka segments) of the peptide.
-     2) Find the seed that covers the most windows. If there is a tie between two seeds, choose the seed with the lowest RMSD.
-     3) If all segments are covered, terminate. Otherwise, return to step 2
-     */
-    void static fuseCoveringSeeds(interfaceCoverage* IC, bool force_chimera, int max_seed_length_fuse, string fusDir, string pdb_id, Structure& target, Structure& complex, bool two_step_fuse, string RL);
-};
+#endif

@@ -1,10 +1,3 @@
-//
-//  fileformats.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 1/28/19.
-//
-
 #include <stdio.h>
 #include "fileutilities.h"
 #include "utilities.h"

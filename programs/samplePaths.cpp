@@ -1,10 +1,3 @@
-//
-//  findPaths.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 4/22/19.
-//
-
 #include <stdio.h>
 #include "findfuseable.h"
 #include "mstsystem_exts.h"

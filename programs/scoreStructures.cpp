@@ -1,10 +1,3 @@
-//
-//  scoreSeeds.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 4/8/19.
-//
-
 #include <stdio.h>
 #include "findfuseable.h"
 #include "mstsystem_exts.h"
@@ -25,8 +18,8 @@ int main (int argc, char *argv[]) {
     // Get command-line arguments
     MstOptions opts;
     opts.setTitle("Scores peptide structures.");
-    opts.addOption("target", "The target PDB structure", true);
-    opts.addOption("structures", "Directory with structures to be scored", true);
+    opts.addOption("target", "The target PDB structure", false);
+    opts.addOption("structures", "Directory with structures to be scored", false);
     opts.addOption("contacts", "Directory into which to write contact counts, if in contact counting mode, or from which to read the counts if in scoring mode", false);
     opts.addOption("out", "Directory into which to write seed scores", false);
     opts.addOption("config", "The path to a configfile", true);
@@ -34,8 +27,12 @@ int main (int argc, char *argv[]) {
     opts.addOption("numWorkers", "The number of workers", false);
     opts.addOption("numSeedFlank", "Number of residues on either side of the seed residue to use for scoring (default 2)", false);
     opts.addOption("numTargetFlank", "Number of residues on either side of the target residue to use for scoring (default 2)", false);
+    opts.addOption("complex", "The path to a peptide-protein complex PDB (single complex mode)",false);
+    opts.addOption("peptide", "The peptide chain name (single complex mode)",false);
 //    opts.addOption("append", "If true, create new files that cover residues not originally scored by this chunk");
     opts.setOptions(argc, argv);
+    
+    if ((!opts.isGiven("target")|!opts.isGiven("structures"))&(!opts.isGiven("complex")|!(opts.isGiven("peptide")))) MstUtils::error("Must provide either --target/--structures or --complex/--peptide","scoreStructures");
     
     int mode = opts.getInt("mode", 0);
     string targetPath = opts.getString("target");
@@ -45,6 +42,9 @@ int main (int argc, char *argv[]) {
     string contactsPath = opts.getString("contacts", "");
     string outPath = opts.getString("out", "");
     
+    string complexPath = opts.getString("complex","");
+    string peptideChainID = opts.getString("peptide","");
+     
     if (mode == 0 && outPath.size() == 0) MstUtils::error("Need an output path ('--out') for scoring seeds");
     else if (mode == 1 && contactsPath.size() == 0) MstUtils::error("Need a contacts output path ('--contacts') for counting contacts");
     
@@ -60,10 +60,21 @@ int main (int argc, char *argv[]) {
     bool append = opts.isGiven("append"); // Only supported for regular scoring, not contact counting
     
     // Initialize
-    Structure *target = new Structure(targetPath);
+    Structure *target = nullptr;
+    Structure *peptide = nullptr;
+    if (complexPath != "") {
+        target = new Structure(complexPath);
+        Chain* pChain = target->getChainByID(peptideChainID);
+        peptide = new Structure(*pChain);
+        peptide->setName(MstSystemExtension::fileName(complexPath));
+        target->deleteChain(pChain);
+    } else {
+        target = new Structure(targetPath);
+    }
+    
     rmsdParams rParams(1.2, 15, 1);
     contactParams cParams;
-    SequenceStructureCompatibilityScorer scorer(target, rParams, cParams, configFile, numTargetFlank, numSeedFlank, 0.4, 0.05, 0.25, 1, 8000, 0.3);
+    SequenceStructureCompatibilityScorer scorer(target, rParams, cParams, configFile, numTargetFlank, numSeedFlank, 0.4, 0.005, 0.25, 1, 8000, 0.3);
 
     // Score seeds
     MstSys::cmkdir(outPath);
@@ -112,33 +123,12 @@ int main (int argc, char *argv[]) {
     }
     outputSS << "structure_name\tresidue_name\tscore" << endl;
     
-    cout << "loading structure cache. List: " << structuresList << " Prefix: " << structuresPath << endl;
-    StructureCache* structures = new StructureCache(structuresPath);
-    structures->preloadFromPDBList(structuresList);
-    long cache_size = structures->size();
-    
-    int i = 0;
-    auto it = structures->begin();
-    for (int i = 0; i < workerIndex-1; i++) {
-        it++;
-        if (it == structures->end()) break;
-    }
-    while (it != structures->end()) {
-        Structure *s = *it;
-        if (scoredSeeds.count(s->getName()) != 0) {
-            continue;
-        }
-        scoredSeeds.insert(s->getName());
-        
-        if ((i++) % 100 == 0)
-            cout << "Structure " << i << endl;
-        if (s->chainSize() > 1)
-            continue;
-        cout << "Loaded structure " << s->getName() << endl;
+    if (peptide != nullptr) {
+        cout << "Loaded structure " << peptide->getName() << endl;
         
         // Score the seed
         high_resolution_clock::time_point startTime = high_resolution_clock::now();
-        auto result = scorer.score(s);
+        auto result = scorer.score(peptide);
         high_resolution_clock::time_point endTime = high_resolution_clock::now();
         double time = duration_cast<seconds>( endTime - startTime ).count();
         cout << "time: " << time << endl;
@@ -147,16 +137,55 @@ int main (int argc, char *argv[]) {
         
         //outputSeedFile.write(seed->getName(), seed->getChain(0).getID(), { writePerResidueScores(result) });
         for (auto resScore: result) {
-            outputSS << s->getName() << "\t" << resScore.first->getChainID() << resScore.first->getNum() << "\t" << resScore.second << endl;
+            outputSS << peptide->getName() << "\t" << resScore.first->getChainID() << resScore.first->getNum() << "\t" << resScore.second << endl;
         }
+    } else  {
+        cout << "loading structure cache. List: " << structuresList << " Prefix: " << structuresPath << endl;
+        StructureCache* structures = new StructureCache(structuresPath);
+        structures->preloadFromPDBList(structuresList);
+        long cache_size = structures->size();
         
-        // advance the iterator
-        for (int i = 0; i < numWorkers; i++) {
+        int i = 0;
+        auto it = structures->begin();
+        for (int i = 0; i < workerIndex-1; i++) {
             it++;
             if (it == structures->end()) break;
         }
+        while (it != structures->end()) {
+            Structure *s = *it;
+            if (scoredSeeds.count(s->getName()) != 0) {
+                continue;
+            }
+            scoredSeeds.insert(s->getName());
+            
+            if ((i++) % 100 == 0)
+                cout << "Structure " << i << endl;
+            if (s->chainSize() > 1)
+                continue;
+            cout << "Loaded structure " << s->getName() << endl;
+            
+            // Score the seed
+            high_resolution_clock::time_point startTime = high_resolution_clock::now();
+            auto result = scorer.score(s);
+            high_resolution_clock::time_point endTime = high_resolution_clock::now();
+            double time = duration_cast<seconds>( endTime - startTime ).count();
+            cout << "time: " << time << endl;
+            totalTime += time;
+            numTimes += 1;
+            
+            //outputSeedFile.write(seed->getName(), seed->getChain(0).getID(), { writePerResidueScores(result) });
+            for (auto resScore: result) {
+                outputSS << s->getName() << "\t" << resScore.first->getChainID() << resScore.first->getNum() << "\t" << resScore.second << endl;
+            }
+            
+            // advance the iterator
+            for (int i = 0; i < numWorkers; i++) {
+                it++;
+                if (it == structures->end()) break;
+            }
+        }
+        delete structures;
     }
-    delete structures;
     
     cout << "Done! Average time per structures: " << totalTime << "/" << numTimes << " = " << totalTime / numTimes << endl;
     cout << "Scoring statistics: " << endl;
@@ -165,7 +194,7 @@ int main (int argc, char *argv[]) {
     cout << "\t" << scorer.numSeedQueries() << " seed queries" << endl;
     cout << "\t" << scorer.numTargetQueries() << " target queries" << endl;
 
-    
+    if (peptide != nullptr) delete peptide;
     delete target;
 
     return 0;

@@ -1,10 +1,3 @@
-//
-//  mstsystem_exts.h
-//  dtermen
-//
-//  Created by Venkatesh Sivaraman on 11/21/18.
-//
-
 #ifndef mstsystem_exts_h
 #define mstsystem_exts_h
 

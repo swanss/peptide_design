@@ -24,9 +24,10 @@ enum atomInteraction { CLASH = 0, CONTACT = 1, INDEPENDENT = 2};
 class vdwRadii {
 public:
 	static bool initConstants();
+    static double maxRadii();
 	static double maxSumRadii();
-	static double getRadii(const string& atomName);
-	static double getRadii(const Atom& a1);
+	static double getRadii(const string& atomName, bool strict = false);
+	static double getRadii(const Atom& a1, bool strict = false);
 	static double sumRadii(const Atom& a1, const Atom& a2);
 	static bool clash(const Atom& a1, const Atom& a2, double lb = 0.7);
 	static bool contact(const Atom& a1, const Atom& a2, double lb = 0.7, double ub = 1.0);
@@ -41,7 +42,7 @@ class resVDWRadii {
 public:
 	static bool initConstants();
 	static double maxSumRadii();
-	static double getRadii(const string& resName, const string& atomName);
+	static double getRadii(const string& resName, const string& atomName, bool strict = false);
 	static double getRadii(Atom& a);
 	static double sumRadii(Atom& a1, Atom& a2);
 	static bool clash(Atom& a1, Atom& a2, double lb = 0.7);
@@ -50,6 +51,7 @@ public:
 	static atomInteraction interactionType(Atom& a1, Atom& a2, double lb = 0.7, double ub = 1.0);
 private:
 	static map<string, map<string, double>> radii;
+    static map<string,string> substitute;
 };
 
 #endif

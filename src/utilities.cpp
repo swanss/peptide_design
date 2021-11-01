@@ -1,15 +1,4 @@
-//
-//  utilities.cpp
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 6/14/19.
-//
-
 #include "utilities.h"
-#include "mstsystem_exts.h"
-#include "vdwRadii.h"
-#include "mstlinalg.h"
-#include <regex>
 
 using namespace MST;
 
@@ -418,6 +407,55 @@ mstreal generalUtilities::bestRMSD(Chain* C1, Chain* C2) {
         if (new_rmsd < lowest_rmsd) lowest_rmsd = new_rmsd;
     }
     return lowest_rmsd;
+}
+
+mstreal volumeCalculator::occupiedVolume(Residue *R) {
+    if (protein == nullptr) MstUtils::error("Structure must be set","volumeCalculator::occupiedVolume");
+    // find the total volume occupied by atoms within the sphere around the residue alpha carbon
+    mstreal occupiedVol = 0.0;
+    mstreal maxRadii = vdwRadii::maxRadii();
+    Atom* alphaCarbon = R->findAtom("CA");
+    if (alphaCarbon == NULL) MstUtils::error("Residue "+R->getChainID()+MstUtils::toString(R->getNum())+" does not have an atom with name 'CA'","volumeCalculator::fracUnoccupiedVolume");
+    CartesianPoint CaCoord = alphaCarbon->getCoor();
+    
+    // Extend the range, since atoms with centers outside of the query sphere could still have some
+    // volume within
+    vector<int> atomsAroundCenter = ps.getPointsWithin(CaCoord, 0, qR+maxRadii);
+    for (int i : atomsAroundCenter) {
+        // find the volume of the atom near the center
+        Atom* nearAtom = atoms[i];
+        CartesianPoint nearAtomCoord = nearAtom->getCoor();
+        mstreal r2 = resVDWRadii::getRadii(nearAtom->getResidue()->getName(), nearAtom->getName());
+        mstreal distance = alphaCarbon->distance(nearAtom);
+        mstreal vdwV = 0.0;
+        if (distance >= qR + r2) continue; //atom does not intersect query sphere
+        else if (distance < qR - r2) {
+            // atom is completely within query sphere
+            vdwV = sphereVol(r2);
+            occupiedVol += vdwV;
+        } else {
+            // atom is partially within query sphere
+            vdwV = intersectingSphereVol(qR,r2,distance);
+            occupiedVol += vdwV;
+        }
+        
+        // find the pairwise overlaps between atom near center and other atoms near the center
+        vector<int> atomsAroundNearAtom = ps.getPointsWithin(nearAtomCoord, 0, r2+maxRadii);
+        mstreal sharedOccupiedVolume = 0;
+        mstreal vdwSharedV = 0.0;
+        for (int j : atomsAroundNearAtom) {
+            Atom* atomIntersectingNearAtom = atoms[j];
+            mstreal r3 = resVDWRadii::getRadii(atomIntersectingNearAtom->getResidue()->getName(), atomIntersectingNearAtom->getName());
+            mstreal atomIntersectingNearAtomDistance = nearAtom->distance(atomIntersectingNearAtom);
+            if (atomIntersectingNearAtom == nearAtom) continue; // atom intersecting itself
+            if (atomIntersectingNearAtomDistance >= r2 + r3) continue; //atom does not intersect query sphere
+            mstreal atomIntersectingDistanceToCenter = alphaCarbon->distance(atomIntersectingNearAtom);
+            if (atomIntersectingDistanceToCenter >= qR) continue; // intersecting atom mostly outside of sphere
+            vdwSharedV = intersectingSphereVol(r2,r3,atomIntersectingNearAtomDistance)/2;
+            occupiedVol -= vdwSharedV;
+        }
+    }
+    return occupiedVol;
 }
 
 mstreal peptideAlignmentNW::findOptimalAlignment(Structure* _S1, Structure* _S2) {

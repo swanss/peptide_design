@@ -4,8 +4,14 @@ MSTSRC = $(MSTDIR)/src
 MSTOBJS = $(MSTDIR)/objs
 MSTLIB = $(MSTDIR)/lib
 
+SASADIR = ../freesasa-2.0.3
+SASAINCL = $(SASADIR)/src
+SASASRC = $(SASADIR)/src
+SASAOBJS = $(SASADIR)/src
+SASALIB = $(SASADIR)/src
+
 CC = g++
-CFLAGS = -std=c++11 -g -gdwarf-3 -O3 -fPIC -I$(MSTINCL) -I$(INCL) # -g -gdwarf-3
+CFLAGS = -std=c++11 -g -gdwarf-3 -O3 -fPIC -I$(MSTINCL) -I$(SASAINCL) -I$(INCL) # -g -gdwarf-3
 MPICC = mpic++
 MPIFLAGS = -std=c++0x -O3
 
@@ -28,7 +34,7 @@ SRCEXT      := cpp
 DEPEXT      := d
 OBJEXT      := o
 
-LIBFLAGS    := -L$(MSTLIB) -lmst -lmstcondeg -lmstfuser -lmstoptim -lmstfasst -lmstmagic -ldtermen
+LIBFLAGS    := -L$(MSTLIB) -lmst -lmstcondeg -lmstfuser -lmstoptim -lmstfasst -lmstmagic -ldtermen -L$(SASALIB) -lfreesasa
 INCDEP      :=
 
 SOURCES     := $(shell find $(SRCDIR) -not -path '*/\.*' -type f -name *.$(SRCEXT))

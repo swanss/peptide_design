@@ -1,10 +1,3 @@
-//
-//  testClusterTree.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 1/6/2020.
-//
-
 #include <stdio.h>
 #include <chrono>
 #include "clustertree.h"

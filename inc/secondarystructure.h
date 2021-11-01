@@ -1,10 +1,3 @@
-//
-//  secondarystructure.h
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 2/16/20.
-//
-
 #ifndef secondarystructure_h
 #define secondarystructure_h
 

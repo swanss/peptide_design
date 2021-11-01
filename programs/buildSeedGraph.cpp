@@ -1,10 +1,3 @@
-//
-//  buildSeedGraph.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 1/28/19.
-//
-
 #include <stdio.h>
 #include <stdio.h>
 #include "findfuseable.h"

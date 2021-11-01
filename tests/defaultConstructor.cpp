@@ -1,11 +1,3 @@
-//
-//  defaultConstructor.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 12/8/20.
-//  Copyright © 2020 Sebastian Swanson. All rights reserved.
-//
-
 #include "msttypes.h"
 
 int main() {

@@ -1,10 +1,3 @@
-//
-//  seedscore.h
-//  dtermen
-//
-//  Created by Venkatesh Sivaraman on 1/16/19.
-//
-
 #ifndef seedscore_h
 #define seedscore_h
 
@@ -195,7 +188,7 @@ public:
     void setWriteSeedContacts(string contactsFile) {
         contact_out = new fstream();
         MstUtils::openFile(*contact_out,contactsFile,fstream::out);
-        *contact_out << "seed_name,residue_num,num_contacts" << endl;
+        *contact_out << "seed_name,chain_id,residue_num,residue_idx,num_contacts" << endl;
     }
     
     /**

@@ -1,11 +1,3 @@
-//
-//  compareBackbones.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 4/12/21.
-//  Copyright © 2021 Sebastian Swanson. All rights reserved.
-//
-
 //mst dependencies
 #include "mstsystem.h"
 #include "mstoptions.h"

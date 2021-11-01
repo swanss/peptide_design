@@ -1,10 +1,3 @@
-//
-//  ranklist.h
-//  dtermen
-//
-//  Created by Venkatesh Sivaraman on 3/26/20.
-//
-
 #ifndef ranklist_h
 #define ranklist_h
 

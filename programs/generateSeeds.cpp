@@ -1,11 +1,3 @@
-//
-// TERMExtensionBenchmark.cpp
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 2/24/19.
-//
-
-
 //mst dependencies
 #include "mstsystem.h"
 #include "mstoptions.h"
@@ -29,9 +21,7 @@ int main(int argc, char *argv[]) {
 //    op.addOption("disjoint_segments","Fragments grow by adding disjoint segments (if not provided, fragments only grow by adding flanking residues)");
     op.addOption("write_all_files","Writes additional files (helpful for making figures and diagnosing issues)");
     op.setOptions(argc, argv);
-    
-    if (op.isGiven("peptide") && op.isGiven("sel")) MstUtils::error("Either a peptide chain ID or a selection string must be provided, but not both");
-    
+        
     MstTimer timer;
     
     // Variables provided by user
@@ -65,11 +55,17 @@ int main(int argc, char *argv[]) {
         MstSys::cmkdir(seedDir,makeParents);
     }
     
-    selector sel(target);
     vector<Residue*> bindingSiteRes;
     interfaceCoverage* IC = nullptr;
-    if (p_cid != "") {
+    if ((p_cid != "") && (sel_str != "")) {
+        // Delete the peptide and then select residues
+        Chain* C = target.getChainByID(p_cid);
+        target.deleteChain(C);
+        selector sel(target);
+        bindingSiteRes = sel.selectRes(sel_str);
+    } else if (p_cid != "") {
         // Set the sequence of the peptide to "unknown"
+        selector sel(target);
         vector<Residue*> peptide_res = sel.selectRes("chain "+p_cid);
         cout << "Selected " << peptide_res.size() << " peptide residues to be renamed to 'UNK'" << endl;
         for (Residue* R : peptide_res) {
@@ -79,6 +75,7 @@ int main(int argc, char *argv[]) {
         IC = new interfaceCoverage(target, p_cid, config.getRL());
         bindingSiteRes = IC->getBindingSiteRes();
     } else if (sel_str != "") {
+        selector sel(target);
         bindingSiteRes = sel.selectRes(sel_str);
     } else {
         // select all residues with a freedom above the threshold
@@ -121,9 +118,6 @@ int main(int argc, char *argv[]) {
     cout << "Writing fragment pdbs..." << endl;
     TE.writeFragmentPDBs(outDir);
     TE.writeFragmentClassification(outDir);
-    
-    //write parameters
-    TE.storeParameters("parameters.info");
     
     if (IC != nullptr) delete IC;
     

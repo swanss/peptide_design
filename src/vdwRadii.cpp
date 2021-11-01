@@ -18,23 +18,39 @@ bool resVDWRadiiInitialized = resVDWRadii::initConstants();
 bool vdwRadii::initConstants() { radii = {{"N",  1.60}, {"NT", 1.60}, {"CA", 2.365}, {"C", 2.10}, {"CT", 2.10}, {"O", 1.60}, {"CB", 2.2350}}; return true; }
 // bool vdwRadii::initConstants() { radii = {{"N", 1.85}, {"NT", 1.85}, {"CA", 2.275}, {"C", 2.0}, {"CT", 2.0}, {"O", 1.70}}; }
 
+double vdwRadii::maxRadii() {
+    double m = 0.0;
+    for (auto it = radii.begin(); it != radii.end(); it++) {
+        if(it->second > m) {
+            m = it->second;
+        }
+    }
+    return m;
+}
 
 double vdwRadii::maxSumRadii() {
-	double m = 0.0;
-	for (auto it = radii.begin(); it != radii.end(); it++) {
-		if(it->second > m) {
-			m = it->second;
-		}
-	}
-	return m * 2;
+	return vdwRadii::maxRadii() * 2;
 }
 
-double vdwRadii::getRadii(const string& atomName) {
-	return radii[atomName];
+double vdwRadii::getRadii(const string& atomName, bool strict) {
+    string aname = atomName;
+    while (aname.length() >= 1) {
+        if (vdwRadii::radii.count(aname) > 0) {
+            if (atomName != aname) {
+                cout << "WARNING: Replacing " + atomName + " with " + aname + ".\n";
+            }
+            return vdwRadii::radii[aname];
+        } else {
+            aname = aname.substr(0, aname.size() - 1);
+        }
+    }
+    if (strict) MstUtils::error("Atom type " + atomName + " not found in vdwRadii.");
+    cout << "Warning: Atom type " + atomName + " not found in vdwRadii. Assigning a radius of 0.0" << endl;
+    return 0.0;
 }
 
-double vdwRadii::getRadii(const Atom& a) {
-	return radii[a.getName()];
+double vdwRadii::getRadii(const Atom& a, bool strict) {
+    return getRadii(a.getName(),strict);
 }
 
 double vdwRadii::sumRadii(const Atom& a1, const Atom& a2) {
@@ -387,6 +403,18 @@ bool resVDWRadii::initConstants() {
 	radii["T3P"]["OH2"] = 1.6000;
 	radii["T3P"]["H1"] = 0.8000;
 	radii["T3P"]["H2"] = 0.8000;
+    
+    // lazy fix
+    radii["MSE"]["N"] = 1.6000;
+    radii["MSE"]["H"] = 0.8000;
+    radii["MSE"]["CA"] = 2.3650;
+    radii["MSE"]["CB"] = 2.2350;
+    radii["MSE"]["CG"] = 2.2350;
+    radii["MSE"]["SE"] = 1.9000;
+    radii["MET"]["CE"] = 2.1650;
+    radii["MSE"]["C"] = 2.1000;
+    radii["MSE"]["O"] = 1.6000;
+    
   return true;
 }
 
@@ -404,22 +432,26 @@ double resVDWRadii::maxSumRadii() {
 }
 
 // different
-double resVDWRadii::getRadii(const string& resName, const string& atomName) {
-	MstUtils::assert(resVDWRadii::radii.count(resName) > 0, "Residue type " + resName + " not found in resVDWRadii.");
-	string aname = atomName;
-	while (aname.length() >= 1) {
-		if (resVDWRadii::radii[resName].count(aname) > 0) {
-			if (atomName != aname) {
-				cout << "WARNING: Replacing " + atomName + " with " + aname + ".\n";
-			}
-			return resVDWRadii::radii[resName][atomName];
-		} else {
-			aname = aname.substr(0, aname.size() - 1);
-		}
+double resVDWRadii::getRadii(const string& resName, const string& atomName, bool strict) {
+    if (resVDWRadii::radii.count(resName) == 0) vdwRadii::getRadii(atomName);
+    else {
+        string aname = atomName;
+        while (aname.length() >= 1) {
+            if (resVDWRadii::radii[resName].count(aname) > 0) {
+                if (atomName != aname) {
+                    cout << "WARNING: Replacing " + atomName + " with " + aname + ".\n";
+                }
+                return resVDWRadii::radii[resName][atomName];
+            } else {
+                aname = aname.substr(0, aname.size() - 1);
+            }
 
-	}
-	MstUtils::assert(false, "Atom type " + atomName + " not found in resVDWRadii.");
-  return double(0); //will never reach this
+        }
+        if (!strict) vdwRadii::getRadii(atomName);
+    }
+    if (strict) MstUtils::error("Atom type " + atomName + " not found for " + resName,"resVDWRadii::getRadii");
+    cout << "Warning: Atom type " + atomName + " not found for " + resName + ". Assigning a radius of 0.0" << endl;
+    return 0.0;
 }
 
 // different

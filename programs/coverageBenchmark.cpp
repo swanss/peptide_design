@@ -1,11 +1,3 @@
-//
-//  coverageBenchmark.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 6/27/20.
-//  Copyright © 2020 Sebastian Swanson. All rights reserved.
-//
-
 #include <cstdio>
 
 //mst dependencies
@@ -131,12 +123,12 @@ int main(int argc, char *argv[]) {
         //generate a proposal histogram
         stats.setBinaryFile(type2_proposal_bin);
         stats.writeStatisticstoFile(outDir, type2_proposal_name, num_sampled);
-        histogram proposal = stats.generateDistanceHistogram();
+        oneDimBinnedData proposal = stats.generateDistanceHistogram();
         string proposal_hist_path = outDir + "seed_centroid_distance_proposal.csv";
         proposal.writeHistFile(proposal_hist_path);
         
         //generate type 2 null model seeds with rejection sampling
-        histogram target(hist_path);
+        oneDimBinnedData target(hist_path);
         rejectionSampler rSampler(proposal,target);
         naiveSeeds.setRejectionSampler(&rSampler);
         timer.start();

@@ -1,11 +1,3 @@
-//
-//  buildGreedyClusters2.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 7/7/21.
-//  Copyright © 2021 Sebastian Swanson. All rights reserved.
-//
-
 #include <stdio.h>
 
 #include "mstoptions.h"
@@ -91,4 +83,7 @@ int main(int argc, char* argv[]) {
     clusterer.writeClusterInfo(outDir,peptideChain,true,true);
     
     delete complex;
+    
+    cout << "Done" << endl;
+    return 0;
 }

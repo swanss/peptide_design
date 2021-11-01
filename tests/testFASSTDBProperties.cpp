@@ -1,10 +1,3 @@
-//
-//  testFASSTDBProperties.cpp
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 10/10/19.
-//
-
 #include "msttypes.h"
 #include "mstfasst.h"
 #include "mstoptions.h"

@@ -1,19 +1,17 @@
-//
-//  utilities.h
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 6/14/19.
-//
-
 #ifndef utilities_h
 #define utilities_h
+
+#include <list>
+#include <regex>
+#include <unordered_map>
 
 #include "msttypes.h"
 #include "mstcondeg.h"
 #include "mstlinalg.h"
 #include "mstsequence.h"
-#include <unordered_map>
-#include <list>
+
+#include "mstsystem_exts.h"
+#include "vdwRadii.h"
 
 using namespace MST;
 
@@ -138,7 +136,136 @@ public:
     // Uses brute-force to find the best alignment (no gaps) of two peptide structures
     static mstreal bestRMSD(Chain* C1, Chain* C2);
 
+};
+
+class volumeCalculator {
+public:
+    volumeCalculator(Structure* _protein, mstreal _qR = 12.0) : protein(_protein), qR(_qR) {
+        atoms = protein->getAtoms();
+        ps = ProximitySearch(atoms,qR/2);
+    };
+  
+    volumeCalculator() {};
     
+    void setStructure(Structure* _protein) {
+        protein = _protein;
+        atoms = protein->getAtoms();
+        ps = ProximitySearch(atoms,qR/2);
+    }
+
+    void setQueryRadius(mstreal _qR) {
+        if (atoms.size() == 0) MstUtils::error("Structure must be set","volumeCalculator::setQueryRadius");
+        qR = _qR;
+        ps = ProximitySearch(atoms,qR/2);
+    }
+
+    /**
+     An analytical approach to calculating the fraction of volume around a residue occupied by atoms.
+     
+     NOTE: does not work. In order to accurately calculate the occupied volume using this approach must consider pairwise and higher
+     order overlaps, otherwise will double count. This is hard to do, see this paper that used complicated geometry to solve this:
+     https://pubs.acs.org/doi/pdf/10.1021/ja00291a006
+     
+     The idea was to sum up the volume of VDW spheres within the "query sphere", the space we were searching for atoms. From this we
+     would subtract the pairwise overlaps between VDW spheres, which otherwise would be double counted. The issue is that this
+     overcorrects, so in cases where we have higher-order overlaps (which does happen) we would be missing that volume. Beyond this,
+     when finding pairwise overlaps, it is important to calculate how much of this falls inside the query sphere, but this is also difficult and
+     not done here. Instead that area is just ignored.
+     
+     @param R the residue around which we will do the calculation
+     @return the fraction of the sphere around the alpha carbon that is not occupied by atoms
+     */
+    
+    mstreal fracUnoccupiedVolume(Residue* R) {
+        if (protein == nullptr) MstUtils::error("Structure must be set","volumeCalculator::fracUnoccupiedVolume");
+        return 1-occupiedVolume(R)/sphereVol(qR);
+    }
+    
+    /**
+     Same as above, just not normalized
+     */
+    mstreal occupiedVolume(Residue* R);
+    
+    mstreal querySphereVol() {return sphereVol(qR);}
+    
+protected:
+    /**
+     The good ole equation for the volume of a sphere
+     */
+    mstreal sphereVol(mstreal radius) {
+        return (4*3.1415*radius*radius*radius)/3;
+    }
+    
+    /**
+     Finds the volume of a cap/dome of a sphere. This is the section of a sphere cut off by a plane. See  https://en.wikipedia.org/wiki/Spherical_cap
+     
+     The integral of (r^2-x^2)dx with limits [-r,r] gives the volume of a whole sphere, but when the limits are changed to [r-h,r] (where h is
+     the distance from the surface of the sphere to the plane that intersects it) it gives the volume of the cap.
+     
+     @param r the radius of the whole sphere
+     @param cH cap height: the distance from the surface of the sphere to the plane that intersects it
+     @return the volume of the cap/dome
+     */
+    mstreal sphereCapVol(mstreal r, mstreal cH) {
+        return (3.1415*cH*cH*(2*r-cH))/3;
+    }
+    
+    /**
+     Finds the point at which two spheres intersect.
+          
+     Two spheres are defined as follows (with offsets so they can be centered anywhere):
+
+        (x-x_1)^2 + (y-y_1)^2 + (z-z_1)^2 = r_1^2 and (x-x_2)^2 + (y-y_2)^2 + (z-z_2)^2 = r_2^2
+     
+     First we set sphere 1 on the origin and sphere 2 with y and z at zero.
+     
+        x^2 + y^2 + z^2 = r_1^2 and (x-x_2)^2 + y^2 + z^2 = r_2^2
+
+     We solve these for y and set them equal
+     
+        r_1^2 - x^2 = r_2^2 - (x-x_2)^2
+     
+     Now we solve for x, the distance at which they intersect
+     
+        x = (r_1^2 + x_2^2 - r_2^2)/2*x_2
+     
+     @param r1 the radius of the sphere on the origin
+     @param r2 the radius of the sphere off the origin
+     @param d the distance between the spheres
+     @return the distance at which the spheres intersect
+     */
+    mstreal sphereIntersectDistance(mstreal r1, mstreal r2, mstreal d){
+        return (r1*r1+d*d-r2*r2)/(2*d);
+    }
+    
+    /**
+     Finds the volume of two intersecting spheres.
+     
+     The volume of two intersecting spheres can be found by summing the volume of the two "caps" formed on either side of the intersection
+     
+     see the image here https://math.stackexchange.com/a/1561061
+     
+     @param r1 the radius of the sphere on the origin
+     @param r2 the radius of the sphere off the origin
+     @param d the distance between the spheres
+     @return the volume of the intersection of the spheres
+     */
+    mstreal intersectingSphereVol(mstreal r1, mstreal r2, mstreal d) {
+        mstreal intersectDistance = sphereIntersectDistance(r1,r2,d);
+//        cout << "radii: " << r1 << " " << r2 << endl;
+//        cout << "distance: " << d << endl;
+//        cout << "intersectDistance: " << intersectDistance << endl;
+//        cout << "cap height: " << r1-intersectDistance << " " << intersectDistance-(d-r2) << endl;
+//        cout << "sphereCapVol: " << sphereCapVol(r1,r1-intersectDistance) << " " << sphereCapVol(r2,intersectDistance-(d-r2)) << endl;
+        return sphereCapVol(r1,r1-intersectDistance) + sphereCapVol(r2,intersectDistance-(d-r2));
+    }
+    
+private:
+    Structure* protein = nullptr;
+    vector<Atom*> atoms;
+    ProximitySearch ps;
+    
+    mstreal qR = 12.0; // the radius of the sphere we will search around the alpha carbon
 };
 
 // Implements the Needleman-Wunsch algorithm for finding the optimal global alignment of backbone atoms

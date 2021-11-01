@@ -1,10 +1,3 @@
-//
-//  findpaths.h
-//  dtermen
-//
-//  Created by Venkatesh Sivaraman on 2/5/19.
-//
-
 #ifndef findpaths_h
 #define findpaths_h
 

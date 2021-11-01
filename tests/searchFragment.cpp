@@ -1,10 +1,3 @@
-//
-//  quickSearch.cpp
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 2/26/19.
-//
-
 #include "mstfasst.h"
 #include "mstoptions.h"
 #include "mstsystem.h"

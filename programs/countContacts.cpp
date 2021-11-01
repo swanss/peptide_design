@@ -1,11 +1,3 @@
-//
-//  countContacts.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 1/6/21.
-//  Copyright © 2021 Sebastian Swanson. All rights reserved.
-//
-
 #include <stdio.h>
 #include "findfuseable.h"
 #include "mstsystem_exts.h"
@@ -47,30 +39,50 @@ int main (int argc, char *argv[]) {
     opts.addOption("target", "The target PDB structure", false);
     opts.addOption("base","The name that shold be appended to the output filename (inferred in concat mode)",false);
     opts.addOption("seed_out","If provided, will also output a .txt file with the number of contacts per each seed residue");
+    opts.addOption("structures_list","A file where each line is the path to a PDB file describing a seed",false);
     opts.addOption("bin", "A seed binary file containing all seeds", false);
     opts.addOption("configFile","A configuration file specifying the rotamer library/fasstDB",false);
     opts.addOption("flankRes","If provided, only counts contacts that have this many flanking residues on each side",false);
     opts.addOption("worker", "The worker number (from 1 to numWorkers)", false);
     opts.addOption("numWorkers", "The number of workers", false);
     opts.addOption("combine","A file where each line is a contacts file. Contact counts from each file are combined into a single file.",false);
+    
+    //The options are used when scoring a single complex
+    opts.addOption("complex", "The path to a PDB structure containing the peptide and protein chains (single complex mode)",false);
+    opts.addOption("peptide", "The peptide chain ID (single complex mode)",false);
     opts.setOptions(argc, argv);
     
-    if ((!opts.isGiven("combine")) && ((!opts.isGiven("target")) || (!opts.isGiven("base")) || (!opts.isGiven("bin")) || (!opts.isGiven("configFile")))) MstUtils::error("If not in combine mode, then --target, --base, --bin and --combine must be provided");
+    if (opts.isGiven("complex") and opts.isGiven("peptide")) {
+        cout << "PDB of complex and chain name provided, will score single complex" << endl;
+    } else if ((!opts.isGiven("combine")) && ((!opts.isGiven("target")) || (!opts.isGiven("base")) || !(opts.isGiven("bin") || opts.isGiven("structures_list")) || (!opts.isGiven("configFile")))) MstUtils::error("If not in combine mode, then --target, --base, and either --bin or --structures_list must be provided");
     
     string targetPath = opts.getString("target");
     string baseName = opts.getString("base");
-    string seedBin = opts.getString("bin");
+    string structureList = opts.getString("structures_list","");
+    string seedBin = opts.getString("bin","");
     string configFile = opts.getString("configFile");
     int flankRes = opts.getInt("flankRes",0);
     int workerIndex = opts.getInt("worker",1);
     int numWorkers = opts.getInt("numWorkers",1);
+    
+    string complexPath = opts.getString("complex","");
+    string peptideChainID = opts.getString("peptide","");
     
     class configFile configObj(configFile);
     
     RotamerLibrary RL;
     RL.readRotamerLibrary(configObj.getRL());
     
-    Structure *target = new Structure(targetPath);
+    Structure* peptide = nullptr; //variable only used in single complex mode
+    
+    Structure *target = nullptr;
+    if (complexPath != "") {
+        target = new Structure(complexPath);
+        Chain* pChain = target->getChainByID(peptideChainID);
+        peptide = new Structure(*pChain);
+        peptide->setName(MstSystemExtension::fileName(complexPath));
+        target->deleteChain(pChain);
+    } else target = new Structure(targetPath);
     contactParams cParams(3.5,0.01,0.01);
     
     contactCounter cCounter(target,&RL,cParams,flankRes);
@@ -91,13 +103,29 @@ int main (int argc, char *argv[]) {
         string contactsFile = baseName + "_" + "conts.tsv";
         cCounter.writeContactsFile(contactsFile);
         
+    } else if (peptide != nullptr) {
+        // single complex mode
+        cCounter.countContacts(peptide);
+        string contactsFile = baseName + "_" + MstUtils::toString(workerIndex) + "_" + "conts.tsv";
+        cCounter.writeContactsFile(contactsFile);
     } else {
+        // batch scoring mode
         int batchSize = 1000;
         string chainID = "0";
-        StructureIterator structIter = StructureIterator(seedBin,batchSize,chainID,workerIndex,numWorkers);
+        StructureIterator* structIter = nullptr;
+        if (structureList != "") {
+            vector<string> structures_paths = MstUtils::fileToArray(structureList);
+            cout << "Structure list with " << structures_paths.size() << " structures" << endl;
+            vector<string>* chain_ids = nullptr;
+            structIter = new StructureIterator(structures_paths,batchSize,chain_ids,workerIndex,numWorkers);
+        } else if (seedBin != "") {
+            structIter = new StructureIterator(seedBin,batchSize,chainID,workerIndex,numWorkers);
+        } else {
+            MstUtils::error("Must provide either structure list or seed binary file","countContacts::main");
+        }
         
-        while (structIter.hasNext()) {
-            vector<Structure*> seed_chains = structIter.next();
+        while (structIter->hasNext()) {
+            vector<Structure*> seed_chains = structIter->next();
             for (Structure* s : seed_chains) {
                 // count the contacts between this seed structure and the target protein
                 cCounter.countContacts(s);
@@ -107,6 +135,7 @@ int main (int argc, char *argv[]) {
         cCounter.writeContactsFile(contactsFile);
     }
     
+    if (peptide == nullptr) delete peptide;
     delete target;
     
     return 0;

@@ -1,10 +1,3 @@
-//
-//  testConFind.cpp
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 11/11/19.
-//
-
 #include "mstsystem.h"
 #include "mstoptions.h"
 #include "mstcondeg.h"

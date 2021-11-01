@@ -1,11 +1,3 @@
-//
-//  seedCentroidDistanceDistribution.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 6/19/20.
-//  Copyright © 2020 Sebastian Swanson. All rights reserved.
-//
-
 #include "mstoptions.h"
 #include "mstoptim.h"
 #include "msttypes.h"
@@ -30,7 +22,7 @@ int main(int argc, char* argv[]) {
     
     if (files.size() * sample_n > INT_MAX) MstUtils::error("Note: it is possible that the counts in a single bin could exceed the maximum possible value of an 'int'. If this occurs, consider sampling less seeds or refactoring");
     
-    vector<histogram> all_histograms;
+    vector<oneDimBinnedData> all_histograms;
     for (string file_name : files) {
         cout << file_name << endl;
         vector<string> split = MstUtils::split(file_name);
@@ -50,7 +42,7 @@ int main(int argc, char* argv[]) {
     }
     
     //average the histograms
-    histogram summary_hist(min_val,max_val,num_bins);
+    oneDimBinnedData summary_hist(min_val,max_val,num_bins);
     for (int i = 0; i < num_bins; i++) {
         mstreal bin_sum = 0;
         for (int j = 0; j < all_histograms.size(); j++) bin_sum += all_histograms[j].getVal(i);

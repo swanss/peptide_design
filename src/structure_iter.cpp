@@ -1,10 +1,3 @@
-//
-//  structure_iter.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 12/19/18.
-//
-
 #include <stdio.h>
 #include "structure_iter.h"
 #include "mstsystem_exts.h"
@@ -373,9 +366,13 @@ void StructureIterator::makeNextResult() {
         
         while (binaryFile->hasNext() && result.size() < _batchSize) {
             Structure *candidate = binaryFile->next();
+            string name = candidate->getName();
             Structure floatingChains;
             extractChains(*candidate, splitChainIDs(defaultChainID), floatingChains);
-            result.push_back(new Structure(floatingChains));
+            Structure* newStructure = new Structure(floatingChains);
+            newStructure->setName(name);
+            result.push_back(newStructure);
+            
             delete candidate;
         }
     } else {
@@ -388,7 +385,10 @@ void StructureIterator::makeNextResult() {
             } else {
                 floatingChains = candidate;
             }
-            result.push_back(new Structure(floatingChains));
+            
+            Structure* newStructure = new Structure(floatingChains);
+            newStructure->setName(path);
+            result.push_back(newStructure);
             /*if (result.size() % 2000 == 0)
                 cout << result.size() << endl;*/
         }

@@ -1,10 +1,3 @@
-//
-//  seedgraph.h
-//  dtermen
-//
-//  Created by Venkatesh Sivaraman on 1/17/19.
-//
-
 #ifndef seedgraph_h
 #define seedgraph_h
 

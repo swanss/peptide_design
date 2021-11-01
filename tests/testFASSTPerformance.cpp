@@ -1,10 +1,3 @@
-//
-//  testFASSTPerformance.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 3/4/19.
-//
-
 #include <stdio.h>
 #include "findfuseable.h"
 #include "mstsystem_exts.h"

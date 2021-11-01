@@ -1,11 +1,3 @@
-//
-//  testFuseFragments.cpp
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 8/13/19.
-//
-
-
 #include "msttypes.h"
 #include "mstoptions.h"
 #include "mstfuser.h"

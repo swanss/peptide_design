@@ -1,10 +1,3 @@
-//
-//  seedgraph.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 1/17/19.
-//
-
 #include <stdio.h>
 #include <stack>
 #include "seedgraph.h"

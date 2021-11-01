@@ -1,11 +1,3 @@
-//
-//  testFreedom.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 3/1/20.
-//  Copyright © 2020 Sebastian Swanson. All rights reserved.
-//
-
 #include "mstsystem.h"
 #include "mstoptions.h"
 #include "mstcondeg.h"

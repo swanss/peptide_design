@@ -1,10 +1,3 @@
-//
-//  structure_iter.h
-//  dtermen
-//
-//  Created by Venkatesh Sivaraman on 12/19/18.
-//
-
 #ifndef structure_iter_h
 #define structure_iter_h
 
@@ -351,6 +344,16 @@ public:
      Sets whether the class has ownership of the seed structures (is responsible for deleting them) or not.
      */
     void hasOwnership(bool val) {maintainsOwnership = val;}
+    
+    int getStructurePropertyInt(string prop, string name) {
+        if (binaryFile == nullptr) MstUtils::error("Structure property requested, but binaryFile is nullptr");
+        return binaryFile->getStructurePropertyInt(prop, name);
+    }
+    
+    mstreal getStructurePropertyReal(string prop, string name) {
+        if (binaryFile == nullptr) MstUtils::error("Structure property requested, but binaryFile is nullptr");
+        return binaryFile->getStructurePropertyReal(prop, name);
+    }
 
 private:
     vector<Structure *> *_currentBatch = nullptr;

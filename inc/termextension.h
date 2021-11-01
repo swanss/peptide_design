@@ -1,38 +1,37 @@
-//
-//  TermExtension.h
-//  TPD_swans
-//
-//  Created by Sebastian Swanson on 2/1/19.
-//
-
 #ifndef termextension_h
 #define termextension_h
 
 //mst dependencies
-#include "msttypes.h"
-#include "mstsystem.h"
-#include "mstcondeg.h" //for ConFind
 #include "dtermen.h" //for getContactsWith()
+#include "mstcondeg.h" //for ConFind
 #include "mstfasst.h"
 #include "mstmagic.h"
+#include "mstsequence.h"
+#include "mstsystem.h"
+#include "msttypes.h"
 
 //tpd dependencies
-#include "utilities.h" //for generateAllCombinationsKRes
+#include "benchmarkutilities.h"
 #include "coverage.h" //to directly assess coverage
+#include "freesasaext.h"
 #include "secondarystructure.h" //to classify the secondary structure of the res
 #include "structure_iter.h"
 #include "vdwRadii.h"
+#include "utilities.h" //for generateAllCombinationsKRes
 
 /* TO DO:
  */
 using namespace MST;
 
 // forward declarations
-class TermExtension;
-class seedTERM;
 struct seed;
+class seedTERM;
+class TermExtension;
+
 class TEParams;
 class interfaceCoverage;
+
+class nearbySeedScore;
 
 struct Seed {
     Structure* extended_fragment;
@@ -40,6 +39,7 @@ struct Seed {
     mstreal rmsd; //rmsd for this specific match
     bool sequence_match; //true if match has same residue as the query at the central residue
     string secondary_structure_classification;
+    int num_fragment_matches;
 };
 
 
@@ -126,6 +126,7 @@ public:
     bool checkExtended() {return (!seeds.empty());}
     bool searchMode() {return search;}
     int getExtendedFragmentNum() {return num_extended_fragments;}
+    int getSeedResNum() {return num_seed_residues;}
     mstreal getComplexity() {return effective_degrees_of_freedom;}
     mstreal getMaxRMSD() {return max_RMSD_cutoff;}
     mstreal getAdaptiveRMSD() {return adaptive_RMSD_cutoff;}
@@ -175,6 +176,7 @@ private:
     mstreal effective_degrees_of_freedom;
     mstreal rmsd_adjust_factor;
     int num_extended_fragments;
+    int num_seed_residues;
     
     
     /* The fragment name is defined with the following components:
@@ -203,9 +205,21 @@ public:
     
     string getConfigFile() {return config_file;}
 
-    enum fragType {CEN_RES, ALL_COMBINATIONS, ADAPTIVE_SIZE, ADAPTIVE_LENGTH, COMPLEXITY_SCAN};
+    enum fragType {CEN_RES, ALL_COMBINATIONS, ADAPTIVE_SIZE, ADAPTIVE_LENGTH, ADAPTIVE_LENGTH_FIXED_RMSD, COMPLEXITY_SCAN};
     
-    enum seqConstType {NONE, CEN_RES_ONLY, ALL_RES};
+    /**
+     Sequence constraints are used to pre-filter which positions will be searched in the database. Only those segments that match the
+     constraints will be considered in the structural search
+     
+     NONE - no sequence constraint is applied
+     CEN_RES_ONLY - the central residue must have the same amino acid as the query in the fragment
+     ALL_RES - all residues of the match must have the same amino acid as the query
+     BLOSUM62 - all residues with scores of 0 or greater (meaning they are neutral or better) are considered equivalent. The match must
+     have all residues equivalent to those at the query positions
+     HYBRID - same as BLOSUM62, but the central residue must be an exact match.
+     */
+    
+    enum seqConstType {NONE, CEN_RES_ONLY, ALL_RES, BLOSUM62, HYBRID};
     
     fragType fragment_type = ADAPTIVE_LENGTH;
     mstreal cd_threshold = .01;
@@ -222,7 +236,14 @@ public:
     mstreal homology_cutoff = 0.5;
     bool allow_sidechain_clash = true;
     mstreal freedom_cutoff = 0.4;
+    mstreal relSASA_cutoff = -1.0;
     bool verbose = false;
+    string acceptable_aa_substitutions_path = "";
+    
+    map<string,vector<string>> acceptable_aa_substitutions;
+    
+protected:
+    void loadAASubMap();
 };
 
 
@@ -290,6 +311,7 @@ public:
         wholeMatchProteinDir = _wholeMatchProteinDir;
         seedDir = _seedDir;
     }
+    void setVCalcRadius(mstreal qR) {vCalc.setQueryRadius(qR);}
   
     void resetFragments() {
         for (seedTERM* f : all_fragments) delete f;
@@ -324,7 +346,7 @@ public:
     
     /* Fragment storage */
     // Note: if extendFragments has not been called, the seed number will not be stored
-    void writeFragmentPDBs(string outDir);
+    void writeFragmentPDBs(string outDir, string binnedDataPath = "");
     void writeFragmentClassification(string outDir);
     
     /*  -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -*/
@@ -393,7 +415,7 @@ protected:
     
 private:
     // Main variables and parameters
-    Structure* target_structure; // FULL structure (may include peptide chains)
+    Structure* target_structure; // FULL structure
     string structure_name;
     bool verbose;
     
@@ -433,6 +455,56 @@ private:
     string extFragDir = "";
     string wholeMatchProteinDir = "";
     string seedDir = "";
+    
+    sasaCalculator sasaCalc;
+    map<Residue*,mstreal> res2relSASA;
+  
+    volumeCalculator vCalc;
+};
+
+class nearbySeedScore {
+public:
+    nearbySeedScore(vector<Residue*> _selectedRes, string seedBinaryPath, string _binnedDataPath, int _maxNumMatches, mstreal _cR, mstreal vR) : selectedRes(_selectedRes), seeds(seedBinaryPath), binnedDataPath(_binnedDataPath), maxNumMatches(_maxNumMatches), cR(_cR) {
+        if (selectedRes.empty()) MstUtils::error("Must provide at least one residue","nearbySeedScore::nearbySeedScore");
+        
+        target = selectedRes[0]->getStructure();
+        for (Residue* R : selectedRes) for (Atom* A : R->getAtoms()) if (A->getName() == "CA") selCAatoms.push_back(A);
+        if (selCAatoms.size() != selectedRes.size()) MstUtils::error("Mismatch number of CA atoms and residues in the provided selection");
+        psCA = ProximitySearch(selCAatoms,cR/2);
+        
+        vCalc = volumeCalculator(target,vR);
+        
+        if (binnedDataPath != "") {
+            binnedData.readHistFile(binnedDataPath);
+            binnedData.exceptOutOfRangeQueries();
+        }
+        
+        for (Residue* R : selectedRes) selRes2NearbySeedResCount[R] = 0.0;
+        }
+    
+    void scoreResidues();
+    
+    void writeResidueInfo(string prefix, set<Residue*> bindingSiteRes);
+protected:
+private:
+    mstreal maxNumMatches = 100;
+    mstreal cR = 12.0; //count radius
+    
+    vector<Residue*> selectedRes; //residues to be scored
+    Structure* target; //whole target structure
+    vector<Atom*> selCAatoms;
+    ProximitySearch psCA;
+    
+    StructureIterator seeds;
+    
+    volumeCalculator vCalc;
+    
+    string binnedDataPath;
+    oneDimBinnedData binnedData;
+    
+    map<Residue*,mstreal> selRes2NearbySeedResCount;
+    map<Residue*,mstreal> selRes2FracUnoccupiedVol;
+    map<Residue*,mstreal> selRes2Score;
 };
 
 

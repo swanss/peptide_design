@@ -1,10 +1,3 @@
-//
-//  compareterms.cpp
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 1/29/19.
-//
-
 #include "coverage.h"
 
 using namespace MST;
@@ -143,7 +136,8 @@ interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, string _RL_path
     if (!RotamerLibrary::hasFullBackbone(S)) {
         MstUtils::error("Structure is missing backbone atoms");
     }
-    complex = Structure(RotamerLibrary::getBackbone(S));
+//    complex = Structure(RotamerLibrary::getBackbone(S));
+    complex = S;
     complex.setName(S.getName());
     
     peptide_chain = complex.getChainByID(p_cid);
@@ -483,6 +477,19 @@ void interfaceCoverage::writeSegmentCoverage(string outDir) {
         }
     }
     out.close();
+}
+
+set<Residue*> interfaceCoverage::getBindingSiteResByDistance(mstreal distanceCutoff) {
+    set<Residue*> bindingSiteRes;
+    
+    // This is crude, but speed shouldn't matter too much here
+    for (Atom* pepA : peptide_chain->getAtoms()) {
+        for (Atom* protA : target->getAtoms()) {
+            mstreal distance = pepA->distance(protA);
+            if (distance <= distanceCutoff) bindingSiteRes.insert(protA->getResidue());
+        }
+    }
+    return bindingSiteRes;
 }
 
 void interfaceCoverage::resetBins() {
@@ -843,84 +850,191 @@ map<int,vector<Residue*>> pathFromCoveringSeeds::getPathResidues() {
     return pathRes;
 }
 
-///* --------- benchmarkUtils --------- */
-//seedScoring::seedScoring(const string& configFile):dTERMen(configFile){
-//  //copy over necessary private variables from dTERMen
-//  RL_p = this->getRotamerLibrary();
-//  globalAlph = this->getGlobalAlph();
-//  
-//  //make aa triple letter alphabet
-//  for (int k = 0; k < globalAlphabetSize(); k++) triple_letter_alph.push_back(SeqTools::idxToTriple(globalAlph[k]));
-//}
-//
-//vector<mstreal> seedScoring::seedDist(Residue* cen_R) {
-//  vector<mstreal> seed_dist;
-//  
-//  Structure* S = cen_R->getStructure();
-//  ConFind C(RL_p, *S, true);
-//  
-//  // all residues that contact variable positions, but are not variable, are fixed
-//  set<Residue*> fixed_set;
-//  vector<pair<Residue*, Residue*>> conts = getContactsWith({cen_R}, C, 0); //type = 0 because only "inter" contacts are desired
-//  for (int i = 0; i < conts.size(); i++) {
-//    Residue* res = conts[i].second;
-//    fixed_set.insert(res);
-//  }
-//  
-//  // make sure amino acids at fixed positions are legal
-//  for (auto it = fixed_set.begin(); it != fixed_set.end(); ++it) {
-//    Residue* res = *it;
-//    if (!aaIndexKnown(aaToIndex(res->getName()))) MstUtils::error("fixed position " + MstUtils::toString(*(*it)) + " occupied with unknown amino acid", "seedScoring::dTERMen::buildEnergyTable");
-//  }
-//  
-//  //// compute self energies
-//  cout << "computing self energy..." << endl;
-//  //print res names?
-//  vector<mstreal> selfE = selfEnergies(cen_R, C, true);
-//  
-//  // compute pair energies for fixed-contacts and add to self energies
-//  int i = 0;
-//  for (auto it = fixed_set.begin(); it != fixed_set.end(); it++, i++) {
-//    Residue* resA = cen_R;
-//    Residue* resB = *it;
-//    cout << "computing pair energy for positions " << *resA << " x " << *resB << ", " << i+1 << "/" << conts.size() << endl;
-//    vector<vector<mstreal>> pairE = pairEnergies(resA, resB, true);
-//    
-//    // interaction between a variable and a fixed position (goes into self)
-//    int bi = aaToIndex(resB->getName());
-//    int naa = globalAlphabetSize();
-//    for (int a = 0; a < naa; a++) {
-//      int ai = aaToIndex(triple_letter_alph[a]);
-//      selfE[a] = selfE[a] + pairE[ai][bi];
-//      //curiousity
-//      cout << "are the index from the loop and the index from the function the same?" << endl;
-//      cout << "aaToIndex() -> " << MstUtils::toString(ai) << " index from loop: " << MstUtils::toString(a) << endl;
-//    }
-//  }
-//  return seed_dist;
-//}
-//
-//vector<mstreal> seedScoring::backgroundDist(Residue* R) {
-//  
-//  // Background energy estimated by counting each amino acid in the fasstDB
-//  CartesianPoint backE(globalAlphabetSize(), 0.0);
-//  for (int aai = 0; aai < backE.size(); aai++) {
-//    backE[aai] = backEner(aai);
-//  }
-//  
-//  //convert energies to probabilities
-//  vector<mstreal> p(backE);
-//  dTERMen::enerToProb(p);
-//  
-//  return p;
-//}
-//
-//
-//vector<mstreal> seedScoring::uniformDist() {
-//  
-//  int naa = globalAlphabetSize();
-//  vector<mstreal> p(naa, 1.00/naa);
-//  
-//  return p;
-//}
+
+mstreal coverageBenchmarkUtils::writeRMSDtoFile(string outputPath, Structure& fusedBackbone, Structure& nativePeptide) {
+    //get all of the fused backbone residues and construct a map for searching
+    map<int,Residue*> nativePeptideResMap;
+    for (Residue* R: nativePeptide.getResidues()) {
+        nativePeptideResMap[R->getNum()] = R;
+    }
+    
+    fstream out;
+    string outputFile = outputPath+"rmsdByRes.tsv";
+    MstUtils::openFile(out,outputFile,fstream::out);
+    
+    //header line (structure A is fused, structure B is native)
+    out << "structureA_residue_id\tstructureA_residue_num\tstructureA_residue_chain_id\tstructureA_residue_aa\tstructureB_residue_id\tstructureB_residue_num\tstructureB_residue_chain_id\tstructureB_residue_aa\trmsd\tcos_angle" << endl;
+    
+    vector<Atom*> S1_paired_atoms;
+    vector<Atom*> S2_paired_atoms;
+    
+    int pairedPos = 0;
+    for (int idx = 0; idx < fusedBackbone.residueSize(); idx++) {
+        Residue* R1 = &fusedBackbone.getResidue(idx);
+        // see if we can find residue in map
+        Residue* R2;
+        if (nativePeptideResMap.find(R1->getNum()) != nativePeptideResMap.end()) R2 = nativePeptideResMap[R1->getNum()];
+        else continue;
+        
+        vector<Atom*> R1_atoms = R1->getAtoms();
+        vector<Atom*> R2_atoms = R2->getAtoms();
+        
+        mstreal rmsd = RMSDCalculator::rmsd(R1_atoms,R2_atoms);
+        
+        // compute the cosine angle between residues
+        mstreal cos_angle = generalUtilities::cosAngleBetweenNormalVectors(R1, R2);
+        
+        out << R1->getResidueIndexInChain() << "\t" << R1->getNum() << "\t" << R1->getChainID() << "\t" << R1->getName() << "\t";
+        out << R2->getResidueIndexInChain() << "\t" << R2->getNum() << "\t" << R2->getChainID() << "\t" << R2->getName() << "\t";
+        out << rmsd << "\t" << cos_angle << endl;
+        
+        S1_paired_atoms.insert(S1_paired_atoms.end(),R1_atoms.begin(),R1_atoms.end());
+        S2_paired_atoms.insert(S2_paired_atoms.end(),R2_atoms.begin(),R2_atoms.end());
+        
+        pairedPos++;
+    }
+    cout << "found " << pairedPos << " paired positions between provided structures" << endl;
+    return RMSDCalculator::rmsd(S1_paired_atoms,S2_paired_atoms);
+}
+
+void coverageBenchmarkUtils::writeContactstoFile(string outputPath, interfaceCoverage *IC, Structure& fusedPathandTarget, set<string> peptideChains, string rotLibFile) {
+    vector<Residue*> fusedPathResidues;
+    for (Residue *R : fusedPathandTarget.getResidues()) if (peptideChains.find(R->getChainID()) != peptideChains.end()) fusedPathResidues.push_back(R);
+    
+    // Get contacts between fused path residues and target
+    map<string, contactList> all_types_contacts;
+    all_types_contacts = IC->defineContacts(fusedPathandTarget,fusedPathResidues);
+    
+    set<pair<Residue*,Residue*>> contact_residues;
+    contact_residues = generalUtilities::mergeContactLists({all_types_contacts["contact"],all_types_contacts["interfering"],all_types_contacts["interfered"],all_types_contacts["bbinteraction"]});
+    
+    cout << "Total number of contacts between fused path and protein " << contact_residues.size() << endl;
+    
+    IC->writeContacts(outputPath, contact_residues, all_types_contacts);
+}
+
+void coverageBenchmarkUtils::getResiduesFromMap(string resMapPath, Structure& structureA, Structure& structureB, vector<Residue*>& selectedResA, vector<Residue*>& selectedResB) {
+    map<string,Chain*> chainMapA, chainMapB;
+    for (int i = 0; i < structureA.chainSize(); i++) chainMapA[structureA.getChain(i).getID()] = &structureA.getChain(i);
+    for (int i = 0; i < structureB.chainSize(); i++) chainMapB[structureB.getChain(i).getID()] = &structureB.getChain(i);
+    map<pair<Chain*,int>,Residue*> resMapA, resMapB;
+    for (Residue* R : structureA.getResidues()) resMapA[pair<Chain*,int>(R->getChain(),R->getNum())] = R;
+    for (Residue* R : structureB.getResidues()) resMapB[pair<Chain*,int>(R->getChain(),R->getNum())] = R;
+    
+    // open the residue map
+    vector<string> lines = MstUtils::fileToArray(resMapPath);
+    bool header = true;
+    for (string line : lines) {
+        if (header == true) {
+            header = false;
+            continue;
+        }
+        vector<string> lineSplit = MstUtils::split(line,"\t");
+        
+        // this file is expected to be generated by writeRMSDtoFile()
+        string chainA = lineSplit[2];
+        int resNumA = MstUtils::toInt(lineSplit[1]);
+        
+        //cout << chainA << " " << resNumA << " " << endl;
+        
+        Residue* resA = resMapA.at(pair<Chain*,int>(chainMapA.at(chainA),resNumA));
+        selectedResA.push_back(resA);
+        
+        string chainB = lineSplit[6];
+        int resNumB = MstUtils::toInt(lineSplit[5]);
+        
+        //cout << chainB << " " << resNumB << " " << endl;
+        
+        Residue* resB = resMapB.at(pair<Chain*,int>(chainMapB.at(chainB),resNumB));
+        selectedResB.push_back(resB);
+    }
+}
+
+void coverageBenchmarkUtils::fuseCoveringSeeds(interfaceCoverage* IC, bool force_chimera, int max_seed_length_fuse, string fusDir, string pdb_id, Structure& target, Structure& complex, bool two_step_fuse, string RL) {
+    int segmentLength = 3;
+    pathFromCoveringSeeds generatePath(IC,segmentLength,force_chimera);
+
+    cout << "Find covering residues and generate a path" << endl;
+    vector<string> pathString = generatePath.getCoveringPath(max_seed_length_fuse);
+    if (pathString.empty()) {
+        cout << "There were no paths found" << endl;
+        return;
+    }
+    else {
+        cout << pathString.size() << " path(s) were generated when trying to cover the peptide: " << endl;
+        for (string path : pathString) {
+            cout << path << endl;
+        }
+    }
+
+    generatePath.writeCoveringSeeds(fusDir+"_");
+    
+    /**
+     Now fuse each set of seeds together and write the output to a pdb file
+     */
+    Structure fusedPath, fusedPathAndTarget(target);
+    Structure peptideStructure(*IC->getPeptideChain());
+    
+    int overlapLength = 1;
+    PathSampler sampler(&target,overlapLength); int count = 0;
+    sampler.setTwoStepFuse(two_step_fuse);
+    set<string> fusedPathChains; string fusedPeptideChainsString;
+    for (auto it : generatePath.getCoveringResiduePath()) {
+        int peptideStartPosition = it.first;
+        vector<Residue*> pathResidues = it.second;
+        cout << "Fuse path: " << count << endl;
+        vector<PathResult> results;
+        bool ignore_clashes = true;
+        bool clashes = sampler.emplacePathFromResidues(pathResidues, results, {}, ignore_clashes);
+        cout << "Does the fused output clash?: " << clashes << endl;
+        PathResult fusedCoveringPath = results.back();
+
+        fusionOutput fuseOutput = fusedCoveringPath.getFuserScore();
+        cout << "Printing fuser output... " << endl;
+        cout << "Bond score: " << fuseOutput.getBondScore() << endl;
+        cout << "Angle score: " << fuseOutput.getAngleScore() << endl;
+        cout << "Dihedral score: " << fuseOutput.getDihedralScore() << endl;
+        cout << "RMSD score: " << fuseOutput.getRMSDScore() << endl;
+        cout << "TotRMSDScore: " << fuseOutput.getTotRMSDScore() << endl;
+        cout << "Score: " << fuseOutput.getScore() << endl;
+        
+        // get fused path and renumber the residues according to the native peptide
+        Structure fusedPathSection;
+        fusedCoveringPath.getFusedPathOnly(fusedPathSection);
+        
+        cout << "Fused path with " << fusedPathSection.residueSize() << " residues" << endl;
+        
+        // set number to match the peptide and set residue name to "UNK"
+        int segmentPos = 0;
+        for (Residue* R : fusedPathSection.getResidues()) {
+            R->setNum(complex.getChainByID(IC->getPeptideChain()->getID())->getResidue(peptideStartPosition+segmentPos).getNum());
+            R->setName("UNK");
+            segmentPos++;
+        }
+
+        Chain* fusedPathChain = new Chain(fusedPathSection.getChain(0));
+        fusedPathChain->setID(MstUtils::toString(count));
+        fusedPath.appendChain(fusedPathChain);
+        Chain* fusedPathChainCopy = new Chain(*fusedPathChain);
+        fusedPathAndTarget.appendChain(fusedPathChainCopy);
+        
+        fusedPathChains.insert(fusedPathChain->getID());
+        fusedPeptideChainsString += fusedPathChain->getID();
+        
+        count++;
+    }
+    
+    // add peptide/protein chains to structure name
+    string proteinChainsString;
+    for (int i = 0; i < target.chainSize(); i++) proteinChainsString += target.getChain(i).getID();
+    string pdb_name = pdb_id + "_" + proteinChainsString + "_" + fusedPeptideChainsString;
+    
+    mstreal rmsd = coverageBenchmarkUtils::writeRMSDtoFile(fusDir+"_"+pdb_name+"_",fusedPath,peptideStructure);
+    cout << "The RMSD between the peptide and the fused backbone is: " << rmsd << endl;
+    
+    coverageBenchmarkUtils::writeContactstoFile(fusDir+"_"+pdb_name+"_", IC, fusedPathAndTarget, fusedPathChains, RL);
+    
+    fusedPath.writePDB(fusDir+"_"+pdb_name+"_pathOnly.pdb");
+    fusedPathAndTarget.writePDB(fusDir+"_"+pdb_name+".pdb");
+}
 

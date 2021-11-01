@@ -1,10 +1,3 @@
-//
-//  seedscore.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 1/16/19.
-//
-
 #include <stdio.h>
 #include "seedscore.h"
 #include "utilities.h"
@@ -196,6 +189,8 @@ int contactCounter::countContacts(Structure* seed) {
     if (contact_out != nullptr) {
         for (auto it : seedResContactCounts) {
             *contact_out << seed->getName() << ",";
+            *contact_out << it.first->getChainID() << ",";
+            *contact_out << it.first->getNum() << ",";
             *contact_out << it.first->getResidueIndexInChain() << ",";
             *contact_out << it.second << endl;
         }

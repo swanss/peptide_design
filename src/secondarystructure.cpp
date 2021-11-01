@@ -1,10 +1,3 @@
-//
-//  secondarystructure.cpp
-//  TPD_target
-//
-//  Created by Sebastian Swanson on 2/16/20.
-//
-
 #include "secondarystructure.h"
 
 dihedralProbabilities::dihedralProbabilities(SecStructType type) {

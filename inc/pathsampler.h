@@ -1,10 +1,3 @@
-//
-//  pathsampler.h
-//  dtermen
-//
-//  Created by Venkatesh Sivaraman on 1/24/20.
-//
-
 #ifndef pathsampler_h 
 #define pathsampler_h
 

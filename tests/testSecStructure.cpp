@@ -1,11 +1,3 @@
-//
-//  testSecStructure.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 2/17/20.
-//  Copyright © 2020 Sebastian Swanson. All rights reserved.
-//
-
 //mst dependencies
 #include "mstsystem.h"
 #include "mstoptions.h"

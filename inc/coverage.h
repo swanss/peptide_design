@@ -1,10 +1,3 @@
-//
-//  compareterms.h
-//  TPD_swans
-//
-//  Created by Sebastian Swanson on 1/29/19.
-//
-
 #ifndef coverage_h
 #define coverage_h
 
@@ -158,6 +151,14 @@ public:
     Structure* getTargetStructure() {return target;}
     vector<Residue*> getBindingSiteRes() {return bindingSiteRes;}
     set<pair<Residue*,Residue*>> getContactingResidues() {return contact_residues;}
+    
+    /**
+    The binding site is defined as all residues with atoms within distanceCutoff (Å) from atoms of the peptide
+    
+    @param distanceCutoff the distance cutoff in angstroms used to define binding site residues
+    @return The set of all binding site resides in S
+    */
+    set<Residue*> getBindingSiteResByDistance(mstreal distanceCutoff = 4.0);
     
     Chain* getPeptideChain() {return peptide_chain;}
     
@@ -324,62 +325,34 @@ private:
     StructureCache* seedCache;
 };
 
-/* --------- benchmarkUtils --------- */
+// Functions for the coverage benchmark
+class coverageBenchmarkUtils {
+public:
+    /**
+     Writes out a tsv file with the paired positions between the fused backbone and native peptide and rmsd per position. Also computes RMSD
+     over the entire structure and reports this value.
+     
+     Note: assumes that even if the two structures have unequal numbers of residues, that they have complete backbones and the residue number
+     can be used to unambiguously pair the residues.
+     */
+    mstreal static writeRMSDtoFile(string outputPath, Structure& fusedBackbone, Structure& nativePeptide);
+    
+    /**
+     Writes out the contacts between all residues from fused chains (there could be more than one) in a similar format to the interfaceCoverage
+     */
+    void static writeContactstoFile(string outputPath, interfaceCoverage *IC, Structure& fusedPathandTarget, set<string> peptideChains, string rotLibFile);
+    
+    void static getResiduesFromMap(string resMapPath, Structure& structureA, Structure& structureB, vector<Residue*>& selectedResA, vector<Residue*>& selectedResB);
+    
+    /**
+     Find the set optimally covering seeds and fuse together
 
-
-//class benchmarkUtils {
-//public:
-//  /* -- Functions for computing the similarity between vectors -- */
-//  
-//  /* Takes two amino acid distributions and computes the dot product between them. In practice, the
-//   second distribution generally represents the "true distribution" and the first is some approximation
-//   of it. */
-//  static mstreal residueDistCosineSimilarity(vector<Residue*> approx_dist, vector<Residue*> true_dist);
-//  
-//  /* Takes two amino acid distributions and computes the Kullback-Leibler Divergence between them. In practice, the
-//   second distribution generally represents the "true distribution" and the first is some approximation
-//   of it. */
-//  static mstreal residueDistKLD(vector<Residue*> approx_dist, vector<Residue*> true_dist);
-//  
-//};
-
-///* Inherits from the dTERMen class to access methods for computing the energies conditioned on different
-// structural properties. Each function can be used to score a residue from a seed, or a residue in a
-// native binder that corresponds to a residue in a seed. */
-//class seedScoring: public dTERMen {
-//public:
-//  /* default constructor */
-//  seedScoring(const string& configFile);
-//  
-//  /* Calculates the probability distribution of amino acids at the given residue in the seed.
-//   
-//   In order to generate structural fragments to search against the PDB, the following is included:
-//   -The central residue (cen_R)
-//   -The residues +/- cen_res (specified by pmSeed)
-//   -The residues contacting the central residue on the target protein (other chain)
-//   
-//   Much of this function is copied from dTERMen::buildEnergyTable
-//   */
-//  vector<mstreal> seedDist(Residue* cen_R);
-//  
-//  //    /* Includes: background, phi/psi, omega and own-backbone (self-residual). */
-//  //    vector<mstreal> seedAloneDist(Residue* R);
-//  
-//  /* Includes: background */
-//  vector<mstreal> backgroundDist(Residue* R);
-//  
-//  /* Includes: N/A. */
-//  vector<mstreal> uniformDist();
-//  
-//  /* --- Getters --- */
-//  vector<string> getTripleLetterAlph() {return triple_letter_alph;}
-//  
-//private:
-//  FASST* F_p;
-//  RotamerLibrary* RL_p;
-//  vector<res_t> globalAlph;
-//  vector<string> triple_letter_alph;
-//  
-//};
+     The set of covering seeds is obtained by the following algorithm
+     1) Define the structural elements to be covered: in this case, overlapping 3-res windows (aka segments) of the peptide.
+     2) Find the seed that covers the most windows. If there is a tie between two seeds, choose the seed with the lowest RMSD.
+     3) If all segments are covered, terminate. Otherwise, return to step 2
+     */
+    void static fuseCoveringSeeds(interfaceCoverage* IC, bool force_chimera, int max_seed_length_fuse, string fusDir, string pdb_id, Structure& target, Structure& complex, bool two_step_fuse, string RL);
+};
 
 #endif

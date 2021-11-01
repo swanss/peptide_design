@@ -1,11 +1,3 @@
-//
-//  buildPathDistanceMatrix.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 10/15/20.
-//  Copyright © 2020 Sebastian Swanson. All rights reserved.
-//
-
 #include <stdio.h>
 #include "mstoptions.h"
 #include "msttypes.h"

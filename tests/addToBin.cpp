@@ -1,10 +1,3 @@
-//
-//  getFromBin.cpp
-//  TPD_dummytarget
-//
-//  Created by Sebastian Swanson on 4/4/20.
-//  Copyright © 2020 Sebastian Swanson. All rights reserved.
-//
 //mst dependencies
 #include "mstsystem.h"
 #include "mstoptions.h"

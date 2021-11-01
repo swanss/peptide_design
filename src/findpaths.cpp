@@ -1,10 +1,3 @@
-//
-//  findpaths.cpp
-//  DummyTarget
-//
-//  Created by Venkatesh Sivaraman on 2/5/19.
-//
-
 #include <stdio.h>
 #include "findpaths.h"
 
