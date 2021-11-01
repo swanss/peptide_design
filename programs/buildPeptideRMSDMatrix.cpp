@@ -8,14 +8,15 @@
 int main(int argc, char* argv[]) {
     // Get command-line arguments
     MstOptions opts;
-    opts.setTitle("Computes distances in a parallelizable manner and builds the complete distance matrix");
-    opts.addOption("list", "Path to file listing each of the path structures. If only this is provided, will write these all to single binary file and terminate");
-    opts.addOption("bin", "Path to a binary file containing all of the paths, necessary for computing distances and building final matrix");
-    opts.addOption("numWorkers", "The number of workers");
-    opts.addOption("worker", "The index of this worker (from 1 to numWorkers)");
-    opts.addOption("distance_list", "Path to file listing all of the distance#.csv files. If provided will combine all into distance matrix and terminate");
+    opts.setTitle("Computes RMSD between peptide backbones in a parallelizable manner and builds a complete distance matrix for downstream analysis. Must be run three times to generate the final matrix 1) makePeptideBin, 2) computeRMSD, 3) buildMatrix");
+    opts.addOption("list", "Path to file listing each of the path structures. If only this is provided, will run in makePeptideBin mode, write these all to single binary file");
+    opts.addOption("bin", "Path to a binary file containing all of the paths. Provide for computeRMSD/buildMatrix");
+    opts.addOption("numWorkers", "The number of workers. Provide for computeRMSD");
+    opts.addOption("worker", "The index of this worker (from 1 to numWorkers). Provide for computeRMSD");
+    opts.addOption("distanceList", "Path to file listing all of the distance#.csv files. If provided with --bin, will run in buildMatrix mode and combine all into distance matrix");
     opts.setOptions(argc, argv);
 
+    // makePeptideBin mode
     if (opts.isGiven("list")) {
         string paths_bin_path = opts.getString("bin","./path_structures.bin");
         
@@ -34,7 +35,8 @@ int main(int argc, char* argv[]) {
         delete path_bin;
     }
     
-    if (!opts.isGiven("distance_list") && opts.isGiven("bin")) {
+    // computeRMSD mode
+    if (!opts.isGiven("distanceList") && opts.isGiven("bin")) {
         // Select batches of structures and compute distances
         int numWorkers = opts.getInt("numWorkers",1);
         int workerIndex = opts.getInt("worker",1);
@@ -67,9 +69,7 @@ int main(int argc, char* argv[]) {
                     
                     //NW and RMSD
                     mstreal rmsd = generalUtilities::bestRMSD(path_1,path_2);
-                    
-//                    cout << "i,j: " << i + i_batch << " " << j + j_batch << endl;
-                    
+                                        
                     paths_distances[make_pair(i + i_batch,j + j_batch)] = rmsd;
                 }
             }
@@ -88,13 +88,14 @@ int main(int argc, char* argv[]) {
         out.close();
     }
     
-    if (opts.isGiven("distance_list") && opts.isGiven("bin")) {
+    // buildMatrix mode
+    if (opts.isGiven("distanceList") && opts.isGiven("bin")) {
         // Read the info files and combine into a single distance matrix
         string paths_bin_path = opts.getString("bin");
         StructuresBinaryFile path_bin(paths_bin_path);
         long structure_count = path_bin.structureCount();
         vector<string> structure_names = path_bin.getStructureNames();
-        string distance_list_path = opts.getString("distance_list");
+        string distance_list_path = opts.getString("distanceList");
         vector<string> distances_paths = MstUtils::fileToArray(distance_list_path);
         
         // Read through each distances#.csv file and add to map

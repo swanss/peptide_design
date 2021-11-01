@@ -17,7 +17,7 @@ int main (int argc, char *argv[]) {
     
     // Get command-line arguments
     MstOptions opts;
-    opts.setTitle("Scores peptide structures.");
+    opts.setTitle("Scores the interface formed between a set of peptides and the target protein.");
     opts.addOption("target", "The target PDB structure", false);
     opts.addOption("structures", "Directory with structures to be scored", false);
     opts.addOption("contacts", "Directory into which to write contact counts, if in contact counting mode, or from which to read the counts if in scoring mode", false);
@@ -29,14 +29,12 @@ int main (int argc, char *argv[]) {
     opts.addOption("numTargetFlank", "Number of residues on either side of the target residue to use for scoring (default 2)", false);
     opts.addOption("complex", "The path to a peptide-protein complex PDB (single complex mode)",false);
     opts.addOption("peptide", "The peptide chain name (single complex mode)",false);
-//    opts.addOption("append", "If true, create new files that cover residues not originally scored by this chunk");
     opts.setOptions(argc, argv);
     
     if ((!opts.isGiven("target")|!opts.isGiven("structures"))&(!opts.isGiven("complex")|!(opts.isGiven("peptide")))) MstUtils::error("Must provide either --target/--structures or --complex/--peptide","scoreStructures");
     
     int mode = opts.getInt("mode", 0);
     string targetPath = opts.getString("target");
-//    string graphsPath = opts.getString("graphs");
     string structuresPath = opts.getString("structures");
     string structuresList = MstSystemExtension::join(structuresPath,"structures.list");
     string contactsPath = opts.getString("contacts", "");
@@ -56,9 +54,7 @@ int main (int argc, char *argv[]) {
     int numWorkers = opts.getInt("numWorkers", 1);
     if (workerIndex < 1 || workerIndex > numWorkers) MstUtils::error("Batch index must be between 1 and numWorkers");
     cout << "Batch " << workerIndex << " of " << numWorkers << endl;
-    
-    bool append = opts.isGiven("append"); // Only supported for regular scoring, not contact counting
-    
+        
     // Initialize
     Structure *target = nullptr;
     Structure *peptide = nullptr;
@@ -78,24 +74,6 @@ int main (int argc, char *argv[]) {
 
     // Score seeds
     MstSys::cmkdir(outPath);
-
-    // Appending condition
-    unordered_set<string> scoredSeeds;
-    unordered_map<string, mstreal> preScoredResidues;
-//        if (append) {
-//            string tempOutPath = MstSystemExtension::join(outPath, "seed_scores_" + to_string(workerIndex) + ".csv");
-//            while (MstSys::fileExists(tempOutPath)) {
-//                vector<string> lines = MstUtils::fileToArray(tempOutPath);
-//                for (string line: lines) {
-//                    vector<string> comps = splitString(line, ",");
-//                    scoredSeeds.insert(comps[0].substr(0, comps[0].find(":")));
-//                    preScoredResidues[comps[0]] = stod(comps[1]);
-//                }
-//                workerIndex += numWorkers;
-//                tempOutPath = MstSystemExtension::join(outPath, "seed_scores_" + to_string(workerIndex) + ".csv");
-//            }
-//            cout << "New worker index " << workerIndex << ", " << scoredSeeds.size() << " seeds already scored" << endl;
-//        }
     
     string fragmentScoresPath = MstSystemExtension::join(outPath, "all_fragment_scores");
     if (!MstSys::fileExists(fragmentScoresPath))
@@ -103,16 +81,6 @@ int main (int argc, char *argv[]) {
     string scoreWritePath = MstSystemExtension::join(fragmentScoresPath, "frag_scores_" + to_string(workerIndex) + ".csv");
     scorer.scoresWritePath = &scoreWritePath;
     
-    // Read contact counts
-//        if (contactsPath.size() > 0) {
-//            int contactFileIdx = 1;
-//            string path = MstSystemExtension::join(contactsPath, "contact_scores_" + to_string(contactFileIdx++) + ".txt");
-//            while (MstSystemExtension::fileExists(path)) {
-//                scorer.readContactCounts(path);
-//                path = MstSystemExtension::join(contactsPath, "contact_scores_" + to_string(contactFileIdx++) + ".txt");
-//            }
-//        }
-
     double totalTime = 0.0;
     int numTimes = 0;
     
@@ -153,10 +121,6 @@ int main (int argc, char *argv[]) {
         }
         while (it != structures->end()) {
             Structure *s = *it;
-            if (scoredSeeds.count(s->getName()) != 0) {
-                continue;
-            }
-            scoredSeeds.insert(s->getName());
             
             if ((i++) % 100 == 0)
                 cout << "Structure " << i << endl;
@@ -173,7 +137,6 @@ int main (int argc, char *argv[]) {
             totalTime += time;
             numTimes += 1;
             
-            //outputSeedFile.write(seed->getName(), seed->getChain(0).getID(), { writePerResidueScores(result) });
             for (auto resScore: result) {
                 outputSS << s->getName() << "\t" << resScore.first->getChainID() << resScore.first->getNum() << "\t" << resScore.second << endl;
             }

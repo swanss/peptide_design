@@ -56,7 +56,7 @@ int main (int argc, char *argv[]) {
     
     // Get command-line arguments
     MstOptions opts;
-    opts.setTitle("Samples random paths from a seed graph/cluster tree and fuses the residues together into a peptide backbone structure.");
+    opts.setTitle("Samples random paths from a seed graph and fuses the residues together into a peptide backbone structure.");
     opts.addOption("targetPDB", "Path to a PDB file of the target protein", true);
     opts.addOption("peptideChainID", "Single letter peptide chain ID. Will remove the peptide before generating seeds. Only necessary if the target_pdb contains a peptide chain that should be removed", false);
     opts.addOption("seedBin", "Path to a binary file containing seed structures", true);
