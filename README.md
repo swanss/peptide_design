@@ -4,7 +4,24 @@ This repository incorporates several tools that enable the de novo design of pep
 
 ## Build Instructions
 
-Before building, adjust the `makefile` variable `MSTDIR` to be the path at which MST is stored on your system. The default location is in the parent directory of `peptide_design`.
+Peptide design has the following dependencies
+
+### MST
+
+### FreeSASA
+
+1. Go to http://freesasa.github.io/ , download the latest tarball into the same directory containing the `peptide_design` repo and extract.
+2. Run `./configure --disable-threads --disable-xml --disable-json` 
+3. Run `make all`. You should see that the library `libfreesasa.a` is created.
+
+### Building `peptide_design`
+
+Update the `peptide_design` makefile so that:
+
+1. `MSTDIR` is the path to MST
+2. `SASADIR` is the path to FreeSASA 
+
+The default location for both is in the parent directory of `peptide_design`.
 
 * `make all` - builds all programs
 * `make test` - builds only programs in the `tests` directory
@@ -19,6 +36,7 @@ See `peptide_design/example/` for an example of how to use this pipeline to desi
 Before starting, you will need to make a configuration file, which will be reused throughout the process. This will provide the path to 1) a FASST file, i.e. a database of structures that have been processed and can be searched and 2) the backbone-dependent rotamer library (which can be found in the MST repo). ex: `peptide_design/example/input_files/singlechain.configfile`
 
 ### generateSeeds
+
 Generates segments of protein backbone, or 'interface seeds', around a target protein.
 
 `peptide_design/example/01_generateSeeds/run_generateSeeds.sh`
@@ -39,9 +57,11 @@ allow_sidechain_clash 0 #if 1, will allow seeds that clash with target sidechain
 relSASA_cutoff -1.0 #this threshold defines 'surface residues' that are used to generate seeds (ignored if -1.0)
 verbose 1
 ```
+
 When complete, all seeds will be stored at `dir/output/extendedfragments.bin`
 
 ### findOverlaps
+
 Finds overlaps between all pairs of seeds.
 
 `2_findOverlaps/run_findoverlaps.sh`
@@ -49,16 +69,19 @@ Finds overlaps between all pairs of seeds.
 Depending on the number of seeds, finding overlaps can be slow. Options are provided to distribute the work via job arrays.
 
 ### buildSeedGraph
+
 Builds a graph describing seed residues and their potential connections.
 
 `3_buildSeedGraph/run_buildSeedGraph.sh`
 
 ### samplePaths
+
 Samples random paths from a seed graph and fuses the residues together into a peptide backbone structure.
 
 `4_samplePaths/run_samplePaths.sh`
 
 ### buildPeptideRMSDMatrix
+
 Computes RMSD between peptide backbones in a parallelizable manner and builds a complete distance matrix for downstream analysis.
 
 This program must be run three times to generate a complete distance matrix.
@@ -73,6 +96,7 @@ Computes the RMSD between all pairs of peptide structures, with support for job 
 Combines the output of each job into a single distance matrix.
 
 ### scoreStructures
+
 Scores the interface formed between a set of peptides and the target protein.
 
 `6_scoreStructures/run_scoreStructures.sh`
