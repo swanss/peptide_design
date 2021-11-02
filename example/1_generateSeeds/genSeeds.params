@@ -6,7 +6,7 @@ flanking_res 3
 match_req 5000
 adaptive_rmsd 0
 seq_const NONE
-config_file /scratch/users/swans/config/singlechainDB.configfile
+config_file ../input_files/singlechainDB.configfile
 seed_flanking_res 2
 allow_sidechain_clash 0
 freedom_cutoff 0.0
