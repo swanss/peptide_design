@@ -271,7 +271,7 @@ void SeedGraph::read(string adjacencyPath, string pdbPrefix, SeedGraph *convertT
     
     ifstream readstream(adjacencyPath);
     if (!readstream.is_open()) {
-        cerr << "couldn't open in stream" << endl;
+        cerr << "couldn't open input stream (SeedGraph::read)" << endl;
         return;
     }
     

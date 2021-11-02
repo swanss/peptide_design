@@ -41,7 +41,7 @@ int main (int argc, char *argv[]) {
     if (!subgraphPath.empty() && !MstSys::fileExists(subgraphPath))
         MstSys::cmkdir(subgraphPath);
 
-    bool adjSameResidues = opts.getString("adj", "same") == "same";
+    bool adjSameResidues = opts.getString("adj", "bond") == "same";
     int subgraphSize = opts.getInt("subgraphSize", adjSameResidues ? 100 : 15);
     
     StructuresBinaryFile binaryFile(binaryPath);
