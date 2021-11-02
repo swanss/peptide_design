@@ -14,9 +14,7 @@ Peptide design has the following dependencies
 2. Run `./configure --disable-threads --disable-xml --disable-json` 
 3. Run `make all`. You should see that the library `libfreesasa.a` is created.
 
-Now you are ready to build `peptide_design`
-
-Update the `peptide_design` makefile so that:
+Now you are ready to build `peptide_design`. Update the makefile so that:
 
 1. `MSTDIR` is the path to MST
 2. `SASADIR` is the path to FreeSASA 
