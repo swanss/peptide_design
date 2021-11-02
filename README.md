@@ -14,7 +14,7 @@ Peptide design has the following dependencies
 2. Run `./configure --disable-threads --disable-xml --disable-json` 
 3. Run `make all`. You should see that the library `libfreesasa.a` is created.
 
-### Building `peptide_design`
+Now you are ready to build `peptide_design`
 
 Update the `peptide_design` makefile so that:
 
