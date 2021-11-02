@@ -6,12 +6,12 @@
 #SBATCH -p defq
 #SBATCH -t 1-00:00
 #SBATCH -n 1 
-#SBATCH --mem=40G
+#SBATCH --mem=20G
 
 peptide_design=/scratch/users/swans/MST_workspace/peptide_design
 
 seedBin=../1_generateSeeds/output/extendedfragments.bin
-out="1LB6_seedGraph"
+out="1LB6_seedGraph.adj"
 overlaps=../2_findOverlaps/output/
 
 SECONDS=0
