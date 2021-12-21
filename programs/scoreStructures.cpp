@@ -20,6 +20,7 @@ int main (int argc, char *argv[]) {
     opts.setTitle("Scores the interface formed between a set of peptides and the target protein.");
     opts.addOption("target", "The target PDB structure", false);
     opts.addOption("structures", "Directory with structures to be scored", false);
+    opts.addOption("list", "File with names of structures to be scored."); 
     opts.addOption("contacts", "Directory into which to write contact counts, if in contact counting mode, or from which to read the counts if in scoring mode", false);
     opts.addOption("out", "Directory into which to write seed scores", false);
     opts.addOption("config", "The path to a configfile", true);
@@ -29,6 +30,10 @@ int main (int argc, char *argv[]) {
     opts.addOption("numTargetFlank", "Number of residues on either side of the target residue to use for scoring (default 2)", false);
     opts.addOption("complex", "The path to a peptide-protein complex PDB (single complex mode)",false);
     opts.addOption("peptide", "The peptide chain name (single complex mode)",false);
+    opts.addOption("dtermenConfig", "Path to dTERMen config file.");
+    opts.addOption("filter", "Inidcator of whether to filter on freedom.", false);
+    opts.addOption("freedomLim", "Upper bound on freedom to use if filtering.");
+    opts.addOption("scoreType", "Indicates which scoring function to use.");
     opts.setOptions(argc, argv);
     
     if ((!opts.isGiven("target")|!opts.isGiven("structures"))&(!opts.isGiven("complex")|!(opts.isGiven("peptide")))) MstUtils::error("Must provide either --target/--structures or --complex/--peptide","scoreStructures");
@@ -36,15 +41,29 @@ int main (int argc, char *argv[]) {
     int mode = opts.getInt("mode", 0);
     string targetPath = opts.getString("target");
     string structuresPath = opts.getString("structures");
-    string structuresList = MstSystemExtension::join(structuresPath,"structures.list");
+    string structuresList;
+    if ((!opts.isGiven("list")))
+        structuresList = MstSystemExtension::join(structuresPath,"structures.list");
+    else
+        structuresList = opts.getString("list");
     string contactsPath = opts.getString("contacts", "");
     string outPath = opts.getString("out", "");
     
     string complexPath = opts.getString("complex","");
     string peptideChainID = opts.getString("peptide","");
+
+    string dtermenConfig = opts.getString("dtermenConfig");
+    bool filter = opts.getBool("filter");
+    mstreal freedomLim = opts.getReal("freedomLim");
+    int scoreType = opts.getInt("scoreType");
+    if ((scoreType < 1) || (scoreType > 4)) MstUtils::error("scoreType must be 1-4.","scoreStructures");
+
      
     if (mode == 0 && outPath.size() == 0) MstUtils::error("Need an output path ('--out') for scoring seeds");
     else if (mode == 1 && contactsPath.size() == 0) MstUtils::error("Need a contacts output path ('--contacts') for counting contacts");
+
+    string subsetOutputPath = opts.getString("subsetOutputPath");
+    string peptideStructurePath = opts.getString("peptideStructurePath");
     
     string configFile = opts.getString("config");
     int numSeedFlank = opts.getInt("numSeedFlank", 2);
@@ -70,7 +89,7 @@ int main (int argc, char *argv[]) {
     
     rmsdParams rParams(1.2, 15, 1);
     contactParams cParams;
-    SequenceStructureCompatibilityScorer scorer(target, rParams, cParams, configFile, numTargetFlank, numSeedFlank, 0.4, 0.005, 0.25, 1, 8000, 0.3);
+    SequenceStructureCompatibilityScorer scorer(target, rParams, cParams, configFile, dtermenConfig, filter, freedomLim, scoreType, numTargetFlank, numSeedFlank, 0.4, 0.005, 0.25, 1, 8000, 0.3);
 
     // Score seeds
     MstSys::cmkdir(outPath);
@@ -79,7 +98,13 @@ int main (int argc, char *argv[]) {
     if (!MstSys::fileExists(fragmentScoresPath))
         MstSys::cmkdir(fragmentScoresPath);
     string scoreWritePath = MstSystemExtension::join(fragmentScoresPath, "frag_scores_" + to_string(workerIndex) + ".csv");
+    string filterWritePath = MstSystemExtension::join(fragmentScoresPath, "filtered_res_" + to_string(workerIndex) + ".csv");
+    string freedomWritePath = MstSystemExtension::join(fragmentScoresPath, "freedom_info_" + to_string(workerIndex) + ".csv");
     scorer.scoresWritePath = &scoreWritePath;
+    scorer.filterWritePath = &filterWritePath;
+    scorer.freedomWritePath = &freedomWritePath;
+    scorer.maxScore = 100;
+
     
     double totalTime = 0.0;
     int numTimes = 0;

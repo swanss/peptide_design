@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
     }
     
     cout << "Write cluster info..." << endl;
-    clusterer.writeClusterInfo(outDir,peptideChain,true,true);
+    clusterer.writeClusterInfo(outDir,peptideChain,false,true);
     
     delete complex;
     

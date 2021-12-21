@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include "seedscore.h"
 #include "utilities.h"
+#include "dtermenscorer.h"
+#include "msttypes.h"
 #include <chrono>
+#include <math.h>
 
 using namespace std::chrono;
 
@@ -48,12 +51,20 @@ FASSTScorer::FASSTScorer(Structure *target, string configFilePath, double fracti
     loadFromTarget(config.getDB());
 }
 
+FASSTScorer::FASSTScorer(Structure *target, string configFilePath, int scoreType, double fractionIdentity, int maxNumMatches, double vdwRadius): SeedScorer(target), fractionIdentity(fractionIdentity), maxNumMatches(maxNumMatches), config(configFilePath), vdwRadius(vdwRadius) {
+    loadFromTarget(config.getDB(), scoreType);
+}
+
 FASSTScorer::~FASSTScorer() {
     delete fasst;
     delete rl;
 }
 
 void FASSTScorer::loadFromTarget(string fasstDB) {
+    loadFromTarget(fasstDB, 0);
+}
+
+void FASSTScorer::loadFromTarget(string fasstDB, int scoreType) {
     unordered_map<string, Structure> parentStructs;
     
     // Set up the target structure by removing sidechains
@@ -73,17 +84,31 @@ void FASSTScorer::loadFromTarget(string fasstDB) {
     
     if (fasst->numTargets() == 0) {
         cout << "Reading FASST pdbs" << endl;
-        fasst->readDatabase(fasstDB, 2); // memory-save flag
+        if (scoreType != 3)
+            fasst->readDatabase(fasstDB, 2); // memory-save flag
+        else
+            fasst->readDatabase(fasstDB, 1); // memory-save flag
         cout << "Done reading FASST pdbs, has " << fasst->numTargets() << " member structures" << endl;
     }
     //cout << "Memory usage: " << MstSys::memUsage() << endl;
 }
 
 bool FASSTScorer::prepareCombinedStructure(Structure *seed) {
+    return prepareCombinedStructure(seed, false);
+}
+
+bool FASSTScorer::prepareCombinedStructure(Structure *seed, bool clearNames) {
     // Clean up the seed
     Structure tmpStructure(*seed);
     Structure pose;
     cleanStructure(tmpStructure, pose, true, true, true);
+
+    // If names should be cleared, write over pose names to UNK
+    if (clearNames) {
+        for (Residue* res : pose.getResidues()) {
+            res->setName("UNK");
+        }
+    }
     
     if (pose.residueSize() == 0) {
         cout << "seed has no residues" << endl;
@@ -249,8 +274,13 @@ void contactCounter::writeContactsFile(string contactsFile) {
 
 #pragma mark - SequenceStructureCompatibilityScorer
 
-SequenceStructureCompatibilityScorer::SequenceStructureCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank, int seedFlank, double fractionIdentity, double minRatio, double pseudocount, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, fractionIdentity, maxNumMatches,   vdwRadius), targetFlank(targetFlank), seedFlank(seedFlank), contParams(contParams), rParams(rParams), minRatio(minRatio), pseudocount(pseudocount), minNumMatches(minNumMatches) {
+SequenceStructureCompatibilityScorer::SequenceStructureCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, string dTERMenConfigFilePath, bool filter, mstreal freedomLimInput, int scoreTypeInput, int targetFlank, int seedFlank, double fractionIdentity, double minRatio, double pseudocount, int minNumMatches, int maxNumMatches, double vdwRadius): FASSTScorer(target, configFilePath, scoreTypeInput, fractionIdentity, maxNumMatches, vdwRadius), targetFlank(targetFlank), seedFlank(seedFlank), contParams(contParams), rParams(rParams), minRatio(minRatio), pseudocount(pseudocount), minNumMatches(minNumMatches) {
     fragParams = FragmentParams(max(targetFlank, seedFlank), false);
+    dTERMenConfigFile = dTERMenConfigFilePath;
+    scoreType = scoreTypeInput;
+    freedomFilter = filter;
+    freedomLim = freedomLimInput;
+    targetOnlyStructure = target;
 }
 
 SequenceStructureCompatibilityScorer::~SequenceStructureCompatibilityScorer() {
@@ -260,7 +290,12 @@ SequenceStructureCompatibilityScorer::~SequenceStructureCompatibilityScorer() {
 
 unordered_map<Residue*, mstreal> SequenceStructureCompatibilityScorer::score(Structure *seed) {
     
-    if (!prepareCombinedStructure(seed)) {
+    cout << "Scoring!" << endl;
+    // calculate contacts on target only structure to get freedoms
+    ConFind confindTarget(rl, targetStructBB);
+
+    if (!prepareCombinedStructure(seed, (scoreType == 4))) {
+        cout << "Could not prepare combined structure for seed " << seed->getName() << "." << endl;
         return invalidScoreMap(seed);
     }
     
@@ -272,9 +307,12 @@ unordered_map<Residue*, mstreal> SequenceStructureCompatibilityScorer::score(Str
     bool intra = false;
     // note from craig: switched bsConts and sbConts here as we want sb to be SC from target
     // normal order bbConts, bsConts, sbConts, ssConts
-    splitContacts(targetStructBB, poseResidues, rl, contParams, intra, bbConts, sbConts, bsConts, ssConts);
+    ConFind confindCombined(rl, targetStructBB, (scoreType == 4));
+    splitContacts(targetStructBB, poseResidues, rl, contParams, intra, bbConts, sbConts, bsConts, ssConts, false, confindCombined);
     contactList conts = contactListUnion({bbConts, sbConts, bsConts, ssConts});
-    
+
+    cout << "Found contacts!" << endl;
+
     if (mustContact && conts.size() == 0) {
         // doesn't contact the correct regions of the target
         cout << "The provided seed doesn't contact the target" << endl;
@@ -287,7 +325,7 @@ unordered_map<Residue*, mstreal> SequenceStructureCompatibilityScorer::score(Str
     writeContactList(cout, seqConts);
     
     // Perform the scoring
-    unordered_map<Residue *, mstreal> combinedResult = sequenceStructureScore(seed, targetStructBB, seqConts, targetResidueSet);
+    unordered_map<Residue *, mstreal> combinedResult = sequenceStructureScore(seed, targetStructBB, seqConts, targetResidueSet, confindCombined, confindTarget);
     unordered_map<Residue *, mstreal> result;
     
     if (!countingContacts) {
@@ -328,6 +366,45 @@ ofstream *SequenceStructureCompatibilityScorer::getScoreWriteStream() {
     return scoreWriteOut;
 }
 
+ofstream *SequenceStructureCompatibilityScorer::getFilterWriteStream() {
+    if (filterWriteOut != nullptr)
+        return filterWriteOut;
+    if (filterWritePath != nullptr) {
+        filterWriteOut = new ofstream(*filterWritePath);
+        if (!filterWriteOut->is_open()) {
+            cerr << "Couldn't open filter write path" << endl;
+            filterWritePath = nullptr;
+            filterWriteOut = nullptr;
+            return nullptr;
+        }
+        
+        // Write the header file
+        ofstream& out = *filterWriteOut;
+        out << "seed,chain_id and res_num, freedom" << endl;
+    }
+    return filterWriteOut;
+}
+
+ofstream *SequenceStructureCompatibilityScorer::getFreedomWriteStream() {
+    if (freedomWriteOut != nullptr)
+        return freedomWriteOut;
+    if (freedomWritePath != nullptr) {
+        freedomWriteOut = new ofstream(*freedomWritePath);
+        if (!freedomWriteOut->is_open()) {
+            cerr << "Couldn't open freedom write path" << endl;
+            freedomWritePath = nullptr;
+            freedomWriteOut = nullptr;
+            return nullptr;
+        }
+        
+        // Write the header file
+        ofstream& out = *freedomWriteOut;
+        out << "target, seed,  seed freedom, freedom for matches" << endl;
+    }
+    return freedomWriteOut;
+}
+
+
 void SequenceStructureCompatibilityScorer::collectContacts(Structure *seed) {
     countingContacts = true;
     auto result = score(seed);
@@ -361,7 +438,7 @@ void SequenceStructureCompatibilityScorer::readContactCounts(string filePath) {
     }
 }
 
-unordered_map<Residue *, mstreal> SequenceStructureCompatibilityScorer::sequenceStructureScore(Structure *seed, Structure &combStruct, contactList &cl, set<Residue *> &toScore) {
+unordered_map<Residue *, mstreal> SequenceStructureCompatibilityScorer::sequenceStructureScore(Structure *seed, Structure &combStruct, contactList &cl, set<Residue *> &toScore, ConFind &confindCombined, ConFind &confindTarget) {
     // Store a map from each seed residue to its score. In this method we score
     // residues in the TARGET, but we will add the scores to the appropriate SEED
     // residue.
@@ -388,24 +465,118 @@ unordered_map<Residue *, mstreal> SequenceStructureCompatibilityScorer::sequence
             cout << "Both residues in contact " + residueID(*contact[0]) + " - " + residueID(*contact[1]) + " cannot be scored. Only one can be scored" << endl;
             continue;
         }
-        if (found1 == 1) {
-            fragMapping[contact[0]].push_back(frag);
-            contMap[contact[0]].push_back(contact[1]);
-        } else if (found2 == 1) {
-            fragMapping[contact[1]].push_back(frag);
-            contMap[contact[1]].push_back(contact[0]);
+        if (scoreType != 4) {
+            if (found1 == 1) {
+                fragMapping[contact[0]].push_back(frag);
+                contMap[contact[0]].push_back(contact[1]);
+            } else if (found2 == 1) {
+                fragMapping[contact[1]].push_back(frag);
+                contMap[contact[1]].push_back(contact[0]);
+            }
+        } else {
+            if (found1 == 1) {
+                fragMapping[contact[1]].push_back(frag);
+                contMap[contact[1]].push_back(contact[0]);
+            } else if (found2 == 1) {
+                fragMapping[contact[0]].push_back(frag);
+                contMap[contact[0]].push_back(contact[1]);
+            }
         }
     }
     cout << "Collected fragments" << endl;
+
+    // If contact based scoring, caluclate score directly
+    if (scoreType == 4) { 
+        for (auto it = fragMapping.begin(); it != fragMapping.end(); it++) {
+            Residue* res = it->first;
+            vector<Fragment> frags = it->second;
+            vector<Residue*>& resContacts = contMap[res];
+            Atom* seedCA = res->findAtom("CA", false);
+            if (seedCA == NULL) {
+                cerr << "Residue " << res->getName() << " in seed does not have CA." << endl;
+                result[res] = DBL_MAX;
+                continue;
+            }
+            vector<mstreal> Rs(frags.size());
+            vector<mstreal> Phis(frags.size());
+            vector<mstreal> Psis(frags.size());
+            mstreal energy = 0;
+            for (int i = 0; i < frags.size(); i++) {
+                Fragment& frag = frags[i];
+                Residue *targetResidue = resContacts[i];
+                Atom* targetCA = targetResidue->findAtom("CA", false);
+                if (targetCA == NULL) {
+                    cerr << "Residue " << targetResidue->getName() << " in target does not have CA." << endl;
+                    continue;
+                }
+                mstreal targetCAX = targetCA->getX() - seedCA->getX();
+                mstreal targetCAY = targetCA->getY() - seedCA->getY();
+                mstreal targetCAZ = targetCA->getZ() - seedCA->getZ();
+                Rs[i] = sqrt(pow(targetCAX,2) + pow(targetCAY,2) + pow(targetCAZ,2));
+                if (Rs[i] >= 2)
+                    energy += (1/(1 + exp(-0.5*(Rs[i] - 6)))) - 1;
+                else
+                    energy += pow(2/Rs[i], 12) -2*pow(2/Rs[i], 6);
+                Phis[i] = atan(targetCAY / targetCAX);
+                Psis[i] = atan(sqrt(pow(targetCAX,2) + pow(targetCAY,2)) / targetCAZ);
+            }
+
+            vector<mstreal> arcDists((Psis.size()*(Psis.size() - 1))/2);
+            mstreal avArcDist = 0;
+            int count = 0;
+            for (int i = 0; i < Phis.size() - 1; i++) {
+                mstreal iX = sin(Psis[i])*cos(Phis[i]);
+                mstreal iY = sin(Psis[i])*sin(Phis[i]);
+                mstreal iZ = cos(Psis[i]);
+                for (int j = i+1; j < Phis.size(); j++, count++) {
+                    mstreal jX = sin(Psis[j])*cos(Phis[j]);
+                    mstreal jY = sin(Psis[j])*sin(Phis[j]);
+                    mstreal jZ = cos(Psis[j]);     
+                    arcDists[count] = acos(iX*jX + iY*jY + iZ*jZ);
+                    avArcDist += arcDists[count];
+                }
+            }
+            avArcDist /= count;
+            switch (Phis.size()) {
+                case 1:
+                    break;
+                case 2:
+                    energy -= avArcDist/M_PI;
+                    break;
+                case 3:
+                    energy -= avArcDist/(2*M_PI/3);
+                    break;
+                case 4:
+                    energy -= avArcDist/1.910629385;
+                    break;
+                default:
+                    energy -= avArcDist/(M_PI/2);
+            }
+            result[res] = energy;
+
+            cout << "Finished calculating score component" << endl;
+            cout << "Score: " << energy << endl;
+            ofstream *out = getScoreWriteStream();
+            if (out != nullptr) {
+                *out << seed->getName() << "," << res->getChainID() << res->getNum() << ",  ,";
+                *out << energy << ", ," << energy << endl;
+            }
+        }
+        return result;
+    }
     
     double score = 0;
     map<Fragment, double> seenProbs;
     unordered_set<Residue *> completedSeedResidues; // seed residues with already-cached results from adjacency graph
     ofstream *out = getScoreWriteStream();
+    ofstream *filterOut = getFilterWriteStream();
 
     cout << "Iterating over residues" << endl;
+    mstreal filterCount = 0;
+    mstreal allCount = 0;
     // Iterate over each residue to be scored
     for (auto it = fragMapping.begin(); it != fragMapping.end(); it++) {
+        allCount += 1;
         Residue* res = it->first;
         vector<Fragment> frags = it->second;
         vector<Residue*>& resContacts = contMap[res];
@@ -421,12 +592,25 @@ unordered_map<Residue *, mstreal> SequenceStructureCompatibilityScorer::sequence
             }
             continue;
         }
+
+        // Filter based on freedom if filter tag used
+        if (scoreType != 4) {
+            mstreal resFreedom = confindTarget.getFreedom(res);
+            if ((freedomFilter) && (resFreedom < freedomLim)){
+                filterCount += 1;
+                if (filterOut != nullptr)
+                    *filterOut << res->getName() << "," <<  res->getChainID() << res->getNum() << "," << resFreedom << "," << endl;
+                continue;
+            }
+        }
         
         if (countingContacts) {
             // Increment the number of contacts observed for this target residue
             targetContactCounts[&targetStructBB.getResidue(res->getResidueIndexInChain())] += frags.size();
         } else {
             // Iterate over contacts with this scoring residue, and their associated fragments
+
+        dTERMenScorer dScorer(dTERMenConfigFile);
         for (int i = 0; i < frags.size(); i++) {
             Fragment& frag = frags[i];
             Residue *seedResidue = resContacts[i];
@@ -446,7 +630,43 @@ unordered_map<Residue *, mstreal> SequenceStructureCompatibilityScorer::sequence
                 *out << seed->getName() << "," << seedResidue->getChainID() << seedResidue->getNum() << "," <<  res->getChainID() << res->getNum() << ",";
             
             cout << "Calculating score component" << endl;
-            double score = sequenceStructureScoreComponent(frag, res, seedResidue, &seenProbs);
+            double score;
+            switch (scoreType) {
+                case 1: 
+                    score = sequenceStructureScoreComponent(frag, res, seedResidue, confindCombined, &seenProbs);
+                    break;
+                case 2:
+                    {
+                        score = 1;
+                        vector<mstreal> targetScores = dScorer.selfEnergies(res, confindTarget, true, false);
+                        mstreal sumTargetScores = 0;
+                        for (auto& n : targetScores) { sumTargetScores += exp(n); }
+                        double targetProb = (double) (exp(targetScores[SeqTools::aaToIdx(res->getName())]) / sumTargetScores);
+                        vector<mstreal> targetAndSeedScores = dScorer.selfEnergies(res, confindCombined, true, true);
+                        mstreal sumTargetAndSeedScores = 0;
+                        for (auto& n : targetAndSeedScores) { sumTargetAndSeedScores += exp(n); }
+                        double targetAndSeedProb = (double) (exp(targetAndSeedScores[SeqTools::aaToIdx(res->getName())]) / sumTargetAndSeedScores);
+                        score = -log(targetAndSeedProb / targetProb);
+                        break;
+                    }
+                case 4:
+                    {
+                        vector<Residue*> scoringResidues;
+                        scoringResidues.emplace_back(res);
+                        contactList bbConts; contactList sbConts; contactList bsConts; contactList ssConts;
+                        bool intra = false;
+                        // note from craig: switched bsConts and sbConts here as we want sb to be SC from target
+                        // normal order bbConts, bsConts, sbConts, ssConts
+                        splitContacts(targetStructBB, scoringResidues, rl, contParams, intra, bbConts, sbConts, bsConts, ssConts, false, confindCombined);
+                        contactList conts = contactListUnion({bbConts, sbConts, bsConts, ssConts});
+                        vector<Residue*> contactingRes = conts.destResidues();
+
+                        break;
+                    }
+                default:
+                    score = sequenceStructureScoreComponent(frag, res, seedResidue, confindCombined, &seenProbs);
+            }
+            
             seenProbs[frag] = score;
             
             cout << "Finished calculating score component" << endl;
@@ -473,6 +693,9 @@ unordered_map<Residue *, mstreal> SequenceStructureCompatibilityScorer::sequence
     uniqueResiduesScored += result.size() - completedSeedResidues.size();
     residuesScored += result.size();
     }
+
+    if (filterOut != nullptr)
+        *filterOut << endl <<  endl << filterCount / allCount;
     
     return result;
 }
@@ -494,11 +717,17 @@ vector<Residue *> SequenceStructureCompatibilityScorer::trimFragment(Fragment &f
     return residues;
 }
 
-mstreal SequenceStructureCompatibilityScorer::sequenceStructureScoreComponent(Fragment &frag, Residue *scoringRes, Residue *seedRes, map<Fragment, double> *seenProbs, bool cacheBackground) {
-    cout << "Analyzing contact " << *scoringRes << " - " << *seedRes << " with " << frag.numResidues() << " residues in fragment" << endl;
+mstreal SequenceStructureCompatibilityScorer::sequenceStructureScoreComponent(Fragment &frag, Residue *scoringRes, Residue *seedRes, ConFind &confindCombined, map<Fragment, double> *seenProbs, bool cacheBackground) {
+    cout << "Analyzing contact " << *scoringRes << " - " << *seedRes << " with " << frag.numResidues() << " residues in fragment!" << endl;
     string resCode = SeqTools::tripleToSingle(scoringRes->getName());
     int resType = SeqTools::seqToIdx(resCode, "")[0];
     ofstream *out = getScoreWriteStream();
+    ofstream *freedomOut = getFreedomWriteStream();
+    mstreal resSeedFreedom = confindCombined.getFreedom(scoringRes);
+    if (freedomFilter) {
+        if (freedomOut != nullptr)
+            *freedomOut << scoringRes->getName() << "," << seedRes->getName() << "," << resSeedFreedom << ",";
+    }
     
     // Search the interface-TERM if not seen yet
     double pairProb = 0;
@@ -539,15 +768,48 @@ mstreal SequenceStructureCompatibilityScorer::sequenceStructureScoreComponent(Fr
             int resi = distance(fragResidues.begin(), find(fragResidues.begin(), fragResidues.end(), scoringRes));
             MstUtils::assert(resi < fragResidues.size(), "residue index out of bounds");
             fasstSolutionSet solSet = fasst->getMatches();
+
+            set<fasstSolution> toErase;
+
+            if (freedomFilter){
+                for (fasstSolution sol : solSet) {
+                    mstreal matchFreedom = fasst->getResidueProperties(sol, "env")[resi];
+                    if (freedomOut != nullptr)
+                        *freedomOut << matchFreedom << ",";
+                    if (freedomFilter && abs(matchFreedom - resSeedFreedom) > 0.3)
+                        toErase.insert(sol);
+                }
+
+                for (fasstSolution sol : toErase)
+                    solSet.erase(sol);
+            }
+
+            if (solSet.size() == 0) {
+                cout << "No target/seed matches with acceptable freedom." << endl;
+                return DBL_MAX;
+            }
+
+            matches.emplace_back(solSet.size());
             
             // Generates a 20 x L matrix, where L is length of the sequences
-            Matrix freqs = seqFreqs(fasst->getMatchSequences(solSet, FASST::matchType::REGION), pseudocount, true);
-            pairProb = freqs(resType, resi);
+            vector<Sequence> matchSeqs = fasst->getMatchSequences(solSet, FASST::matchType::REGION);
+            if (scoreType == 1) {
+                Matrix freqs = seqFreqs(matchSeqs, pseudocount, true);
+                pairProb = freqs(resType, resi);
+            } else if (scoreType == 3) {
+                vector<mstreal> bFactors = fasst->getAtomicResidueProperties(solSet, resi);
+                for (mstreal bFactor : bFactors)
+                    pairProb += bFactor;
+                pairProb /= bFactors.size();
+            } 
         }
         
         (*seenProbs)[frag] = pairProb;
         seedQueries++;
     }
+
+    if (freedomOut != nullptr)
+        *freedomOut << "Background,";
     
     // Get the flanking region around the scoring residue
     vector<Residue*> segResidues = frag.getExpansion(scoringRes);
@@ -581,11 +843,40 @@ mstreal SequenceStructureCompatibilityScorer::sequenceStructureScoreComponent(Fr
                 return DBL_MAX;
             }
             int segResi = distance(segResidues.begin(), resiIt);
+
+            set<fasstSolution> toErase;
+
+            if (freedomFilter){
+                for (fasstSolution sol : segSolSet) {
+                    mstreal matchFreedom = fasst->getResidueProperties(sol, "env")[segResi];
+                    if (freedomOut != nullptr)
+                        *freedomOut << matchFreedom << ",";
+                    if (freedomFilter && abs(matchFreedom - resSeedFreedom) > 0.3)
+                        toErase.insert(sol);
+                }
+
+                for (fasstSolution sol : toErase)
+                    segSolSet.erase(sol);
+            }
+
+            if (segSolSet.size() == 0) {
+                cout << "No background matches with acceptable freedom." << endl;
+                return DBL_MAX;
+            }
             
             vector<Sequence> segSeqs = fasst->getMatchSequences(segSolSet, FASST::matchType::REGION);
             Matrix segFreqs = seqFreqs(segSeqs, pseudocount, true);
-            backProb = segFreqs(resType, segResi);
-            int backNumMatches = fasst->numMatches();
+            int backNumMatches = segSolSet.size();
+            if (scoreType == 1) {
+                backProb = segFreqs(resType, segResi);
+            } else if (scoreType == 3) {
+                vector<mstreal> bFactors = fasst->getAtomicResidueProperties(segSolSet, segResi);
+                backProb = 0;
+                for (mstreal bFactor : bFactors)
+                    backProb += bFactor;
+                backProb /= bFactors.size();
+            } 
+            //int backNumMatches = fasst->numMatches();
             //cout << "\tFound " << backNumMatches << " background matches below " << backRMSDCut << " Angstroms\n";
         } else {
             backProb = 0.001;
@@ -600,8 +891,13 @@ mstreal SequenceStructureCompatibilityScorer::sequenceStructureScoreComponent(Fr
     if (out != nullptr)
         *out << pairProb << "," << backProb << ",";
 
+    if (freedomOut != nullptr)
+        *freedomOut << endl;
+
     // Compute the score for this contact
     double ratio = pairProb / backProb;
+    if (scoreType == 3)
+        ratio = 1/ratio;
     if (ratio < minRatio) {
         cout << "> Ratio " << ratio << " is below " << minRatio << endl;
         return DBL_MAX;

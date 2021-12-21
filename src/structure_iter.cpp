@@ -259,7 +259,6 @@ void StructureCache::preloadFromPDBList(string pdbList) {
     if (cache.size() < capacity) _belowCapacity = true;
 }
 
-
 Structure* StructureCache::getStructure(string name, string prefix) {
     Structure *structure = nullptr;
     auto pos = cachePointers.find(name);

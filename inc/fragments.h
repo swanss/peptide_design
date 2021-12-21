@@ -354,6 +354,8 @@ contactList buildContacts(Structure& s, vector<Residue*>& residuesToInclude, Rot
 
 contactList buildContacts(Structure& s, RotamerLibrary* rl, contactParams& params, bool intra = false);
 
+void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLibrary* rl, contactParams& params, bool intra, contactList& bbConts, contactList& bsConts, contactList&  sbConts, contactList& ssConts, bool verbose, ConFind& confind);
+
 void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLibrary* rl, contactParams& params, bool intra, contactList& bbConts, contactList& bsConts, contactList&  sbConts, contactList& ssConts, bool verbose = false);
 
 contactList contactListSubtract(contactList& c1, contactList& c2, bool directional = false);

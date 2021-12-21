@@ -885,7 +885,6 @@ Matrix seqFreqs(const vector<Sequence>& seqs, Matrix& pseudocounts, bool normali
     return freqs;
 }
 
-
 // remove chains below a certain size (e.g. 2 residues)
 // option for dealing non standard AAs
 // incorporate TargetStruct redundancy here

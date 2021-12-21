@@ -1,4 +1,4 @@
-#include "msttypes.h"
+ #include "msttypes.h"
 #include "mstfasst.h"
 #include "mstoptions.h"
 
@@ -30,6 +30,15 @@ int main(int argc, char *argv[]) {
         Structure* S = F.getTarget(target_id);
         chain_num += S->chainSize();
     }
+
+    vector<string> allProperties = F.getAllResidueProperties();
+    cout << "All Properties" << endl;
+
+    for (string property : allProperties) {
+        cout << property << endl;
+    }
+
+    cout << endl << endl;
     
     cout << "dbPath: " << op.getString("dbPath") << endl;
     cout << "Structures in DB: " << target_num << endl;

@@ -338,8 +338,7 @@ contactList buildContacts(Structure& s, RotamerLibrary* rl, contactParams& param
 	return buildContacts(s, residuesToInclude, rl, params, intra);
 }
 
-
-void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLibrary* rl, contactParams& params, bool intra, contactList& bbConts, contactList& bsConts, contactList& sbConts, contactList& ssConts, bool verbose) {
+void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLibrary* rl, contactParams& params, bool intra, contactList& bbConts, contactList& bsConts, contactList& sbConts, contactList& ssConts, bool verbose, ConFind& confind) {
 	set<Residue*> toCheck(residuesToInclude.begin(), residuesToInclude.end());
 
 	bbConts = contactList(); // BB of toCheck and BB of s
@@ -347,7 +346,6 @@ void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLib
 	sbConts = contactList(); // SC of toCheck and BB of s (unless intra, then SC of toCheck and BB of toCheck)
 	ssConts = contactList(); // SC of toCheck and SC of s
 
-	ConFind confind(rl, s);
 	contactList conts = confind.getContacts(residuesToInclude, params.ssDeg);
     if (verbose) cout << "sidechain-sidechain contacts:" << conts.size() << endl;
 	for (int i = 0; i < conts.size(); i++) {
@@ -393,6 +391,11 @@ void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLib
             bbConts.addContact(resA, resB, conts.degree(i));
 		}
 	}
+}
+
+void splitContacts(Structure& s, vector<Residue*>& residuesToInclude, RotamerLibrary* rl, contactParams& params, bool intra, contactList& bbConts, contactList& bsConts, contactList& sbConts, contactList& ssConts, bool verbose) {
+	ConFind confind(rl, s);
+	splitContacts(s, residuesToInclude, rl, params, intra, bbConts, bsConts, sbConts, ssConts, verbose, confind);
 }
 
 // remove elements of c2 from c1

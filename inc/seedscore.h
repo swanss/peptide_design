@@ -7,6 +7,8 @@
 #include <set>
 #include <unordered_map>
 #include <fstream>
+#include <math.h>
+#define _USE_MATH_DEFINES
 
 #include "msttypes.h"
 #include "mstcondeg.h"
@@ -15,6 +17,7 @@
 #include "mstrotlib.h"
 #include "mstfasst.h"
 #include "dtermen.h"
+#include "dtermenscorer.h"
 
 #include "seedgraph.h"
 
@@ -68,8 +71,10 @@ public:
      @param vdwRadius NOT the actual VDW radius within which clashes are checked,
             but the *ratio* of the maximum VDW radius for the specific atom within
             which clashes are checked
+     @param scoreType the score type
      */
     FASSTScorer(Structure *target, string configFilePath, double fractionIdentity = 0.4, int maxNumMatches = 8000, double vdwRadius = 1.0);
+    FASSTScorer(Structure *target, string configFilePath, int scoreType, double fractionIdentity = 0.4, int maxNumMatches = 8000, double vdwRadius = 1.0);
     ~FASSTScorer();
     
     virtual unordered_map<Residue *, mstreal> score(Structure *seed) = 0;
@@ -84,6 +89,8 @@ public:
      a steric clash
      */
     bool prepareCombinedStructure(Structure *seed);
+    bool prepareCombinedStructure(Structure *seed, bool clearNames);
+
     /**
      Removes the seed chain from targetStructBB.
      */
@@ -124,6 +131,7 @@ protected:
     ProximitySearch ps;
     
     void loadFromTarget(string fasstDB);
+    void loadFromTarget(string fasstDB, int scoreType);
     
     /**
      Remaps the residue keys from the given temporary result so that they are
@@ -299,6 +307,7 @@ public:
             search
      @param contParams the criteria for determining if a contact exists
      @param configFilePath the path to the FASST database to load
+     @param dTERMenConfigFilePath the path to the dTERMen config file to load
      @param targetFlank the number of flanking residues on either side of the
             target residue
      @param seedFlank the number of flanking residues on either side of the seed
@@ -317,7 +326,7 @@ public:
             but the *ratio* of the maximum VDW radius for the specific atom within
             which clashes are checked
      */
-    SequenceStructureCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, int targetFlank = 2, int seedFlank = 2, double fractionIdentity = 0.4, double minRatio = 0.05, double pseudocount = 0.25, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 1.0);
+    SequenceStructureCompatibilityScorer(Structure *target, rmsdParams& rParams, contactParams& contParams, string configFilePath, string dTERMenConfigFilePath, bool filter = false, mstreal freedomLimInput = 0.5, int scoreTypeInput = 1, int targetFlank = 2, int seedFlank = 2, double fractionIdentity = 0.4, double minRatio = 0.05, double pseudocount = 0.25, int minNumMatches = 1, int maxNumMatches = 8000, double vdwRadius = 1.0);
     ~SequenceStructureCompatibilityScorer();
     
     /**
@@ -382,7 +391,7 @@ public:
             insufficient or the probability ratio is too small results in the
             seed residue's score being set to infinity.
      */
-    unordered_map<Residue*, mstreal> sequenceStructureScore(Structure *seed, Structure& combStruct, contactList& cl, set<Residue*>& toScore);
+    unordered_map<Residue*, mstreal> sequenceStructureScore(Structure *seed, Structure& combStruct, contactList& cl, set<Residue*>& toScore, ConFind &confindCmbined, ConFind &confindTarget);
 
     /**
      Computes the sequence-structure score of a single contact. This method is
@@ -397,23 +406,33 @@ public:
             be used to skip the computation
      @param cacheBackground whether to read/write cached values for the
             background probabilities (probability of self-TERM around scoringRes)
+    @param confindCombind relating scoring residues to seed residues
      @return the sequence-structure score of the given contact, or DBL_MAX
-            (infinity) if there were not enough search results, or if the
+            (infinity) if there were not enough searfch results, or if the
             probability ratio is below minRatio
      */
-    mstreal sequenceStructureScoreComponent(Fragment& frag, Residue* scoringRes, Residue* seedRes, map<Fragment, double> *seenProbs = nullptr, bool cacheBackground = true);
+    mstreal sequenceStructureScoreComponent(Fragment& frag, Residue* scoringRes, Residue* seedRes, ConFind &confindCombined, map<Fragment, double> *seenProbs = nullptr, bool cacheBackground = true);
 
     /// Path at which to write out queries.
     string *queryWritePath = nullptr;
     
     /// Path at which to write out score breakdowns for each contact.
     string *scoresWritePath = nullptr;
-    
+
+    /// Path at which to write out which residues were filtered.
+    string *filterWritePath = nullptr;
+
+    /// Path at which to write out freedom info for matches.
+    string *freedomWritePath = nullptr;
+        
     /// Stores the scores for each residue and its neighborhood.
     SeedGraphMap<mstreal> *adjacencyGraph = nullptr;
-    
+
     /// If true, then don't actually calculate the scores, just log that they were "calculated"
     bool noQueries = false;
+
+    // Max score
+    mstreal maxScore = 100;
     
     // Analytics
     
@@ -425,11 +444,17 @@ public:
     int numSeedQueries() { return seedQueries; }
     /// @return the number of total target residue queries that have been made
     int numTargetQueries() { return targetQueries; }
+    /// @return the number of matches found for each query
+    vector<mstreal> numMatches() { return matches; }
+
+
     
 private:
     FragmentParams fragParams;
     rmsdParams rParams;
     contactParams contParams;
+    string dTERMenConfigFile;
+    int scoreType;
     double minRatio;
     double pseudocount;
     double vdwRadius;
@@ -438,6 +463,10 @@ private:
     int targetFlank;
     int seedFlank;
     
+    // If true, filter residues to score based on freedom
+    bool freedomFilter = false;
+    double freedomLim;
+
     /// If true, the seeds will not be scored; instead the contacts with target will be counted
     bool countingContacts = false;
     
@@ -446,6 +475,9 @@ private:
     int uniqueResiduesScored = 0;
     int seedQueries = 0;
     int targetQueries = 0;
+    vector<mstreal> matches;
+
+    Structure *targetOnlyStructure;
     
     /**
      Cache the background probabilities for each aa in target (pair includes
@@ -458,12 +490,30 @@ private:
     
     /// Write stream for writing out scores
     ofstream *scoreWriteOut = nullptr;
+
+    // Write stream for writing out filtered residues
+    ofstream *filterWriteOut = nullptr;
+
+    // Write stream for writing out freedoms
+    ofstream *freedomWriteOut = nullptr;
     
     /**
      Initializes the score write stream if a path was provided, and returns it.
      Returns null if scoresWritePath is null.
      */
     ofstream *getScoreWriteStream();
+
+    /**
+     Initializes the filter write stream if a path was provided, and returns it.
+     Returns null if filterWritePath is null.
+     */
+    ofstream *getFilterWriteStream();
+
+    /**
+     Initializes the freedom write stream if a path was provided, and returns it.
+     Returns null if freedomWritePath is null.
+     */
+    ofstream *getFreedomWriteStream();
     
     /**
      Trims the given fragment around the two central residues so that the

@@ -9,6 +9,7 @@
 #include "mstcondeg.h"
 #include "mstlinalg.h"
 #include "mstsequence.h"
+#include "mstfasst.h"
 
 #include "mstsystem_exts.h"
 #include "vdwRadii.h"

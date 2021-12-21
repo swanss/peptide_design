@@ -24,8 +24,10 @@ int main (int argc, char *argv[]) {
 
     rmsdParams rParams(1.2, 15, 1);
     contactParams cParams;
+
+    string dtermenConfig = "/scratch/users/swans/config/design_clique2.configfile";
     
-    SequenceStructureCompatibilityScorer scorer(target, rParams, cParams, fasstDB, 2, 0, 0.4, 0.05, 0.25, 1, 8000, 0.7);
+    SequenceStructureCompatibilityScorer scorer(target, rParams, cParams, fasstDB, dtermenConfig, false, 1, 2, 0, 0.4, 0.05, 0.25, 1, 8000, 0.7);
     scorer.queryWritePath = queryWritePath;
     cout << "Loaded scorer" << endl;
     high_resolution_clock::time_point startTime = high_resolution_clock::now();
