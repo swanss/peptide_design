@@ -6,7 +6,10 @@ This repository incorporates several tools that enable the de novo design of pep
 
 Peptide design has the following dependencies
 
-### MST
+### Mosaist
+
+1. Clone the repo https://github.com/Grigoryanlab/Mosaist
+2. Follow the instructions to install
 
 ### FreeSASA
 
@@ -18,7 +21,7 @@ Peptide design has the following dependencies
 
 Update the `peptide_design` makefile so that:
 
-1. `MSTDIR` is the path to MST
+1. `MSTDIR` is the path to Mosaist
 2. `SASADIR` is the path to FreeSASA 
 
 The default location for both is in the parent directory of `peptide_design`.

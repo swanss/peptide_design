@@ -77,7 +77,9 @@ int main (int argc, char *argv[]) {
             solutions << bestSeq.toString() << endl;
             
             //store sequence/energy
-            csv << bestSeq.toString() << "," << lowE << "," << Nc << "," << Ni << "," << kTi << "," << kTf_i << endl;
+            csv << bestSeq.toString() << "," << lowE << "," << Nc << ",";
+            csv << Ni << "," << kTi << "," << kTf_i << ",";
+            csv << endl;
         }
     }
 };

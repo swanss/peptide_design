@@ -40,7 +40,7 @@ private:
 class secondaryStructureClassifier {
 public:
     secondaryStructureClassifier(int _flanking_res = 2, int _agreement = 4) : flanking_res(_flanking_res), agreement(_agreement), helix(dihedralProbabilities::HELIX), sheet(dihedralProbabilities::SHEET) {
-        stride = false;
+        stride_op = false;
         threshold = float(agreement)/float((2*flanking_res)+1);
     };
     
@@ -61,7 +61,7 @@ public:
      the same class.
      */
     
-    void set_stride(bool _stride) {stride = _stride;};
+    void set_stride(bool _stride) {stride_op = _stride;};
     
     string classifyResidue(Residue* R);
     string classifyChain(Chain* C);
@@ -90,7 +90,7 @@ protected:
 private:
     int flanking_res, agreement;
     mstreal threshold;
-    bool stride; //ignore NCAA if true
+    bool stride_op; //ignore NCAA if true
     dihedralProbabilities helix, sheet;
 };
 

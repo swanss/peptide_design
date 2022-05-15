@@ -116,15 +116,16 @@ pair<Structure*,string> generateRandomSeed::getSeed(int len) {
     Structure* target = getTarget(target_id);
     Structure* seed = new Structure;
     Chain* C = seed->appendChain("0",false);
-    vector<int> res_idx; //for getting the secondary structure in the next section
-    for (int i = 0; i < len; i++) {
-        res_idx.push_back(nterm_res_id+i);
-        Residue* R = new Residue(target->getResidue(res_idx[i]));
+//    vector<int> res_idx; //for getting the secondary structure in the next section
+    string sec_structure = "";
+    for (int ri = nterm_res_id; ri < nterm_res_id + len; ri++) {
+        sec_structure += getResidueStringProperty(target_id, "stride", ri);
+        Residue* R = new Residue(target->getResidue(ri));
         C->appendResidue(R);
     }
     
     //get secondary structure
-    string sec_structure = classifier.classifyResInStruct(target,res_idx);
+//    string sec_structure = classifier.classifyResInStruct(target,res_idx);
     
     //name the new seed
     //targetid_resid_length_nsampled
@@ -184,8 +185,7 @@ void structureBoundingBox::construct_structureBoundingBox(AtomPointerVector atom
 }
 
 /* --------- naiveSeedsfromBin --------- */
-naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, string rotLibPath, rejectionSampler* _sampler) : complex(S), seeds(seedBinaryPath_in), stat(S,p_id,seedBinaryPath_in) {
-    sampler = _sampler;
+naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, StructuresBinaryFile* _bin, string rotLibPath, rejectionSampler* _sampler) : complex(S), seeds(_bin), sampler(_sampler), stat(S,p_id,_bin) {
     
     //get target structure
     peptide = complex.getChainByID(p_id);
@@ -213,10 +213,10 @@ naiveSeedsFromBin::naiveSeedsFromBin(Structure& S, string p_id, string seedBinar
     cout << "Loading seeds and calculating centroids to construct a promixity search object..." << endl;
     
     //get file positions and properties
-    seeds.scanFilePositions();
-    seeds.reset();
-    int_properties = seeds.getPropertyNamesInt();
-    real_properties = seeds.getPropertyNamesReal();
+    seeds->scanFilePositions();
+    seeds->reset();
+    int_properties = seeds->getPropertyNamesInt();
+    real_properties = seeds->getPropertyNamesReal();
     
     //preliminary results suggest that these cutoffs are ~2x more than what is normally needed to
     //place all seeds in these different modes
@@ -258,24 +258,25 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
      chance to sample a seed from any position. In the case where we read through the whole file, it
      doesn't matter, until the final read through, at which point we need to subsample like previously
      described. */
-    long bin_seeds = seeds.structureCount();
+    long bin_seeds = seeds->structureCount();
     if (num_seeds == 0) {
         num_seeds = bin_seeds;
     }
     mstreal skip_prob = max(0.0, 1.0 - mstreal(num_seeds)/mstreal(bin_seeds));
     
     //randomize seeds and write to file
+    seeds->reset();
     int count = 0;
     while (count < num_seeds) {
         //if looping through the file a final time, set skip prob so that seeds are sampled evenly
-        if (count + bin_seeds > num_seeds) skip_prob = mstreal(num_seeds - count)/mstreal(bin_seeds);
-        while (seeds.hasNext()) {
+        if (count + bin_seeds > num_seeds) skip_prob = min(0.95,1 - mstreal(num_seeds - count)/mstreal(bin_seeds));
+        while (seeds->hasNext()) {
             if (count >= num_seeds) break;
             if (MstUtils::randUnit() < skip_prob) {
-                seeds.skip();
+                seeds->skip();
                 continue;
             }
-            Structure* extended_fragment = seeds.next();
+            Structure* extended_fragment = seeds->next();
             Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
             Structure* seed_structure = new Structure(*seed_C);
             CartesianPoint seed_centroid = AtomPointerVector(seed_structure->getAtoms()).getGeometricCenter();
@@ -288,11 +289,11 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
             seeds_out.appendStructure(seed_structure);
             //meta-data
             for (string prop_name : int_properties) {
-                int value = seeds.getStructurePropertyInt(prop_name,extended_fragment->getName());
+                int value = seeds->getStructurePropertyInt(prop_name,extended_fragment->getName());
                 seeds_out.appendStructurePropertyInt(prop_name,value);
             }
             for (string prop_name : real_properties) {
-                mstreal value = seeds.getStructurePropertyReal(prop_name,extended_fragment->getName());
+                mstreal value = seeds->getStructurePropertyReal(prop_name,extended_fragment->getName());
                 seeds_out.appendStructurePropertyReal(prop_name,value);
             }
             
@@ -303,7 +304,7 @@ void naiveSeedsFromBin::newPose(string output_path, string out_name, bool positi
             delete seed_structure;
             count++;
         }
-        seeds.reset();
+        seeds->reset();
     }
     cout << "There are " << bin_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
     retry_out.close();
@@ -457,29 +458,30 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
      chance to sample a seed from any position. In the case where we read through the whole file, it
      doesn't matter, until the final read through, at which point we need to subsample like previously
      described. */
-    long bin_seeds = seeds.structureCount();
+    long bin_seeds = seeds->structureCount();
     if (num_seeds == 0) {
         num_seeds = bin_seeds;
     }
     mstreal skip_prob = max(0.0, 1.0 - mstreal(num_seeds)/mstreal(bin_seeds));
     cout << "seeds in bin: " << bin_seeds << " desired seeds: " << num_seeds << " skip probability: " << skip_prob << endl;
     //randomize seeds and write to file
+    seeds->reset();
     int count = 0; int loop = 0;
     while (count < num_seeds) {
         cout << "count: " << count << " number of loops through bin: " << loop << endl;
         //if looping through the file a final time, set skip prob so that seeds are sampled evenly
         if (count + bin_seeds > num_seeds) {
-            skip_prob = mstreal(num_seeds - count)/mstreal(bin_seeds);
+            skip_prob = min(0.95,1.0 - mstreal(num_seeds - count)/mstreal(bin_seeds));
             cout << "new skip prob: " << skip_prob << endl;
         }
-        while (seeds.hasNext()) {
+        while (seeds->hasNext()) {
             if (count >= num_seeds) break;
             if (MstUtils::randUnit() < skip_prob) {
-                seeds.skip();
+                seeds->skip();
                 continue;
             }
             //read original seed from binary file
-            Structure* extended_fragment = seeds.next();
+            Structure* extended_fragment = seeds->next();
             Chain* seed_C = extended_fragment->getChainByID(seed_chain_id);
             CartesianPoint seed_original_centroid = AtomPointerVector(seed_C->getAtoms()).getGeometricCenter();
             int seed_length = seed_C->residueSize();
@@ -496,11 +498,11 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
             seeds_out.appendStructure(new_seed);
             //meta-data
             for (string prop_name : int_properties) {
-                int value = seeds.getStructurePropertyInt(prop_name,extended_fragment->getName());
+                int value = seeds->getStructurePropertyInt(prop_name,extended_fragment->getName());
                 seeds_out.appendStructurePropertyInt(prop_name,value);
             }
             for (string prop_name : real_properties) {
-                mstreal value = seeds.getStructurePropertyReal(prop_name,extended_fragment->getName());
+                mstreal value = seeds->getStructurePropertyReal(prop_name,extended_fragment->getName());
                 seeds_out.appendStructurePropertyReal(prop_name,value);
             }
             
@@ -514,8 +516,8 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
             delete new_seed;
             count++;
         }
+        seeds->reset();
         loop++;
-        seeds.reset();
     }
     cout << "There are " << bin_seeds << " seeds in the input binary file. After randomization, there are " << count << " seeds in the output binary file" << endl;
     retry_out.close();
@@ -524,28 +526,21 @@ void naiveSeedsFromDB::newPose(string output_path, string out_name, bool positio
 
 /* --------- seedStatistics --------- */
 
-seedStatistics::seedStatistics(Structure& S, string p_id, string seedBinaryPath) : complex(S) {
-    if (seedBinaryPath != "") bin_file = new StructuresBinaryFile(seedBinaryPath);
-    else bin_file = nullptr;
-    neigborhood = 10.0;
-    
-    //get target structure
-    peptide = complex.getChainByID(p_id);
-    vector<Residue*> target_residues;
-    for (Residue* R : complex.getResidues()) if (R->getChainID() != p_id) target_residues.push_back(R);
-    target = Structure(target_residues);
-    
-    //generate proximity search of target backbone
-    cout << "Extracting target backbone to construct a promixity search object..." << endl;
-    if (!RotamerLibrary::hasFullBackbone(target)) cout << "warning: target structure is missing backbone atoms!" << endl;
-    target_BB_atoms = RotamerLibrary::getBackbone(target);
-    target_BB_structure = Structure(target_BB_atoms);
-    target_PS = new ProximitySearch(target_BB_atoms, neigborhood/2);
+seedStatistics::seedStatistics(Structure& S, string p_id, string _seedBinaryPath) : complex(S), seedBinaryPath(_seedBinaryPath) {
+    setBinaryFile(seedBinaryPath);
+
+    constructor(p_id);
+}
+
+seedStatistics::seedStatistics(Structure& S, string p_id, StructuresBinaryFile* _seed_bin) : complex(S) {
+    setBinaryFile(_seed_bin);
+
+    constructor(p_id);
 }
 
 void seedStatistics::writeStatisticstoFile(string output_path, string output_name, int num_final_seeds) {
-    if (bin_file == nullptr) MstUtils::error("a StructuresBinaryFile with seeds must be provided.");
-    bin_file->reset();
+    if (seed_bin == nullptr) MstUtils::error("a StructuresBinaryFile with seeds must be provided.");
+    seed_bin->reset();
 
     //open seed info file
     string seed_info = output_path + output_name + "_statistics.info";
@@ -554,17 +549,17 @@ void seedStatistics::writeStatisticstoFile(string output_path, string output_nam
     //header
     seed_out << "name\tbounding_sphere_radius\tmin_distance_centroid_protein\tseed_length" << endl;
     
-    long num_seeds = bin_file->structureCount();
+    long num_seeds = seed_bin->structureCount();
     mstreal skip_probability = max(0.0, 1 - mstreal(num_final_seeds)/num_seeds);
     cout << "There are " << num_seeds << " seeds in the input binary file. Skip probability is " << skip_probability << endl;
     
     int count = 0;
-    while (bin_file->hasNext()) {
+    while (seed_bin->hasNext()) {
         if (MstUtils::randUnit() < skip_probability) {
-            bin_file->skip();
+            seed_bin->skip();
             continue;
         }
-        Structure* extfrag = bin_file->next();
+        Structure* extfrag = seed_bin->next();
         Chain* seed_C = extfrag->getChainByID("0");
         Structure* seed = new Structure(*seed_C);
         mstreal bounding_sphere_radius = boundingSphereRadius(seed);
@@ -579,8 +574,8 @@ void seedStatistics::writeStatisticstoFile(string output_path, string output_nam
 }
 
 oneDimBinnedData seedStatistics::generateDistanceHistogram(mstreal min_value, mstreal max_value, int num_bins, int sampled_seeds) {
-    if (bin_file == nullptr) MstUtils::error("a StructuresBinaryFile with seeds must be provided.");
-    bin_file->reset();
+    if (seed_bin == nullptr) MstUtils::error("a StructuresBinaryFile with seeds must be provided.");
+    seed_bin->reset();
 
     oneDimBinnedData distances(min_value,max_value,num_bins);
     
@@ -588,18 +583,18 @@ oneDimBinnedData seedStatistics::generateDistanceHistogram(mstreal min_value, ms
     bin_counts.resize(num_bins);
     fill(bin_counts.begin(),bin_counts.end(),0);
     
-    size_t num_seeds = bin_file->structureCount();
+    size_t num_seeds = seed_bin->structureCount();
 
     mstreal skip_prob = max(0.0, 1.0 - mstreal(sampled_seeds)/mstreal(num_seeds)); //such that, on avg, sample_n seeds are sampled per loop
     
     cout << "Probability of skipping a seed: " << skip_prob << endl;
     
-    while (bin_file->hasNext()) {
+    while (seed_bin->hasNext()) {
         if (MstUtils::randUnit() < skip_prob) {
-            bin_file->skip();
+            seed_bin->skip();
             continue;
         }
-        Structure* extfrag = bin_file->next();
+        Structure* extfrag = seed_bin->next();
         Chain* C = extfrag->getChainByID("0");
         Structure* seed = new Structure(*C);
         mstreal distance = centroid2NearestProteinAtom(seed);
@@ -658,6 +653,24 @@ mstreal seedStatistics::point2NearestProteinAtom(CartesianPoint point) {
     }
     return min_distance;
 }
+
+void seedStatistics::constructor(string p_id) {
+    neigborhood = 10.0;
+    
+    //get target structure
+    peptide = complex.getChainByID(p_id);
+    vector<Residue*> target_residues;
+    for (Residue* R : complex.getResidues()) if (R->getChainID() != p_id) target_residues.push_back(R);
+    target = Structure(target_residues);
+    
+    //generate proximity search of target backbone
+    cout << "Extracting target backbone to construct a promixity search object..." << endl;
+    if (!RotamerLibrary::hasFullBackbone(target)) cout << "warning: target structure is missing backbone atoms!" << endl;
+    target_BB_atoms = RotamerLibrary::getBackbone(target);
+    target_BB_structure = Structure(target_BB_atoms);
+    target_PS = new ProximitySearch(target_BB_atoms, neigborhood/2);
+}
+
 
 /* --------- searchInterfaceFragments --------- */
 

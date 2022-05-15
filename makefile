@@ -1,4 +1,4 @@
-MSTDIR = ../MST
+MSTDIR = ../Mosaist
 MSTINCL = $(MSTDIR)/include
 MSTSRC = $(MSTDIR)/src
 MSTOBJS = $(MSTDIR)/objs
@@ -11,9 +11,9 @@ SASAOBJS = $(SASADIR)/src
 SASALIB = $(SASADIR)/src
 
 CC = g++
-CFLAGS = -std=c++11 -g -gdwarf-3 -O3 -fPIC -I$(MSTINCL) -I$(SASAINCL) -I$(INCL) # -g -gdwarf-3
+CFLAGS = -std=c++11 -g -gdwarf-3 -O -fPIC -I$(MSTINCL) -I$(SASAINCL) -I$(INCL)
 MPICC = mpic++
-MPIFLAGS = -std=c++0x -O3
+MPIFLAGS = -std=c++0x -O
 
 OUT = .
 INCL = $(OUT)/inc
@@ -24,6 +24,7 @@ TEST = $(OUT)/tests
 TESTFILES = $(OUT)/testfiles
 SCRIPTS = $(OUT)/scripts
 PROGS = $(OUT)/programs
+HELPPROGS = $(OUT)/helperprograms
 BIN = $(OUT)/bin
 SENTINEL = .dir_sentinel
 
@@ -39,8 +40,9 @@ INCDEP      :=
 
 SOURCES     := $(shell find $(SRCDIR) -not -path '*/\.*' -type f -name *.$(SRCEXT))
 OBJECTS     := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.$(OBJEXT)))
-PROGRAMS 	:= $(patsubst $(PROGS)/%.$(SRCEXT),$(BIN)/%,$(shell find $(PROGS) -not -path '*/\.*' -type f -name *.$(SRCEXT)))
-TESTPROGS 	:= $(patsubst $(TEST)/%.$(SRCEXT),$(BIN)/%,$(shell find $(TEST) -not -path '*/\.*' -type f -name *.$(SRCEXT)))
+PROGRAMS    := $(patsubst $(PROGS)/%.$(SRCEXT),$(BIN)/%,$(shell find $(PROGS) -not -path '*/\.*' -type f -name *.$(SRCEXT)))
+TESTPROGS   := $(patsubst $(TEST)/%.$(SRCEXT),$(BIN)/%,$(shell find $(TEST) -not -path '*/\.*' -type f -name *.$(SRCEXT)))
+HELPERPROGRAMS := $(patsubst $(HELPPROGS)/%.$(SRCEXT),$(BIN)/%,$(shell find $(HELPPROGS) -not -path '*/\.*' -type f -name *.$(SRCEXT)))
 
 # Filter out python
 SOURCES     := $(filter-out $(SRCDIR)/python.cpp, $(SOURCES))
@@ -51,7 +53,7 @@ OBJECTS     := $(filter-out $(BUILDDIR)/python.o, $(OBJECTS))
 ##############
 
 .PHONY: all
-all: $(PROGRAMS) $(TESTPROGS)
+all: $(PROGRAMS) $(TESTPROGS) $(HELPERPROGRAMS)
 
 .PHONY: test
 test: $(TESTPROGS)
@@ -137,6 +139,9 @@ $(BIN)/%: $(PROGS)/%.$(SRCEXT) $(OBJECTS)
 	$(CC) $(CFLAGS) $^ $(LIBFLAGS) -o $@
 
 $(BIN)/%: $(TEST)/%.$(SRCEXT) $(OBJECTS)
+	$(CC) $(CFLAGS) $^ $(LIBFLAGS) -o $@
+
+$(BIN)/%: $(HELPPROGS)/%.$(SRCEXT) $(OBJECTS)
 	$(CC) $(CFLAGS) $^ $(LIBFLAGS) -o $@
 
 $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT) directories

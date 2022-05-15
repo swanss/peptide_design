@@ -136,8 +136,9 @@ interfaceCoverage::interfaceCoverage(Structure& S, string p_cid, string _RL_path
     if (!RotamerLibrary::hasFullBackbone(S)) {
         MstUtils::error("Structure is missing backbone atoms");
     }
-//    complex = Structure(RotamerLibrary::getBackbone(S));
-    complex = S;
+  
+    original_complex = &S;
+    complex = Structure(RotamerLibrary::getBackbone(S));
     complex.setName(S.getName());
     
     peptide_chain = complex.getChainByID(p_cid);
@@ -205,8 +206,10 @@ interfaceCoverage::~interfaceCoverage() {
 }
 
 void interfaceCoverage::setSeeds(string _binFilePath) {
-    if (binFilePath != "") {
+    if (seeds != nullptr) {
         resetBins();
+    }
+    if (binFilePath != "") {
         delete seeds;
     }
     binFilePath = _binFilePath;
@@ -215,8 +218,20 @@ void interfaceCoverage::setSeeds(string _binFilePath) {
     seeds->reset();
 }
 
+void interfaceCoverage::setSeeds(StructuresBinaryFile* bin) {
+    if (seeds != nullptr) {
+        resetBins();
+    }
+    if (binFilePath != "") {
+        delete seeds;
+    }
+    seeds = bin;
+    seeds->scanFilePositions();
+}
+
 void interfaceCoverage::findCoveringSeeds() {
     resetBins();
+    seeds->reset();
     while (seeds->hasNext()) {
         Structure* extended_fragment = seeds->next();
         
@@ -249,7 +264,6 @@ void interfaceCoverage::findCoveringSeeds() {
         mapSeedToChainSubsegments(getBackboneAtoms(seed_C),seed_C->getResidues(),match_number,match_rmsd,sequence_match);
         delete extended_fragment;
     }
-    seeds->reset();
 }
 
 bool interfaceCoverage::mapSeedToChainSubsegments(vector<Atom*> seed_atoms, vector<Residue*> seed_residues, int match_number, mstreal match_rmsd, bool sequence_match, bool only_check_if_aligned) {
@@ -482,11 +496,13 @@ void interfaceCoverage::writeSegmentCoverage(string outDir) {
 set<Residue*> interfaceCoverage::getBindingSiteResByDistance(mstreal distanceCutoff) {
     set<Residue*> bindingSiteRes;
     
-    // This is crude, but speed shouldn't matter too much here
-    for (Atom* pepA : peptide_chain->getAtoms()) {
-        for (Atom* protA : target->getAtoms()) {
-            mstreal distance = pepA->distance(protA);
-            if (distance <= distanceCutoff) bindingSiteRes.insert(protA->getResidue());
+    // This requires sidechain atoms, so we need to use original complex
+    for (Atom* pepA : original_complex->getChainByID(peptide_chain->getID())->getAtoms()) {
+        for (Chain* C : target_chains) {
+            for (Atom* protA : original_complex->getChainByID(C->getID())->getAtoms()) {
+                mstreal distance = pepA->distance(protA);
+                if (distance <= distanceCutoff) bindingSiteRes.insert(protA->getResidue());
+            }
         }
     }
     return bindingSiteRes;
@@ -555,6 +571,7 @@ void interfaceCoverage::prepareForTERMExtension() {
         Chain* C = &complex[chain];
         if (C->getID() == peptide_chain->getID()) continue; //get protein only chains
         cout << "Adding chain " << C->getID() << " to new structure" << endl;
+        target_chains.push_back(C);
         vector<Residue*> chain_res = C->getResidues();
         protein_res.insert(protein_res.end(),chain_res.begin(),chain_res.end());
         for (Residue* R: chain_res) {

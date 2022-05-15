@@ -119,8 +119,8 @@ private:
     
     void openFileStream();
     void detectFileVersion();
-    pair<Structure*,long> readNextFileSection(bool save_metadata = false);
-
+    pair<Structure*,long> readNextFileSection(bool save_metadata = false, bool verbose = false);
+    
     fstream fs;
     long fileStart;
     unordered_map<string, long> _filePositions; // Positions of each structure in the file

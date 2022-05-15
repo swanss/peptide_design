@@ -90,8 +90,12 @@ void StructuresBinaryFile::scanFilePositions() {
     reset();
     cout << "Scanning file positions..." << endl;
     _structureNames.clear();
+    int count = 0;
     while (fs.peek() != EOF) {
-        auto next = readNextFileSection(true);
+        pair<Structure*,long> next;
+        next = readNextFileSection(true,true);
+//        if (count % 10000 == 0) next = readNextFileSection(true,true);
+//        else next = readNextFileSection(true);
         Structure *S = next.first;
         long pos = next.second;
         if (pos < 0) {
@@ -99,7 +103,22 @@ void StructuresBinaryFile::scanFilePositions() {
         }
         _filePositions[S->getName()] = pos;
         _structureNames.push_back(S->getName());
+        if (count % 10000 == 0) {
+            // report values
+            cout << "Structure number: " << count << endl;
+            cout << "Number of structure names:" << _structureNames.size() << endl;
+            cout << "Number of file positions: " << _filePositions.size() << endl;
+            cout << "Number of seed int val types: " << seed_dscrt_vals.size() << endl;
+            for (auto it : seed_dscrt_vals) {
+                cout << it.first << " with size: " << it.second.size() << endl;
+            }
+            cout << "Number of seed real val types: " << seed_real_vals.size() << endl;
+            for (auto it : seed_real_vals) {
+                cout << it.first << " with size: " << it.second.size() << endl;
+            }
+        }
         delete S;
+        count++;
     }
     timer.stop();
     cout << "Done scanning file, took " << timer.getDuration(MstTimer::msec) / 1000.0 << " sec" << endl;
@@ -136,6 +155,8 @@ void StructuresBinaryFile::jumpToStructureIndex(int idx) {
 
 void StructuresBinaryFile::appendStructure(Structure *s) {
     MstUtils::assert(!readMode, "appendStructure not supported in read mode");
+    MstUtils::assert(s->residueSize() != 0, "Structure must have at least one residue");
+
     if (!structure_added) {
         structure_added = true;
         if (!_append) MstUtils::writeBin(fs,string("!@#version_2!@#")); //write the version at the top of the file
@@ -147,12 +168,16 @@ void StructuresBinaryFile::appendStructure(Structure *s) {
 }
 
 void StructuresBinaryFile::appendStructurePropertyInt(string prop, int val) {
+    MstUtils::assert(!prop.empty(), "property field cannot be empty");
+
     MstUtils::writeBin(fs,'I');
     MstUtils::writeBin(fs,prop);
     MstUtils::writeBin(fs,val);
 }
 
 void StructuresBinaryFile::appendStructurePropertyReal(string prop, mstreal val) {
+    MstUtils::assert(!prop.empty(), "property field cannot be empty");
+    
     MstUtils::writeBin(fs,'R');
     MstUtils::writeBin(fs,prop);
     MstUtils::writeBin(fs,val);
@@ -179,7 +204,7 @@ void StructuresBinaryFile::detectFileVersion() {
     fs.close();
 }
 
-pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metadata) {
+pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metadata, bool verbose) {
     //if beginning of file, advance past the version
     if ((_version == 2) && (fs.tellg() == 0)) {
         string version; MstUtils::readBin(fs, version);
@@ -194,6 +219,7 @@ pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metada
         MstUtils::readBin(fs, sect);
         if (sect != 'S') MstUtils::error("The first section should be a Structure " + _filePath, "StructuresBinaryFile::readFileSection()");
         S->readData(fs);
+        if (verbose) cout << S->getName() << endl;
         //read meta-data;
         while (fs.peek() != EOF) {
             MstUtils::readBin(fs, sect);
@@ -201,10 +227,12 @@ pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metada
                 MstUtils::readBin(fs, prop);
                 MstUtils::readBin(fs, dscrt_val);
                 if (save_metadata) seed_dscrt_vals[prop][S->getName()] = dscrt_val;
+                if (verbose) cout << prop << " : " << dscrt_val << endl;
             } else if (sect == 'R') {
                 MstUtils::readBin(fs,prop);
                 MstUtils::readBin(fs, real_val);
                 if (save_metadata) seed_real_vals[prop][S->getName()] = real_val;
+                if (verbose) cout << prop << " : " << real_val << endl;
             } else if (sect == 'E') {
                 break;
             } else {

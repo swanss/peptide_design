@@ -245,7 +245,7 @@ void Fragmenter::fragment(contactList& cl) {
 				Residue* res2 = *it2;
 				vector<Residue*> id = {res1, res2};
 				id = sortByResidueIndex(id);
-				set<Residue*> contacts = {{res1}, {res2}};
+				set<Residue*> contacts = {res1, res2};
 				if (fragParams.variableFlank) {
 					secondaryContacts.insert(contactMap[res1].begin(), contactMap[res1].end());
 					secondaryContacts.insert(contactMap[res2].begin(), contactMap[res2].end());
@@ -260,7 +260,7 @@ void Fragmenter::fragment(contactList& cl) {
 		for (int i = 0; i < residues.size(); i++) {
 			Residue* res1 = residues[i];
 			vector<Residue*> id = {res1};
-			set<Residue*> contacts = {{res1}};
+			set<Residue*> contacts = {res1};
 			if (contactMap.count(res1) > 0) {
 				contacts.insert(contactMap[res1].begin(), contactMap[res1].end());
 			}

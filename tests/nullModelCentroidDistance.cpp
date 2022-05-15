@@ -52,7 +52,9 @@ int main(int argc, char *argv[]) {
     
     cout << "Generating null model seeds..." << endl;
     
-    naiveSeedsFromDB naiveSeeds(complex, p_cid, extfrag_bin, config.getDB(), config.getRL());
+    StructuresBinaryFile* seeds = new StructuresBinaryFile(extfrag_bin);
+    
+    naiveSeedsFromDB naiveSeeds(complex, p_cid, seeds, config.getDB(), config.getRL());
     if (op.isGiven("no_clash_check")) naiveSeeds.setClashChecking(false);
     if (op.isGiven("no_rejection_sampling")) naiveSeeds.setRejectionSampling(false);
     
@@ -68,6 +70,8 @@ int main(int argc, char *argv[]) {
     
     stats.setBinaryFile(type2_bin); //set to type 2 seeds
     stats.writeStatisticstoFile(outDir, type2_name, num_sampled);
+    
+    delete seeds;
     
     cout << "done" << endl;
     return 0;

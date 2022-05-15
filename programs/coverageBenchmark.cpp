@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
     int num_sampled = 10000; //this is approximately the number of seeds that will be sampled when writing line clouds
     
     // Variables provided by user
-    string extfrag_bin = op.getString("bin_path");
+    string extfrag_bin_path = op.getString("bin_path");
     Structure complex(op.getString("pdb"));
     string p_cid = op.getString("peptide");
     mstreal max_rmsd = op.getReal("max_rmsd",2.0);
@@ -46,6 +46,10 @@ int main(int argc, char *argv[]) {
     int max_seed_length_fuse = op.getInt("max_seed_length_fuse",5);
     bool force_chimera = op.isGiven("force_chimera");
     bool two_step_fuse = op.isGiven("two_step_fuse");
+    
+    // Read seeds file
+    bool read = true;
+    StructuresBinaryFile* extfrag_bin = new StructuresBinaryFile(extfrag_bin_path,read);
     
     string complex_name = MstSys::splitPath(complex.getName(), 1);
     string pdb_id = complex_name.substr(0,4); //PDB ID is always 4 characters
@@ -73,11 +77,6 @@ int main(int argc, char *argv[]) {
     IC.setMaxRMSD(max_rmsd);
     IC.setMaxSegmentLength(max_seed_length);
     IC.setMaxMatchNumber(max_match_num);
-    
-    // remove the chain from a copy of the complex
-    Structure target(complex);
-    Chain* peptideChain = target.getChainByID(p_cid);
-    target.deleteChain(peptideChain);
         
     //Randomize seeds
     /**
@@ -96,7 +95,7 @@ int main(int argc, char *argv[]) {
     string type2_proposal_bin = outDir + type2_proposal_name + ".bin";
     string type2_name = "type2_seeds";
     string type2_bin = outDir + type2_name + ".bin";
-    seedStatistics stats(complex, p_cid);
+    seedStatistics stats(complex, p_cid, extfrag_bin);
     if (hist_path != "") {
         bool position = false;
         bool orientation = true;
@@ -106,12 +105,12 @@ int main(int argc, char *argv[]) {
         //generate type 1 seeds
         naiveSeedsFromDB naiveSeeds(complex, p_cid, extfrag_bin, config.getDB(), config.getRL());
         if (op.isGiven("no_clash_check")) naiveSeeds.setClashChecking(false);
-        
-        timer.start();
-        naiveSeeds.newPose(outDir, type1_name, position, orientation);
-        timer.stop();
-        cout << "Generated type 1 seeds in " << timer.getDuration() << " seconds" << endl;
-        
+//
+//        timer.start();
+//        naiveSeeds.newPose(outDir, type1_name, position, orientation);
+//        timer.stop();
+//        cout << "Generated type 1 seeds in " << timer.getDuration() << " seconds" << endl;
+//
         //generate type 2 seeds and find distance distribution
         position = true;
         int num_seeds = 1000000; //need to sample this many seeds to get a smooth distribution
@@ -138,39 +137,40 @@ int main(int argc, char *argv[]) {
     }
     
     //Write statistics
+    cout << "Compute seed statistics..." << endl;
     stats.setBinaryFile(extfrag_bin);
     stats.writeStatisticstoFile(outDir, "extended_fragments", num_sampled);
     
     if (hist_path != "") {
-        stats.setBinaryFile(type1_bin);
-        stats.writeStatisticstoFile(outDir, type1_name, num_sampled);
+//        stats.setBinaryFile(type1_bin);
+//        stats.writeStatisticstoFile(outDir, type1_name, num_sampled);
         
         stats.setBinaryFile(type2_bin);
         stats.writeStatisticstoFile(outDir, type2_name, num_sampled);
     }
     
-    string lcloud_out;
-    cout << "Writing a line cloud file (TERM Extension) for visualization" << endl;
-    secondaryStructureClassifier classifier;
-    lcloud_out = outDir + "termext_seed_ca.lcloud";
-    fstream out;
-    MstUtils::openFile(out, lcloud_out, fstream::out);
-    classifier.writeCaInfotoLineFile(extfrag_bin, num_sampled, out);
-    out.close();
-    
-    if (hist_path != "") {
-        cout << "Writing a line cloud file (type 1) for visualization" << endl;
-        lcloud_out = outDir + "type1_seed_ca.lcloud";
-        MstUtils::openFile(out, lcloud_out, fstream::out);
-        classifier.writeCaInfotoLineFile(type1_bin, num_sampled, out);
-        out.close();
-        
-        cout << "Writing a line cloud file (type 2) for visualization" << endl;
-        lcloud_out = outDir + "type2_seed_ca.lcloud";
-        MstUtils::openFile(out, lcloud_out, fstream::out);
-        classifier.writeCaInfotoLineFile(type2_bin, num_sampled, out);
-        out.close();
-    }
+//    string lcloud_out;
+//    cout << "Writing a line cloud file (TERM Extension) for visualization" << endl;
+//    secondaryStructureClassifier classifier;
+//    lcloud_out = outDir + "termext_seed_ca.lcloud";
+//    fstream out;
+//    MstUtils::openFile(out, lcloud_out, fstream::out);
+//    classifier.writeCaInfotoLineFile(extfrag_bin, num_sampled, out);
+//    out.close();
+//
+//    if (hist_path != "") {
+//        cout << "Writing a line cloud file (type 1) for visualization" << endl;
+//        lcloud_out = outDir + "type1_seed_ca.lcloud";
+//        MstUtils::openFile(out, lcloud_out, fstream::out);
+//        classifier.writeCaInfotoLineFile(type1_bin, num_sampled, out);
+//        out.close();
+//
+//        cout << "Writing a line cloud file (type 2) for visualization" << endl;
+//        lcloud_out = outDir + "type2_seed_ca.lcloud";
+//        MstUtils::openFile(out, lcloud_out, fstream::out);
+//        classifier.writeCaInfotoLineFile(type2_bin, num_sampled, out);
+//        out.close();
+//    }
     
     
     //Map the seed coverage and, if possible, fuse covering seeds
@@ -190,17 +190,22 @@ int main(int argc, char *argv[]) {
     if (write_all_aligned) IC.writeAllAlignedSeedsInfo(covDir+"termext_");
     IC.writeBestAlignedSeeds(covDir+"termext_",1,true);
     
+    // remove the chain from a copy of the complex
+    Structure target(complex);
+    Chain* peptideChain = target.getChainByID(p_cid);
+    target.deleteChain(peptideChain);
+    
     coverageBenchmarkUtils::fuseCoveringSeeds(&IC, force_chimera, max_seed_length_fuse, fusDir+"termext", pdb_id, target, complex, two_step_fuse, config.getRL());
     
     if (hist_path != "") {
-        IC.setSeeds(type1_bin);
-        cout << "Search for segments of seed chains (type 1) that map to the peptide..." << endl;
-        IC.findCoveringSeeds();
-        cout << "Write coverage to files..." << endl;
-        if (write_all_aligned) IC.writeAllAlignedSeedsInfo(covDir+"type1_");
-        IC.writeBestAlignedSeeds(covDir+"type1_",1,true);
-
-        coverageBenchmarkUtils::fuseCoveringSeeds(&IC, force_chimera, max_seed_length_fuse, fusDir+"type1", pdb_id, target, complex, two_step_fuse, config.getRL());
+//        IC.setSeeds(type1_bin);
+//        cout << "Search for segments of seed chains (type 1) that map to the peptide..." << endl;
+//        IC.findCoveringSeeds();
+//        cout << "Write coverage to files..." << endl;
+//        if (write_all_aligned) IC.writeAllAlignedSeedsInfo(covDir+"type1_");
+//        IC.writeBestAlignedSeeds(covDir+"type1_",1,true);
+//
+//        coverageBenchmarkUtils::fuseCoveringSeeds(&IC, force_chimera, max_seed_length_fuse, fusDir+"type1", pdb_id, target, complex, two_step_fuse, config.getRL());
 
         
         IC.setSeeds(type2_bin);
@@ -223,6 +228,7 @@ int main(int argc, char *argv[]) {
     char *type2_bin_char = &type2_bin[0];
     remove(type2_bin_char);
     
+    delete extfrag_bin;
     cout << "Done" << endl;
     return 0;
 }

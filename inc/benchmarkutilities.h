@@ -196,11 +196,23 @@ private:
 
 class seedStatistics {
 public:
-    seedStatistics(Structure& S, string p_id, string seedBinaryPath = "");
+    seedStatistics(Structure& S, string p_id, string _seedBinaryPath);
+    seedStatistics(Structure& S, string p_id, StructuresBinaryFile* _seed_bin = nullptr);
     
-    void setBinaryFile(string seedBinaryPath) {
-        delete bin_file;
-        bin_file = new StructuresBinaryFile(seedBinaryPath);
+    ~seedStatistics() {
+        if (seedBinaryPath != "") delete seed_bin;
+    }
+    
+    void setBinaryFile(string _seedBinaryPath) {
+        if (seedBinaryPath != "") delete seed_bin;
+        seedBinaryPath = _seedBinaryPath;
+        seed_bin = new StructuresBinaryFile(seedBinaryPath);
+    }
+    
+    void setBinaryFile(StructuresBinaryFile* bin) {
+        if (seedBinaryPath != "") delete seed_bin;
+        seedBinaryPath = "";
+        seed_bin = bin;
     }
     
     void writeStatisticstoFile(string output_path, string output_name, int num_final_seeds);
@@ -212,12 +224,16 @@ public:
     mstreal point2NearestProteinAtom(CartesianPoint point);
     //  mstreal atom2NearestProteinAtom(Structure* seed);
     
+protected:
+    void constructor(string p_id);
+    
 private:
     Structure& complex;
     Structure target;
     Chain* peptide;
     
-    StructuresBinaryFile* bin_file;
+    string seedBinaryPath = "";
+    StructuresBinaryFile* seed_bin = nullptr;
     
     // variables stored for identifying seeds with clashes during randomization
     Structure target_BB_structure;
@@ -236,7 +252,7 @@ class naiveSeedsFromBin {
      seedBinaryFile.
      */
 public:
-    naiveSeedsFromBin(Structure& S, string p_id, string seedBinaryPath_in, string rotLibPath, rejectionSampler* sampler = nullptr);
+    naiveSeedsFromBin(Structure& S, string p_id, StructuresBinaryFile* _bin, string rotLibPath, rejectionSampler* sampler = nullptr);
     
     ~naiveSeedsFromBin() {
         delete target_PS;
@@ -270,7 +286,7 @@ private:
     vector<Residue*> peptide_interface_residues;
     string seed_chain_id = "0";
     
-    StructuresBinaryFile seeds;
+    StructuresBinaryFile* seeds = nullptr;
     set<string> int_properties;
     set<string> real_properties;
     
@@ -299,7 +315,7 @@ private:
 
 class naiveSeedsFromDB : public naiveSeedsFromBin {
 public:
-    naiveSeedsFromDB(Structure& S, string p_id, string seedBinaryPath_in, const string& dbFile, string rotLibPath, rejectionSampler* sampler = nullptr, int max_len = 50) : naiveSeedsFromBin(S,p_id,seedBinaryPath_in,rotLibPath,sampler), seedSampler(dbFile,max_len) {};
+    naiveSeedsFromDB(Structure& S, string p_id, StructuresBinaryFile* seed_bin, const string& dbFile, string rotLibPath, rejectionSampler* sampler = nullptr, int max_len = 50) : naiveSeedsFromBin(S,p_id,seed_bin,rotLibPath,sampler), seedSampler(dbFile,max_len) {};
     
     /*
      Loads each seed from an existing seedBinaryFile, finds its residue length, and samples a new one

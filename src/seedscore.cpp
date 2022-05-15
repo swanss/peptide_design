@@ -768,7 +768,7 @@ unordered_map<Residue*, mstreal> SeedDesignabilityScorer::designabilityScore(Str
         
         // if the homologyCut value is <= 1.0, will filter out homologous matches
         termData tD;
-        if (queryHomologyCutoff <= 1.0) tD.define(contactPair, vector<int>(2,fragParams.maxNumFlank));
+        if (queryHomologyCutoff <= 1.0) tD.define(contactPair, fragParams.maxNumFlank);
         
         fasst->setQuery(fragStructure);
         double rmsdCut = rParams.rmsdCutoff(fragStructure);

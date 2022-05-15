@@ -7,9 +7,8 @@ seedTERM::seedTERM() {
     // compiler error thrown unless I include this
 }
 
-seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRes, vector<int> _flankResPerInteractingRes, bool _search, mstreal max_rmsd, bool discard_match_data) : max_RMSD_cutoff(max_rmsd), flankResPerInteractingRes(_flankResPerInteractingRes), interactingRes(_interactingRes) {
+seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRes, int _flankRes, bool _search, mstreal max_rmsd, bool discard_match_data) : max_RMSD_cutoff(max_rmsd), flankRes(_flankRes), search(_search), interactingRes(_interactingRes) {
     MstTimer timer;
-    timer.start();
     
     // set up the fragment
     parent = FragmenterObj;
@@ -20,7 +19,7 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRe
     
     //generate the structure
     if (parent->params.verbose) cout << "Creating TERM centered around residues: " << MstUtils::vecPtrToString(interactingRes," ") << endl;
-    cenResIdx = TERMUtils::selectTERM(interactingRes, fragmentStructure, flankResPerInteractingRes, &(allResIdx))[0];
+    cenResIdx = TERMUtils::selectTERM(interactingRes, fragmentStructure, flankRes, &(allResIdx))[0];
     
     //get the complexity
     effective_degrees_of_freedom = generalUtilities::fragDegreesOfFreedom(allResIdx, *parent->getTarget(), 15);
@@ -30,73 +29,12 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRe
     //NOTE: this name uses the residue numbers from the parent structure
     setName();
     
-    //reset the residue numbers to the residue indices of the parent structure, so that they can be
-    //easily added to a fusion topology.
-//    for (int i = 0; i < fragmentStructure.residueSize(); i++) {
-//        Residue* R = &fragmentStructure.getResidue(i);
-//        R->setNum(allResIdx[i]);
-//
-//        num_extended_fragments = 0;
-//    }
-    
     // find the RMSD, regardless of whether fragment will be searched
     adaptive_RMSD_cutoff = RMSDCalculator::rmsdCutoff(allResIdx, *parent->getTarget(), max_RMSD_cutoff, 15); // NOTE: the residues in the same chain of the original structure are not by default assumed to be independent
     RMSD_cutoff = FragmenterObj->getAdaptiveRMSD() ? adaptive_RMSD_cutoff : max_RMSD_cutoff;
     
-    search = _search;
-    if (search) {
-        //search for matches
-        FragmenterObj->F.setRMSDCutoff(RMSD_cutoff);
-        FragmenterObj->F.setQuery(fragmentStructure);
-        FragmenterObj->F.options().unsetSequenceConstraints();
-        //if seq_const is true, apply
-        if (parent->params.seq_const != TEParams::seqConstType::NONE) {
-            if (SeqTools::isUnknown(cenRes->getName())) cout << "Warning: could not apply sequence constraint when constructing seedTERM centered around " << cenRes->getChainID() << cenRes->getNum() << " residue name: " << cenRes->getName() << " is unknown" << endl;
-            Structure splitQuery = FragmenterObj->F.getQuery();
-            fasstSeqConstSimple seqConst(splitQuery.chainSize());
-            if (parent->params.seq_const == TEParams::seqConstType::CEN_RES_ONLY) {
-                const Residue& res = splitQuery.getResidue(cenResIdx);
-                seqConst.addConstraint(res.getChain()->getIndex(), res.getResidueIndexInChain(), {res.getName()});
-            } else if (parent->params.seq_const == TEParams::seqConstType::ALL_RES) {
-                for (Residue* R : splitQuery.getResidues()) seqConst.addConstraint(R->getChain()->getIndex(), R->getResidueIndexInChain(), {R->getName()});
-            } else if (parent->params.seq_const == TEParams::seqConstType::BLOSUM62) {
-                if (parent->params.acceptable_aa_substitutions_path == "") MstUtils::error("seqConstType 'BLOSUM62' selected, but no path to acceptable substitions file was provided");
-                for (Residue* R : splitQuery.getResidues()) {
-                    string singleAA = SeqTools::toSingle(R->getName());
-                    vector<string>& acceptable_aa_subs = parent->params.acceptable_aa_substitutions[singleAA];
-                    seqConst.addConstraint(R->getChain()->getIndex(), R->getResidueIndexInChain(), acceptable_aa_subs);
-                }
-            } else if (parent->params.seq_const == TEParams::seqConstType::HYBRID) {
-                if (parent->params.acceptable_aa_substitutions_path == "") MstUtils::error("seqConstType 'HYBRID' selected, but no path to acceptable substitions file was provided");
-                Residue* cenRes = &splitQuery.getResidue(cenResIdx);
-                for (Residue* R : splitQuery.getResidues()) {
-                    if (R == cenRes) {
-                        seqConst.addConstraint(cenRes->getChain()->getIndex(), cenRes->getResidueIndexInChain(), {cenRes->getName()});
-                    } else {
-                        string singleAA = SeqTools::toSingle(R->getName());
-                        vector<string>& acceptable_aa_subs = parent->params.acceptable_aa_substitutions[singleAA];
-                        seqConst.addConstraint(R->getChain()->getIndex(), R->getResidueIndexInChain(), acceptable_aa_subs);
-                    }
-                }
-            }
-            FragmenterObj->F.options().setSequenceConstraints(seqConst);
-        }
-        
-        // Checks for homology between the query and the match before adding to set
-        tD.define(interactingRes,flankResPerInteractingRes);
-        fasstSolutionSet sols = FragmenterObj->F.search();
-        numMatchesPreHomologyFiltering = sols.size();
-        if (parent->params.verbose) cout << "When searching found " << sols.size() << " matches. Now filtering by homology cutoff: " << parent->params.homology_cutoff << endl;
-        tD.setMatches(sols,parent->params.homology_cutoff,&parent->F);
-        numMatches = tD.numMatches();
-        if (parent->params.verbose) cout << "After filtering have " << tD.numMatches() << " matches" << endl;
-    }
-    
-    timer.stop();
-    construction_time = timer.getDuration();
-    if (discard_match_data) tD = termData();
-    if (parent->params.verbose) cout << "It took " << construction_time << " s to construct " << name << " with " << numMatches << " matches with RMSD cutoff: " << RMSD_cutoff << endl;
-    
+    if (search) searchForMatches(discard_match_data);
+    else construction_time = -1.0;
     //store the secondary structure in the resname field of the fragmentStructure residues;
     vector<Residue*> fragmentResidues = fragmentStructure.getResidues();
     for (int i = 0; i < allResIdx.size(); i++) {
@@ -105,27 +43,6 @@ seedTERM::seedTERM(TermExtension* FragmenterObj, vector<Residue*> _interactingRe
         R_fragmentCopy->setName(parent->sec_structure.classifyResidue(R_original));
     }
 };
-
-//seedTERM::seedTERM(const seedTERM& F) {
-//    parent = F.parent;
-//    fragmentStructure = F.fragmentStructure;
-//    cenRes = F.cenRes;
-//    cenResName = F.cenResName;
-//    interactingRes = F.interactingRes;
-//    allResIdx = F.allResIdx;
-//    cenResIdx = F.cenResIdx; //index of the index of the central residue
-//    maxFlank = F.maxFlank;
-//    numMatchesPreHomologyFiltering = F.numMatchesPreHomologyFiltering;
-//    tD = F.tD;
-//    search = F.search;
-//    seeds = F.seeds;
-//    RMSD_cutoff = F.RMSD_cutoff;
-//    effective_degrees_of_freedom = F.effective_degrees_of_freedom;
-//    rmsd_adjust_factor = F.rmsd_adjust_factor;
-//    name = F.name;
-//    construction_time = F.construction_time;
-//    num_extended_fragments = F.num_extended_fragments;
-//}
 
 seedTERM::~seedTERM() {
     for (int i = 0; i < seeds.size(); i++) {
@@ -146,7 +63,7 @@ void seedTERM::setName() {
     ss << "-";
     
     // flanking residue number for each residue (assume these will always be <= 9, so no delim)
-    for (int flankRes : flankResPerInteractingRes) ss << MstUtils::toString(flankRes);
+    ss << MstUtils::toString(flankRes);
     name = ss.str();
     cout << "Fragment name set to:  " << name << endl;
 }
@@ -247,6 +164,65 @@ void seedTERM::deleteExtendedFragments() {
         delete seeds[i].extended_fragment;
     }
     seeds.clear();
+}
+
+void seedTERM::searchForMatches(bool discard_match_data) {
+    if (searched) return;
+    else search = true;
+    MstTimer timer;
+    timer.start();
+    
+    //search for matches
+    parent->F.setRMSDCutoff(RMSD_cutoff);
+    parent->F.setQuery(fragmentStructure);
+    parent->F.options().unsetSequenceConstraints();
+    //if seq_const is true, apply
+    if (parent->params.seq_const != TEParams::seqConstType::NONE) {
+        if (SeqTools::isUnknown(cenRes->getName())) cout << "Warning: could not apply sequence constraint when constructing seedTERM centered around " << cenRes->getChainID() << cenRes->getNum() << " residue name: " << cenRes->getName() << " is unknown" << endl;
+        Structure splitQuery = parent->F.getQuery();
+        fasstSeqConstSimple seqConst(splitQuery.chainSize());
+        if (parent->params.seq_const == TEParams::seqConstType::CEN_RES_ONLY) {
+            const Residue& res = splitQuery.getResidue(cenResIdx);
+            seqConst.addConstraint(res.getChain()->getIndex(), res.getResidueIndexInChain(), {res.getName()});
+        } else if (parent->params.seq_const == TEParams::seqConstType::ALL_RES) {
+            for (Residue* R : splitQuery.getResidues()) seqConst.addConstraint(R->getChain()->getIndex(), R->getResidueIndexInChain(), {R->getName()});
+        } else if (parent->params.seq_const == TEParams::seqConstType::BLOSUM62) {
+            if (parent->params.acceptable_aa_substitutions_path == "") MstUtils::error("seqConstType 'BLOSUM62' selected, but no path to acceptable substitions file was provided");
+            for (Residue* R : splitQuery.getResidues()) {
+                string singleAA = SeqTools::toSingle(R->getName());
+                vector<string>& acceptable_aa_subs = parent->params.acceptable_aa_substitutions[singleAA];
+                seqConst.addConstraint(R->getChain()->getIndex(), R->getResidueIndexInChain(), acceptable_aa_subs);
+            }
+        } else if (parent->params.seq_const == TEParams::seqConstType::HYBRID) {
+            if (parent->params.acceptable_aa_substitutions_path == "") MstUtils::error("seqConstType 'HYBRID' selected, but no path to acceptable substitions file was provided");
+            Residue* cenRes = &splitQuery.getResidue(cenResIdx);
+            for (Residue* R : splitQuery.getResidues()) {
+                if (R == cenRes) {
+                    seqConst.addConstraint(cenRes->getChain()->getIndex(), cenRes->getResidueIndexInChain(), {cenRes->getName()});
+                } else {
+                    string singleAA = SeqTools::toSingle(R->getName());
+                    vector<string>& acceptable_aa_subs = parent->params.acceptable_aa_substitutions[singleAA];
+                    seqConst.addConstraint(R->getChain()->getIndex(), R->getResidueIndexInChain(), acceptable_aa_subs);
+                }
+            }
+        }
+        parent->F.options().setSequenceConstraints(seqConst);
+    }
+    
+    // Checks for homology between the query and the match before adding to set
+    tD.define(interactingRes,flankRes);
+    fasstSolutionSet sols = parent->F.search();
+    numMatchesPreHomologyFiltering = sols.size();
+    if (parent->params.verbose) cout << "When searching found " << sols.size() << " matches. Now filtering by homology cutoff: " << parent->params.homology_cutoff << endl;
+    tD.setMatches(sols,parent->params.homology_cutoff,&parent->F);
+    numMatches = tD.numMatches();
+    if (parent->params.verbose) cout << "After filtering have " << tD.numMatches() << " matches" << endl;
+    
+    timer.stop();
+    construction_time = timer.getDuration();
+    if (discard_match_data) tD = termData();
+    if (parent->params.verbose) cout << "It took " << construction_time << " s to construct " << name << " with " << numMatches << " matches with RMSD cutoff: " << RMSD_cutoff << endl;
+    searched = true;
 }
 
 int seedTERM::getSegmentNum(mstreal maxPeptideBondLen) {
@@ -591,7 +567,7 @@ void TermExtension::generateFragments(bool search) {
             // Also set the maximum number of matches to keep the memory usage down
             F.setMaxNumMatches(params.match_req);
               
-            seedTERM* frag = new seedTERM(this, {cenRes}, {params.flanking_res}, search, params.max_rmsd);
+            seedTERM* frag = new seedTERM(this, {cenRes}, params.flanking_res, search, params.max_rmsd);
             all_fragments.push_back(frag);
             
 //            params.adaptive_rmsd = originalAdaptiveRMSD;
@@ -614,9 +590,8 @@ void TermExtension::generateFragments(bool search) {
             for (vector<Residue*> resSet : residueCombinations) {
                 resSet.push_back(cenRes);
                 reverse(resSet.begin(),resSet.end()); //cenRes should be at front
-                vector<int> flankRes(resSet.size(),params.flanking_res);
                 bool discard_data = true; //otherwise will run out of memory
-                seedTERM* frag = new seedTERM(this, resSet, flankRes, search, params.max_rmsd, discard_data);
+                seedTERM* frag = new seedTERM(this, resSet, params.flanking_res, search, params.max_rmsd, discard_data);
                 all_fragments.push_back(frag);
             }
             
@@ -632,7 +607,7 @@ void TermExtension::generateFragments(bool search) {
             // Also set the maximum number of matches to keep the memory usage down
             F.setMaxNumMatches(params.match_req);
             
-            current_f = new seedTERM(this, {cenRes}, {current_flank_res}, search, params.max_rmsd);
+            current_f = new seedTERM(this, {cenRes}, current_flank_res, search, params.max_rmsd);
             
             // If there were enough matches, try to grow by adding flanking residues
             if (params.verbose) cout << "Will now try to grow fragment by extending central segment" << endl;
@@ -640,7 +615,7 @@ void TermExtension::generateFragments(bool search) {
             seedTERM* new_f;
             while (current_flank_res <= params.flanking_res) {
                 // add flanking residues until params.flanking_res is reached
-                new_f = new seedTERM(this, {cenRes}, {current_flank_res}, search, params.max_rmsd);
+                new_f = new seedTERM(this, {cenRes}, current_flank_res, search, params.max_rmsd);
                 
                 if (new_f->getNumMatchesPreFiltering() < params.match_req) {
                     // couldn't find enough matches, store the last fragment that had sufficient matches
@@ -680,7 +655,7 @@ void TermExtension::generateFragments(bool search) {
             
             // Search smallest reasonable fragment (three residue segment)
             if (params.verbose) cout << "Create and search smallest reasonable fragment (three residue segment)" << endl;
-            current_f = new seedTERM(this, {cenRes}, {current_flank_res}, search, params.max_rmsd);
+            current_f = new seedTERM(this, {cenRes}, current_flank_res, search, params.max_rmsd);
             
             
             
@@ -707,7 +682,7 @@ void TermExtension::generateFragments(bool search) {
             bool should_continue = false;
             while (current_flank_res <= params.flanking_res) {
                 // add flanking residues until params.flanking_res is reached
-                new_f = new seedTERM(this, {cenRes}, {current_flank_res}, search, params.max_rmsd);
+                new_f = new seedTERM(this, {cenRes}, current_flank_res, search, params.max_rmsd);
                 
                 if (new_f->getNumMatchesPreFiltering() < params.match_req) {
                     // couldn't find enough matches, store the last fragment that had sufficient matches
@@ -750,7 +725,7 @@ void TermExtension::generateFragments(bool search) {
             vector<Residue*> contResidues = generalUtilities::getContactingResidues(conts);
             
             // Expansion loop: continues until there are no expansions that have N matches
-            if (params.verbose) cout << "Will now try to grow fragment by 1) extending existing segments or 2) adding new segments by adding contacts" << endl;
+            if (params.verbose) cout << "Will now try to grow fragment by adding new segments by adding contacts" << endl;
             vector<seedTERM*> expansions = generateAllExpansions(current_f,contResidues,search);
             int count = 1;
             while (!expansions.empty()) {
@@ -928,7 +903,7 @@ void TermExtension::extendFragmentsandWriteStructures(seedTERM::seedType option,
     StructuresBinaryFile* bin = new StructuresBinaryFile(binFile,false); //open in write mode, start new file
     
     //write header
-    if (params.verbose) match_out << "targetID\tcenResID\tmatchRes\tcontactRes\tseqConstContactRes\tinterferingRes\tinterferedRes\tbbInteractionRes\tselectedRes\tclashFilteredRes" << endl;
+    if (params.verbose) match_out << "targetID\tcenResID\tmatchRes\tcontactRes\tseqConstContactRes\tinterferingRes\tinterferedRes\tbbInteractionRes\tselectedRes\tclashFilteredRes\tseedNames" << endl;
     
     cout << "Extending " << all_fragments.size() << " fragments total, each with no more than " << params.match_req << " matches" << endl;
     
@@ -990,7 +965,7 @@ int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, Str
         // the minimum_seed_length into their own vector
         vector<vector<int>> seed_segments = getSeedSegments(filtered_seed_res_idx, transformed_match_structure);
         
-        vector<string> seed_sec_structure = classifySegmentsInMatchProtein(transformed_match_structure,seed_segments);
+        vector<string> seed_sec_structure = classifySegmentsUsingSTRIDELabels(target_idx,seed_segments);
         
         //check if central residue of the match has same sequence as query
         string R_match_aaName = transformed_match_structure->getResidue(match_idx[frag->getCenResIdx()]).getName();
@@ -998,6 +973,10 @@ int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, Str
         
         //use the match_idx/extension_idx to make a fragment extension
         vector<Structure*> new_structures = frag->extendMatch(option,transformed_match_structure,match_idx,seed_segments,seed_sec_structure,sol_id,sol.getRMSD(),target_idx,same_res);
+        
+        for (Structure* extfrag : new_structures) {
+            match << extfrag->getName() << "," << endl;
+        }
         
         if (storeAll) {
             transformed_match_structure->writePDB(wholeMatchProteinDir+frag->getName()+"_"+MstUtils::toString(target_idx)+"_wholeMatch.pdb");
@@ -1026,55 +1005,45 @@ int TermExtension::extendFragment(seedTERM* frag, seedTERM::seedType option, Str
 vector<seedTERM*> TermExtension::generateAllExpansions(seedTERM* fragToExpand, vector<Residue*> contactingRes, bool search) {
     vector<seedTERM*> fragExpansions;
     
-    // 1) Try incrementing the number of flanking residues on each segment
+    // Find new contacts to the central residue and add to fragment as new segment
     vector<Residue*> interactingRes = fragToExpand->getInteractingRes();
-    vector<int> flankResPerInteractingRes = fragToExpand->getFlankingResPerInteractingRes();
-    vector<int> newFlankResPerInteractingRes;
-    for (int i = 0; i < flankResPerInteractingRes.size(); i++) {
-        if (flankResPerInteractingRes[i] < params.flanking_res) {
-            // Make new vector of flankRes, increment at position
-            newFlankResPerInteractingRes = flankResPerInteractingRes;
-            newFlankResPerInteractingRes[i] = newFlankResPerInteractingRes[i] + 1;
-            
-            // Construct new fragment and add if not already equivalent to a member
-            seedTERM* new_f = new seedTERM(this,interactingRes,newFlankResPerInteractingRes,search,params.max_rmsd);
-            fragExpansions.push_back(new_f);
-        }
-    }
-    
-    // 2) Find new contacts to the central residue and add to fragment as new segment
     vector<Residue*> tryAdding =  MstUtils::setdiff(contactingRes,interactingRes);
     
     for (Residue* newRes : tryAdding) {
         vector<Residue*> newInteractingRes = interactingRes;
         newInteractingRes.insert(newInteractingRes.end(),newRes);
         
-        newFlankResPerInteractingRes = flankResPerInteractingRes;
-        newFlankResPerInteractingRes.insert(newFlankResPerInteractingRes.end(),1);
-        
          // Construct new fragment and add if not already equivalent to a member
-        seedTERM* new_f = new seedTERM(this,newInteractingRes,newFlankResPerInteractingRes,search,params.max_rmsd);
+        seedTERM* new_f = new seedTERM(this,newInteractingRes,params.flanking_res,false,params.max_rmsd);
         fragExpansions.push_back(new_f);;
     }
     return fragExpansions;
 }
 
 seedTERM* TermExtension::bestFragment(vector<seedTERM*> fragExpansions) {
-//    // organize the fragment expansions by number of residues
-//    multimap<int,seedTERM*> fragExpansionsMultiMap;
-//    for (seedTERM* t : fragExpansions) {
-//        int residueSize = t->getNumRes();
-//        fragExpansionsMultiMap.emplace(residueSize,t);
-//    }
-//
-//    int maxResSize = fragExpansionsMultiMap.rbegin()->first;
-//    /// ugh fix later
+    // The goal is to eliminate uneccessary searches. The fragments are sorted by size
     
-    // dont prematurely optimize...
     if (fragExpansions.empty()) return nullptr;
     sort(fragExpansions.begin(),fragExpansions.end());
+    int currentSize = -1;
+    vector<seedTERM*> currentGroup;
     for (auto it = fragExpansions.rbegin(); it != fragExpansions.rend(); it++) {
-        if ((*it)->getNumMatchesPreFiltering() >= params.match_req) return *it;
+        // check if this fragment is smaller than the last one and we have some viable fragments in
+        // current group
+        if (((*it)->getNumRes() <= currentSize) && (!currentGroup.empty())) {
+            // select the fragment with the most matches and terminate
+            sort(currentGroup.begin(),currentGroup.end());
+            return currentGroup.back();
+        }
+        // search for matches, and if has enough, add to currentGroup
+        (*it)->searchForMatches();
+        if ((*it)->getNumMatchesPreFiltering() >= params.match_req) currentGroup.push_back(*it);
+        currentSize = (*it)->getNumRes();
+    }
+    if (!currentGroup.empty()) {
+        // select the fragment with the most matches and terminate
+        sort(currentGroup.begin(),currentGroup.end());
+        return currentGroup.back();
     }
     return nullptr;
 }
@@ -1211,7 +1180,10 @@ vector<int> TermExtension::getNonClashingResidueIdx(vector<int> seed_res_idx, co
         bool clash = isClash(*target_PS, target_BB_atoms, R_bb_atoms);
         if (!clash) filtered_res_idx.push_back(seed_res_idx[i]);
     }
-    for (int filt_res : filtered_res_idx) match << filt_res << (filt_res != filtered_res_idx.back() ? "," : "");
+    if (params.verbose) {
+        for (int filt_res : filtered_res_idx) match << filt_res << (filt_res != filtered_res_idx.back() ? "," : "");
+        match << "\t";
+            };
     return filtered_res_idx;
 }
 
@@ -1249,6 +1221,24 @@ vector<vector<int>> TermExtension::getSeedSegments(vector<int> seed_res_idx, con
 vector<string> TermExtension::classifySegmentsInMatchProtein(Structure* S, vector<vector<int>> seed_segments) {
     vector<string> classifications;
     for (vector<int> segment : seed_segments) classifications.push_back(sec_structure.classifyResInStruct(S, segment));
+    return classifications;
+}
+
+vector<string> TermExtension::classifySegmentsUsingSTRIDELabels(int target_idx, vector<vector<int>> seed_segments) {
+    vector<string> classifications;
+    for (vector<int> segment : seed_segments) {
+        string segment_ss = "";
+        string res_stride;
+        for (int res_idx : segment) {
+            res_stride = F.getResidueStringProperty(target_idx, "stride", res_idx);
+            if ((res_stride.empty())||(res_stride == " ")) {
+                cout << "residue STRIDE label missing, replacing with 'C'" << endl;
+                res_stride = "C";
+            }
+            segment_ss += res_stride;
+        }
+        classifications.push_back(segment_ss);
+    }
     return classifications;
 }
 

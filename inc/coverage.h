@@ -131,6 +131,7 @@ public:
     void setMaxSegmentLength(int max_length) {max_allowable_segment_length = min(peptide_chain->residueSize(),max_length);}
     void setMaxMatchNumber(int _match_number_cutoff) {match_number_cutoff = _match_number_cutoff;}
     void setSeeds(string binFilePath);
+    void setSeeds(StructuresBinaryFile* bin);
     
     //map seeds to peptide segments
     void findCoveringSeeds();
@@ -206,12 +207,14 @@ private:
     int match_number_cutoff;
     
     // peptide-protein complex
-    Structure complex;
+    Structure* original_complex;
+    Structure complex; //stripped of sidechains
     Chain* peptide_chain;
     int peptide_first_residue_index_in_structure;
     
     // protein only structure
     Structure* target;
+    vector<Chain*> target_chains; //pointers from complex
     vector<Residue*> bindingSiteRes;
     
     // peptide-protein contacts
@@ -235,8 +238,8 @@ private:
     RMSDCalculator rmsd_calc;
     
     // seed structures binary file
-    string binFilePath;
-    StructuresBinaryFile* seeds;
+    string binFilePath = "";
+    StructuresBinaryFile* seeds = nullptr;
     
     friend class pathFromCoveringSeeds;
 };

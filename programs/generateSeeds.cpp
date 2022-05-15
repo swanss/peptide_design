@@ -105,7 +105,10 @@ int main(int argc, char *argv[]) {
     cout << timer.getDuration() << " seconds to generate fragments" << endl;
     
     timer.start();
-    if (only_store_covering) TE.setIC(IC);
+    if (only_store_covering) {
+        cout << "Will only store seeds that cover the peptide" << endl;
+        TE.setIC(IC);
+    }
     if (!no_seeds) TE.extendFragmentsandWriteStructures(seedTERM::MANY_CONTACT,outDir);
     timer.stop();
     cout << timer.getDuration() << " seconds to generate seeds" << endl;

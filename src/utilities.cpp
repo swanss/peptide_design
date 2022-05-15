@@ -127,7 +127,8 @@ vector<pair<Residue*, Residue*>> generalUtilities::getContactsWith(const vector<
         }
         else if (cType == 2) {
             //don't include res that are already included by default as flank
-            contList = C.getBBInteraction(source, bbInteraction_cutoff);
+          int ignoreFlank = 3;
+            contList = C.getBBInteraction(source, bbInteraction_cutoff, ignoreFlank);
         }
         // go through each and insert into list, in the right order, if it qualifies
         contList.sortByDegree();
