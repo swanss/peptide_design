@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     MstTimer timer;
     
     // Variables provided by user
-    Structure target(op.getString("targetPDB"));
+    Structure target(op.getString("targetPDB"),"ALLOW ILE CD1");
     string params_file_path = op.getString("paramsFile");
     string p_cid = op.getString("peptideChainID","");
     string sel_str = op.getString("targetSel","");

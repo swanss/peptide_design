@@ -372,6 +372,8 @@ void TEParams::setParamsFromFile(string params_file_path) {
             verbose = MstUtils::toInt(line_split[1]);
         } else if (line_split[0] == "acceptable_aa_substitutions_path") {
             acceptable_aa_substitutions_path = MstUtils::toString(line_split[1]);
+        } else if (line_split[0] == "ignoreMissingSTRIDELabel") {
+            ignoreMissingSTRIDELabel = MstUtils::toInt(line_split[1]);
         } else MstUtils::error("Option: '"+line_split[0]+"' not recognized","TEParams::TEParams");
     }
     if (acceptable_aa_substitutions_path != "") loadAASubMap();
@@ -392,6 +394,7 @@ void TEParams::printValues() {
     cout << "seed_flanking_res " << seed_flanking_res << endl;
     cout << "homology_cutoff " << homology_cutoff << endl;
     cout << "verbose " << verbose << endl;
+    cout << "ignoreMissingSTRIDELabel " << ignoreMissingSTRIDELabel << endl;
     
     if (acceptable_aa_substitutions_path != "") {
         cout << "amino acid substitution map: " << endl;
@@ -1232,8 +1235,8 @@ vector<string> TermExtension::classifySegmentsUsingSTRIDELabels(int target_idx, 
         for (int res_idx : segment) {
             res_stride = F.getResidueStringProperty(target_idx, "stride", res_idx);
             if ((res_stride.empty())||(res_stride == " ")) {
-                cout << "residue STRIDE label missing, replacing with 'C'" << endl;
-                res_stride = "C";
+                if (params.ignoreMissingSTRIDELabel) res_stride = "C";
+                else MstUtils::error("Residue STRIDE label missing for residue in DB","TermExtension::classifySegmentsUsingSTRIDELabels");
             }
             segment_ss += res_stride;
         }

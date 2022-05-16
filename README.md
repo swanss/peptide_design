@@ -36,7 +36,7 @@ The default location for both is in the parent directory of `peptide_design`.
 
 See `peptide_design/example/` for an example of how to use this pipeline to design peptide backbones.
 
-Before starting, you will need to make a configuration file, which will be reused throughout the process. This will provide the path to 1) a FASST file, i.e. a database of structures that have been processed and can be searched and 2) the backbone-dependent rotamer library (which can be found in the MST repo). ex: `peptide_design/example/input_files/singlechain.configfile`
+Before starting, you will need to make a configuration file, which will be reused throughout the process. This will provide the path to 1) a FASST file, i.e. a database of structures that have been processed and can be searched and 2) the backbone-dependent rotamer library (which can be found in the MST repo). ex: `peptide_design/example/input_files/singlechain.configfile`. NOTE: a FASST database is provided in testfiles (`testfiles/singlechain_22188_sim30_STRIDE.db`).
 
 ### generateSeeds
 

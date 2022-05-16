@@ -241,6 +241,7 @@ public:
     mstreal relSASA_cutoff = -1.0;
     bool verbose = false;
     string acceptable_aa_substitutions_path = "";
+    bool ignoreMissingSTRIDELabel = true;
     
     map<string,vector<string>> acceptable_aa_substitutions;
     

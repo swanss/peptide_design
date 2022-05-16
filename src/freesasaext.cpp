@@ -24,28 +24,29 @@ void sasaCalculator::setStructure(Structure* _parentStructure) {
                 // exclude hydrogens
                 if (RotamerLibrary::isHydrogen(A)) continue;
                 
-                //not sure how to convert string to char array, so I tried this
-                char* atom_name = new char [4];
-                string atom_name_str = A->getName();
-                leftPadTo(atom_name_str,4);
-                strcpy(atom_name,atom_name_str.c_str());
+                // When atom name is <4 characters, it will have a single preceding whitespace
+                // When atom name is 4 characters, it is shifted so that there is no preceding whitespace
+                char* atom_name = new char [5];
+                if (strlen(A->getNameC()) < 4) { sprintf(atom_name, " %-.3s", A->getNameC()); }
+                else { sprintf(atom_name, "%.4s", A->getNameC()); }
 
-                char* residue_name = new char [3];
+                char* residue_name = new char [4];
                 string residue_name_str = A->getResidue()->getName();
                 leftPadTo(residue_name_str,3);
                 strcpy(residue_name,residue_name_str.c_str());
 
-                char* residue_number = new char [4];
+                char* residue_number = new char [5];
                 string residue_number_str = MstUtils::toString(A->getResidue()->getNum());
                 leftPadTo(residue_number_str,4);
                 strcpy(residue_number,residue_number_str.c_str());
 
-                if (A->getChain()->getID().size() > 1) MstUtils::error("Structure has a chain with an ID longer than a single character");
+                if (A->getChain()->getID().size() > 1) MstUtils::error("Structure has a chain with an ID longer than a singale character");
                 string chainID = A->getChain()->getID();
                 char chain_label = chainID.at(0);
                 
-        //        cout << atom_name << " " << residue_name << " " << residue_number << " " << chain_label << endl;
-                freesasa_structure_add_atom_wopt(structure,atom_name,residue_name,residue_number,chain_label,A->getX(),A->getY(),A->getZ(),classifier,FREESASA_SKIP_UNKNOWN);
+                // cout << atom_name << " " << residue_name << " " << residue_number << " " << chain_label << endl;
+                int result = freesasa_structure_add_atom_wopt(structure,atom_name,residue_name,residue_number,chain_label,A->getX(),A->getY(),A->getZ(),classifier,FREESASA_SKIP_UNKNOWN);
+                if (result != 0) MstUtils::error("Error adding atom to FreeSASA structure","sasaCalculator::setStructure");
             }
     }
     

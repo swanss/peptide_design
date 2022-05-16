@@ -33,7 +33,6 @@ public:
 
     void computeSASA();
 
-//    mstreal getStructureSASA();
     map<Residue*,mstreal> getResidueSASA(bool relative = false);
 
     map<Atom*,mstreal> getAtomSASA();
