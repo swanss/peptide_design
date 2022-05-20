@@ -47,6 +47,11 @@ void sasaCalculator::setStructure(Structure* _parentStructure) {
                 // cout << atom_name << " " << residue_name << " " << residue_number << " " << chain_label << endl;
                 int result = freesasa_structure_add_atom_wopt(structure,atom_name,residue_name,residue_number,chain_label,A->getX(),A->getY(),A->getZ(),classifier,FREESASA_SKIP_UNKNOWN);
                 if (result != 0) MstUtils::error("Error adding atom to FreeSASA structure","sasaCalculator::setStructure");
+
+                // free allocated memory
+                delete[] atom_name;
+                delete[] residue_name;
+                delete[] residue_number;
             }
     }
     
@@ -64,6 +69,7 @@ void sasaCalculator::computeSASA() {
     char* name_char = new char[name.size() + 1];
     strcpy(name_char,name.c_str());
     root_node = freesasa_calc_tree(structure,&params,name_char);
+    delete[] name_char;
 }
 
 map<Residue*,mstreal> sasaCalculator::getResidueSASA(bool relative) {

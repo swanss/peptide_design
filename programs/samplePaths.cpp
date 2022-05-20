@@ -69,14 +69,16 @@ int main (int argc, char *argv[]) {
     opts.addOption("fixedSeed", "If residues from the specified seed are included in a path, they will be fixed during fusing.",false);
     opts.addOption("numResFlank", "The number of flanking residues taken on each side of a contact when defining fragments during scoring (default 2)",false);
     opts.addOption("ss", "Preferred secondary structure for paths (H, E, or O)", false);
-    opts.addOption("scorePaths", "Instead of sampling new paths from the graph, scores pre-defined paths. path format: seed_A:residue_i;seed_B:residue_j;etc...", false);
-    opts.addOption("scoreStructures", "Instead of sampling new paths from the graph, loads structures, and scores.", false);
+    opts.addOption("loadPaths", "Instead of sampling new paths from the graph, scores pre-defined paths. path format: seed_A:residue_i;seed_B:residue_j;etc...", false);
+    opts.addOption("loadStructures", "Instead of sampling new paths from the graph, loads structures, and counts interface contacts.", false);
+    opts.addOption("countContacts","If provided, will count contacts after sampling new paths, which is very slow.",false);
     opts.addOption("writeTopology","If provided, will write out the complete seed topology of each path. Useful for debugging.",false);
     opts.addOption("config", "The path to a configfile",true);
     opts.addOption("base", "Prepended to filenames",true);
     opts.setOptions(argc, argv);
 
-    if (opts.isGiven("scoreStructures") && opts.isGiven("writeTopology")) MstUtils::error("Warning: will not write out topology in score structures mode");
+    if (opts.isGiven("loadStructures") && opts.isGiven("writeTopology")) MstUtils::error("Warning: will not write out topology in score structures mode");
+    if (opts.isGiven("loadStructures") && opts.isGiven("countContacts")) MstUtils::error("Warning: nothing to do if loading structures and not counting contacts");
     
     string targetPath = opts.getString("targetPDB");
     string binaryFilePath = opts.getString("seedBin");
@@ -87,6 +89,7 @@ int main (int argc, char *argv[]) {
     string seedChain = opts.getString("seedChain", "0");
     int flankingRes = opts.getInt("numResFlank",2);
     bool writeTopology = opts.isGiven("writeTopology");
+    bool countContacts = opts.isGiven("countContacts");
     
     //The base name sets the seed, since this varies between batches, this should give unique sampling
     hash<string> hash;
@@ -122,7 +125,7 @@ int main (int argc, char *argv[]) {
     StructureCache* cache = nullptr;
     SeedGraph* seedG = nullptr;
     
-    if (opts.isGiven("seedGraph") && !opts.isGiven("scoreStructures")) {
+    if (opts.isGiven("seedGraph") && !opts.isGiven("loadStructures")) {
         cout << "Loading seeds" << endl;
         seedFile = new StructuresBinaryFile(binaryFilePath);
         seedFile->scanFilePositions();
@@ -173,12 +176,12 @@ int main (int argc, char *argv[]) {
     int pathIndex = 0;
     while (pathIndex < numPaths) {
         vector<PathResult> paths;
-        if (opts.isGiven("scorePaths")) {
-            vector<string> path_strings = MstUtils::fileToArray(opts.getString("scorePaths"));
+        if (opts.isGiven("loadPaths")) {
+            vector<string> path_strings = MstUtils::fileToArray(opts.getString("loadPaths"));
             paths = sampler->fusePaths(path_strings);
             numPaths = paths.size();
-        } else if (opts.isGiven("scoreStructures")) {
-            vector<string> structure_paths = MstUtils::fileToArray(opts.getString("scoreStructures"));
+        } else if (opts.isGiven("loadStructures")) {
+            vector<string> structure_paths = MstUtils::fileToArray(opts.getString("loadStructures"));
             vector<Structure> structures;
             for (string structure_path : structure_paths) {
                 Structure S(structure_path);
@@ -197,7 +200,7 @@ int main (int argc, char *argv[]) {
             cout << "Path: " << pathIndex << endl;
             string name = base + "_fused-path_" + to_string(pathIndex);
             string name_whole = base + "_fused-path-and-context_" + to_string(pathIndex);
-            if (opts.isGiven("scoreStructures")) out << path_result.getFusedStructure().getName() << ",";
+            if (opts.isGiven("loadStructures")) out << path_result.getFusedStructure().getName() << ",";
             else out << name << ",";
             
             for (Residue *res: path_result.getOriginalResidues()) {
@@ -221,7 +224,7 @@ int main (int argc, char *argv[]) {
             path_and_context.setName(name_whole);
 
             int numContacts = 0;
-            numContacts = cCounter.countContacts(&path_only);
+            if (countContacts) numContacts = cCounter.countContacts(&path_only);
             out << numContacts << ",";
             
             out << corroborationScore(path_result, 2) << endl;
@@ -246,7 +249,7 @@ int main (int argc, char *argv[]) {
         }
     }
     
-    if (!opts.isGiven("scoreStructures")) sampler->reportSamplingStatistics();
+    if (!opts.isGiven("loadStructures")) sampler->reportSamplingStatistics();
     
     if (opts.isGiven("seedGraph")) {
         delete cache;

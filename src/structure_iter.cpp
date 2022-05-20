@@ -93,9 +93,9 @@ void StructuresBinaryFile::scanFilePositions() {
     int count = 0;
     while (fs.peek() != EOF) {
         pair<Structure*,long> next;
-        next = readNextFileSection(true,true);
-//        if (count % 10000 == 0) next = readNextFileSection(true,true);
-//        else next = readNextFileSection(true);
+        next = readNextFileSection(true,false);
+    //    if (count % 10000 == 0) next = readNextFileSection(true,true);
+    //    else next = readNextFileSection(true);
         Structure *S = next.first;
         long pos = next.second;
         if (pos < 0) {
@@ -103,20 +103,20 @@ void StructuresBinaryFile::scanFilePositions() {
         }
         _filePositions[S->getName()] = pos;
         _structureNames.push_back(S->getName());
-        if (count % 10000 == 0) {
-            // report values
-            cout << "Structure number: " << count << endl;
-            cout << "Number of structure names:" << _structureNames.size() << endl;
-            cout << "Number of file positions: " << _filePositions.size() << endl;
-            cout << "Number of seed int val types: " << seed_dscrt_vals.size() << endl;
-            for (auto it : seed_dscrt_vals) {
-                cout << it.first << " with size: " << it.second.size() << endl;
-            }
-            cout << "Number of seed real val types: " << seed_real_vals.size() << endl;
-            for (auto it : seed_real_vals) {
-                cout << it.first << " with size: " << it.second.size() << endl;
-            }
-        }
+        // if (count % 10000 == 0) {
+        //     // report values
+        //     cout << "Structure number: " << count << endl;
+        //     cout << "Number of structure names:" << _structureNames.size() << endl;
+        //     cout << "Number of file positions: " << _filePositions.size() << endl;
+        //     cout << "Number of seed int val types: " << seed_dscrt_vals.size() << endl;
+        //     for (auto it : seed_dscrt_vals) {
+        //         cout << it.first << " with size: " << it.second.size() << endl;
+        //     }
+        //     cout << "Number of seed real val types: " << seed_real_vals.size() << endl;
+        //     for (auto it : seed_real_vals) {
+        //         cout << it.first << " with size: " << it.second.size() << endl;
+        //     }
+        // }
         delete S;
         count++;
     }
