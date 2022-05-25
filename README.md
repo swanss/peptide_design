@@ -36,7 +36,7 @@ The default location for both is in the parent directory of `peptide_design`.
 
 See `peptide_design/example/` for an example of how to use this pipeline to design peptide backbones.
 
-Before starting, you will need to make a configuration file, which will be reused throughout the process. This will provide the path to 1) a FASST file, i.e. a database of structures that have been processed and can be searched and 2) the backbone-dependent rotamer library (which can be found in the MST repo). ex: `peptide_design/example/input_files/singlechain.configfile`. NOTE: a FASST database is provided in testfiles (`testfiles/singlechain_22188_sim30_STRIDE.db`).
+Before starting, you will need to make a configuration file, which will be reused throughout the process. This will provide the path to 1) a FASST file, i.e. a database of structures that have been processed and can be searched and 2) the backbone-dependent rotamer library (which can be found in the MST repo). ex: `peptide_design/example/input_files/singlechain.configfile`. NOTE: FASST databases are available for [download](https://zenodo.org/record/6569429).
 
 ### generateSeeds
 
@@ -83,6 +83,8 @@ Samples random paths from a seed graph and fuses the residues together into a pe
 
 `4_samplePaths/run_samplePaths.sh`
 
+By default this will not find contacts between the designed peptide backbones and the target (as this is fairly slow), but this can be modified with the `--countContacts` option.
+
 ### buildPeptideRMSDMatrix
 
 Computes RMSD between peptide backbones in a parallelizable manner and builds a complete distance matrix for downstream analysis.
@@ -100,9 +102,11 @@ Combines the output of each job into a single distance matrix.
 
 ### scoreStructures
 
-Scores the interface formed between a set of peptides and the target protein.
+Scores the interface formed between a set of peptides and the target protein. 
 
 `6_scoreStructures/run_scoreStructures.sh`
+
+The score for each residue of each peptide backbone structure is written to the `structure_scores_*.tsv*` file. The score is defined such that negative scores are more favorable. In practice, we generally take the average over all residues in the peptide to get the overall score.
 
 ## Python Library
 
