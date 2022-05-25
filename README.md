@@ -1,5 +1,7 @@
 # peptide_design
 
+[![Paper DOI : 10.1002/pro.4322](https://badgen.net/badge/Protein%20Science%20DOI/10.1002%2Fpro.4322/black)](https://doi.org/10.1002/pro.4322) &nbsp; [![Zenodo](https://badgen.net/badge/zenodo/FASST%20DB%20download/red)](https://zenodo.org/record/6569429) &nbsp; [![Twitter](https://badgen.net/badge/icon/Sebastian%20Swanson?icon=twitter&label)](https://twitter.com/SassSeabass)
+
 This repository incorporates several tools that enable the de novo design of peptides to bind a given protein. The process begins with the generation of  **seeds**, which are small segments of protein backbone arranged in the space around the selected binding site. Given these seeds, the programs enable the construction of a **seed graph** describing geometric overlaps between these seeds. Paths can be sampled from the graph and fused to form peptide backbones. Finally, paths can be scored and selected for sequence design.
 
 ## Build Instructions
