@@ -1,0 +1,4 @@
+fasstdb=/path/to/fasst.db #path to fasstDB for dTERMen design
+rotlib=/path/to/MST/testfiles/rotlib.bin #update this to match your installation
+efun=35
+selfCorrMaxCliqueSize=2
