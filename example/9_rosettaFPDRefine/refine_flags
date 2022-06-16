@@ -1,0 +1,8 @@
+-ex1
+-ex2aro
+-use_input_sc
+-pep_refine
+-lowres_preoptimize
+-scorefile refine.score.sc
+-out:path:score output
+-out:path:pdb output
