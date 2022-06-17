@@ -103,7 +103,7 @@ public:
             if (proposal_hist.getVal(i) == 0.0) continue; //don't divide by zero
             mstreal fraction = target_hist.getVal(i)/proposal_hist.getVal(i);
             if (fraction > M) M = fraction;
-            if (isinf(M)) {
+            if (std::isinf(M)) {
                 string bin_num(MstUtils::toString(i));
                 MstUtils::error("Proposal distribution scaling factor set to inf at bin  "+bin_num,"rejectionSampler::rejectionSampler");
             }
