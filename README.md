@@ -26,7 +26,9 @@ Update the `peptide_design` makefile so that:
 1. `MSTDIR` is the path to Mosaist
 2. `SASADIR` is the path to FreeSASA 
 
-The default location for both is in the parent directory of `peptide_design`.
+The default location for both is in the parent directory of `peptide_design`. 
+
+NOTE: we've compiled this project with gcc 6.2.0 and clang 11.0.0. Other compilers haven't been testested
 
 * `make all` - builds all programs
 * `make test` - builds only programs in the `tests` directory
