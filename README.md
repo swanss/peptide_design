@@ -28,7 +28,7 @@ Update the `peptide_design` makefile so that:
 
 The default location for both is in the parent directory of `peptide_design`. 
 
-NOTE: we've compiled this project with gcc 6.2.0 and clang 11.0.0. Other compilers haven't been testested
+NOTE: we've compiled this project with gcc 6.2.0 and clang 11.0.0. Other compilers haven't been tested
 
 * `make all` - builds all programs
 * `make test` - builds only programs in the `tests` directory
