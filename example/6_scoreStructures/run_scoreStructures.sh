@@ -12,7 +12,7 @@
 peptide_design=/scratch/users/swans/MST_workspace/peptide_design
 
 target=../input_files/1LB6_A__.pdb
-structures=../5_scoreStructures
+structures=../5_scoreStructures #this should be a path to a directory containing PDB files of peptide structures to be scored which contains a file "structures.list" where each line is the filename of one of the structures 
 out=scores
 config=../input_files/multichainDB.configfile
 worker=$SLURM_ARRAY_TASK_ID
