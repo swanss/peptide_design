@@ -16,8 +16,8 @@ int main(int argc, char* argv[]) {
     opts.addOption("distanceList", "Path to file listing all of the distance#.csv files. If provided with --bin, will run in buildMatrix mode and combine all into distance matrix");
     opts.setOptions(argc, argv);
 
-    // makePeptideBin mode
-    if (opts.isGiven("list")) {
+    if (opts.isGiven("list")) { // makePeptideBin mode
+        cout << "Running in makePeptideBin mode..." << endl;
         string paths_bin_path = opts.getString("bin","./path_structures.bin");
         
         // Load PDBs from a file and write to StructuresBinaryFile
@@ -33,10 +33,8 @@ int main(int argc, char* argv[]) {
             path_bin->appendStructure(&path_structure);
         }
         delete path_bin;
-    }
-    
-    // computeRMSD mode
-    if (!opts.isGiven("distanceList") && opts.isGiven("bin")) {
+    } else if (!opts.isGiven("distanceList") && opts.isGiven("bin")) { // computeRMSD mode
+        cout << "Running in computeRMSD mode..." << endl;
         // Select batches of structures and compute distances
         int numWorkers = opts.getInt("numWorkers",1);
         int workerIndex = opts.getInt("worker",1);
@@ -86,10 +84,8 @@ int main(int argc, char* argv[]) {
             out << (*it).first.first << "," << (*it).first.second << "," << (*it).second << endl;
         }
         out.close();
-    }
-    
-    // buildMatrix mode
-    if (opts.isGiven("distanceList") && opts.isGiven("bin")) {
+    } else if (opts.isGiven("distanceList") && opts.isGiven("bin")) { // buildMatrix mode
+        cout << "Running in buildMatrix mode..." << endl;
         // Read the info files and combine into a single distance matrix
         string paths_bin_path = opts.getString("bin");
         StructuresBinaryFile path_bin(paths_bin_path);
@@ -143,6 +139,8 @@ int main(int argc, char* argv[]) {
             out << endl;
         }
         out.close();
+    } else {
+        MstUtils::error("Arguments are not compatible with any of the three modes");
     }
     
     cout << "Done" << endl;

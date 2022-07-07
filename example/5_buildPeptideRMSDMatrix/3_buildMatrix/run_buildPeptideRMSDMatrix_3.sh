@@ -14,10 +14,10 @@ bin=../1_makePeptideBin/*bin
 
 #get distances list
 ls ../2_computeRMSD/distances*.csv > distances.list
-distance_list=distances.list
+distanceList=distances.list
 
 SECONDS=0
-srun $peptide_design/bin/buildPeptideRMSDMatrix --bin $bin --distance_list $distance_list
+srun $peptide_design/bin/buildPeptideRMSDMatrix --bin $bin --distanceList $distanceList
 ELAPSED="Elapsed: $(($SECONDS / 3600))hrs $((($SECONDS / 60) % 60))min $(($SECONDS % 60))sec"
 echo $ELAPSED
 
