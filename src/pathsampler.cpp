@@ -340,7 +340,7 @@ vector<PathResult> SeedGraphPathSampler::sample(int numPaths) {
         attempts++;
         
         // Check if path is accepted
-        if (path == initial_path) {
+        if (!acceptSingleSeedPaths && (path == initial_path)) {
             cout << "Sampled path is the same as the initially selected seed" << endl;
             no_overlaps++;
             continue;
@@ -388,7 +388,7 @@ vector<Residue*> SeedGraphPathSampler::pathResiduesFromSpecifier(string path_spe
     vector<string> residue_names = MstUtils::split(path_spec,";");
     for (string residue_name : residue_names) {
         Residue* R = _graph->getResidueFromFile(residue_name);
-        if (R == nullptr) MstUtils::error("Residue not found in seed binary file","SeedGraphPathSampler::pathResiduesFromSpecifier");
+        if (R == nullptr) MstUtils::error("Residue not found in seed binary file: "+residue_name,"SeedGraphPathSampler::pathResiduesFromSpecifier");
         path.push_back(R);
     }
     return path;

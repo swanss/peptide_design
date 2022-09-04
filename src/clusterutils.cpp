@@ -529,19 +529,23 @@ void GreedyClusterer::addOverlapInfo(FuseCandidateFile file) {
     cout << "Added " << count << " overlaps." << endl;
 };
 
-void GreedyClusterer::performClustering(mstreal max_coverage) {
+void GreedyClusterer::performClustering(mstreal max_coverage, int max_clusters) {
     int numCoveredReq = max_coverage*numTotalSeedWindows;
     int numCovered = 0;
-    cout << "Goal is to reach " << numCoveredReq << " covered." << endl;
-    
-    int count = 0;
-    while (numCovered < numCoveredReq) {
-        // find the largest cluster
+    cout << "Will terminate when " << numCoveredReq << " are covered";
+    if (max_clusters > 0) cout << " or when " << max_clusters << " clusters identified" << endl;
+    else cout << endl;
+
+    int nCluster = 0;
+    while ((numCovered < numCoveredReq)||((max_clusters > 0)&&(nCluster <= max_clusters))) {
+        
+        // iterate over the clusters to find the largest
         int max_cluster_ID = *remainingSeedWindows.begin();
         for (int ID : remainingSeedWindows) {
             if (seedWindowOverlaps[ID].size() > seedWindowOverlaps[max_cluster_ID].size()) max_cluster_ID = ID;
         }
         
+        // Store the cluster center as well as the members
         clusters.push_back(pair<int,set<int>>(max_cluster_ID,seedWindowOverlaps[max_cluster_ID]));
         
         /*
@@ -558,8 +562,9 @@ void GreedyClusterer::performClustering(mstreal max_coverage) {
         B X  X  X
         C    X  X
          
-        If cluster A is removed, we will need to delete row A since it contains all of the overlaps to
-        A, row B since it overlaps A, and entry B from row C since B is covered.
+        If the cluster around seed A is removed, we will need to delete row A since it contains all of the overlaps to
+        A, row B since it overlaps A and is therefore in the cluster, and entry B from row C since B is covered and 
+        that overlap is no longer considered.
          
           A  B  C
         A -  -
@@ -569,26 +574,31 @@ void GreedyClusterer::performClustering(mstreal max_coverage) {
         */
         
         // remove the cluster center from the set of remaining windows
+        if (remainingSeedWindows.count(max_cluster_ID) == 0) MstUtils::error("Cannot delete "+MstUtils::toString(max_cluster_ID)+" not in the remainingSeedWindows","GreedyClusterer::performClustering");
         remainingSeedWindows.erase(max_cluster_ID);
         for (int ID_b : seedWindowOverlaps[max_cluster_ID]) {
             // remove cluster member from the set of remaining windows
+            if (remainingSeedWindows.count(ID_b) == 0) MstUtils::error("Cannot delete "+MstUtils::toString(ID_b)+" not in the remainingSeedWindows","GreedyClusterer::performClustering");
             remainingSeedWindows.erase(ID_b);
             
             for (int ID_c : seedWindowOverlaps[ID_b]) {
                 // remove the overlap between cluster member and other window
+                if (seedWindowOverlaps[ID_c].count(ID_b) == 0) MstUtils::error("Cannot delete overlap "+MstUtils::toString(ID_b)+" not in the seedWindowOverlaps","GreedyClusterer::performClustering");
                 seedWindowOverlaps[ID_c].erase(ID_b);
             }
             // remove all overlaps to the cluster member
+            if (seedWindowOverlaps.count(ID_b) == 0) MstUtils::error("Cannot delete all overlaps to "+MstUtils::toString(ID_b)+" not in the seedWindowOverlaps","GreedyClusterer::performClustering");
             seedWindowOverlaps.erase(ID_b);
         }
         // remove all overlaps to the cluster center
+        if (seedWindowOverlaps.count(max_cluster_ID) == 0) MstUtils::error("Cannot delete "+MstUtils::toString(max_cluster_ID)+" not in the seedWindowOverlaps","GreedyClusterer::performClustering");
         seedWindowOverlaps.erase(max_cluster_ID);
         
         // check coverage progress
         numCovered = numTotalSeedWindows - remainingSeedWindows.size();
         
-        cout << "Cluster: " << count << " with " << clusters.back().second.size()+1 << " members. Overall " << numCovered << " of the seeds are covered" << endl;
-        count++;
+        cout << "Cluster: " << nCluster << " with " << clusters.back().second.size()+1 << " members. Overall " << numCovered << " of the seeds are covered" << endl;
+        nCluster++;
     }
     cout << "Done clustering. In total there are " << clusters.size() << " clusters" << endl;
 }

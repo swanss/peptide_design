@@ -71,9 +71,9 @@ When complete, all seeds will be stored at `dir/output/extendedfragments.bin`
 
 Finds overlaps between all pairs of seeds.
 
-`2_findOverlaps/run_findoverlaps.sh`
+`2_findOverlaps/run_findoverlaps_singlenode.sh`
 
-Depending on the number of seeds, finding overlaps can be slow. Options are provided to distribute the work via job arrays.
+Depending on the number of seeds, finding overlaps can be slow. A second example script, `run_findoverlaps_array.sh` shows how to submit the job as an array to distribute the work over multiple processes.
 
 ### buildSeedGraph
 
@@ -81,13 +81,15 @@ Builds a graph describing seed residues and their potential connections.
 
 `3_buildSeedGraph/run_buildSeedGraph.sh`
 
+At this stage you can choose to omit seeds that do not overlap other seeds from the graph with `--omitSeedsWithoutOverlaps`. This option will reduce the memory requirement in later steps when loading the graph and will have identical behavior to the method presented in the paper, as sampled paths that consist of residues from a single seed are discarded. However, if you want to maximize the diversity of sampled structures, then it is recommended to leave all seeds in the graph at this stage.
+
 ### samplePaths
 
 Samples random paths from a seed graph and fuses the residues together into a peptide backbone structure.
 
 `4_samplePaths/run_samplePaths.sh`
 
-By default this will not find contacts between the designed peptide backbones and the target (as this is fairly slow), but this can be modified with the `--countContacts` option.
+By default this will not find contacts between the designed peptide backbones and the target (as this is fairly slow), but this can be modified with the `--countContacts` option. If you constructed the graph with non-overlapping seeds, then you may consider using `--acceptSingleSeedPaths` to increase the structural diversity of peptide backbones.
 
 ### buildPeptideRMSDMatrix
 

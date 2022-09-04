@@ -17,12 +17,12 @@ int main (int argc, char *argv[]) {
     MstOptions opts;
     opts.setTitle("Finds overlaps between all pairs of seeds.");
     opts.addOption("seedBin", "Path to a binary file containing seed structures.", true);
-    opts.addOption("out", "Path to file at which to write overlaps", true);
+    opts.addOption("out", "Path to file at which to write overlaps ('.csv prefix will be added automatically')'", true);
     opts.addOption("overlapSize", "Number of residues that must overlap between two residues. Must be even (default 4)", false);
     opts.addOption("maxDeviation", "Distance cutoff (Å) between alpha-carbons in an overlap segment (default 1.0)", false);
     opts.addOption("minCosAngle", "Cosine angle threshold between residue normal vectors in an overlap segment (default 0.5)", false);
-    opts.addOption("worker", "The index of this worker (from 1 to numWorkers)", false);
-    opts.addOption("numWorkers", "The number of workers", false);
+    opts.addOption("worker", "The index of this worker, from 1 to numWorkers. (default: 1)", false);
+    opts.addOption("numWorkers", "The number of workers (default: 1)", false);
     opts.addOption("batchSize", "The number of structures to use in each batch. (default 200,000)", false);
     opts.addOption("bruteForce", "If provided, use a brute-force all-to-all comparison", false);
     opts.addOption("limitBatches", "Number of batches to run (to produce a smaller debugging set)", false);
@@ -49,7 +49,7 @@ int main (int argc, char *argv[]) {
         cerr << "Batch index must be between 1 and numWorkers" << endl;
         return 1;
     }
-    cout << "Batch " << worker << " of " << numWorkers << endl;
+    cout << "Worker " << worker << " of " << numWorkers << " total workers"<< endl;
     
     OverlapVerifier *verifier = new MaxDeviationVerifier(maxDeviation);
     if (minCosAngle > -1.0) {
@@ -66,18 +66,18 @@ int main (int argc, char *argv[]) {
     int batchesRun = 0;
     
     while (structureIter.hasNext()) {
-        if (limitBatches >= 0 && ++batchesRun > limitBatches)
+        if (limitBatches >= 0 && batchesRun > limitBatches)
             break;
         
         auto batch = structureIter.next();
+        cout << batch.first.size() << " " << batch.second.size() << endl;
         
         if (opts.isGiven("mock")) {
             cout << "Batch: " << batch.first[0]->getName() << ", " << batch.second[0]->getName() << endl;
+            batchesRun++;
             continue;
         }
-      
-        cout << batch.first.size() << " " << batch.second.size() << endl;
-        
+              
         if (opts.isGiven("bruteForce")) {
             // All-to-all comparison
             for (int i = 0; i < batch.first.size(); i++) {
@@ -122,8 +122,8 @@ int main (int argc, char *argv[]) {
                         }
                     }
                 }
-                
                 outFile.write(results, "");
+                batchesRun++;
             }
         } else {
             mstreal xlo = 1e9, xhi = -1e9, ylo = 1e9, yhi = -1e9, zlo = 1e9, zhi = -1e9;
@@ -163,8 +163,11 @@ int main (int argc, char *argv[]) {
             if (symmetricBatch) cout << "Symmetric batch" << endl;
 
             overlapFinder.findOverlaps(batch.second, outFile, symmetricBatch);
+            batchesRun++;
         }
     }
+    if (batchesRun == 0) MstUtils::error("No batches assigned to worker with index: "+MstUtils::toString(worker),"findOverlaps::main");
+    
     // Search for overlaps
     /*FuseCandidateFinder fuser(numResOverlap, general, maxDeviation, numWorkers, worker - 1);
     fuser.minCosAngle = minCosAngle;
@@ -172,8 +175,9 @@ int main (int argc, char *argv[]) {
 
     timer.stop();
     cout << "Elapsed time: " << ((double)timer.getDuration(MstTimer::msec) / 1000.0) << endl;
-    
+
     delete verifier;
     
+    cout << "Done!" << endl;
     return 0;
 }

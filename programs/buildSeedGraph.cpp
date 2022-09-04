@@ -20,10 +20,11 @@ int main (int argc, char *argv[]) {
     // Get command-line arguments
     MstOptions opts;
     opts.setTitle("Builds a graph describing seed residues and their potential connections and deposits them into sets of clusters ('subgraphs') and remaining 'chunks'.");
-    opts.addOption("overlaps", "Directory or file defining overlaps (must be provided if --tree is not)", false);
-    opts.addOption("tree", "File representing a cluster tree of k-mers (must be provided if --overlaps is not)", false);
     opts.addOption("seedBin", "Binary file containing seed structures", true);
     opts.addOption("out", "File path to write out adjacency list for graph", true);
+    opts.addOption("omitSeedsWithoutOverlaps","If provided, will omit seeds that do not overlap any other seed.",false);
+    opts.addOption("overlaps", "The path to a directory (e.g. path/to/dir where the directory contains N files named with ascending values overlaps1.csv,overlaps2.csv,...,overlapsN.csv) or the path to a file defining overlaps (can have any name).", false);
+    opts.addOption("tree", "File representing a cluster tree of k-mers (must be provided if --overlaps is not)", false);
     opts.addOption("adj", "If 'bond' (default) then write graphs where adjacencies are potential bonds; if 'same', write graphs where adjacencies correspond to equivalent residues", false);
     opts.addOption("subgraphDir", "If provided, write any disjoint subgraphs with at least --subgraphSize residues to this directory", false);
     opts.addOption("subgraphSize", "Number of residues required to write out a subgraph (default 100 for adj = same, 15 for adj = bond", false);
@@ -37,6 +38,7 @@ int main (int argc, char *argv[]) {
     string treePath = opts.getString("tree", "");
     string binaryPath = opts.getString("seedBin");
     string outPath = opts.getString("out");
+    bool omitSeedsWithoutOverlaps = opts.isGiven("omitSeedsWithoutOverlaps");
     string subgraphPath = opts.getString("subgraphDir", "");
     if (!subgraphPath.empty() && !MstSys::fileExists(subgraphPath))
         MstSys::cmkdir(subgraphPath);
@@ -55,7 +57,7 @@ int main (int argc, char *argv[]) {
     if (overlapsPath.size() > 0) {
         // Loading overlaps from explicit overlap paths
         if (MstSys::isDir(overlapsPath)) {
-            cout << "Attempting to load overlaps from directory..." << endl;
+            cout << "Attempting to load overlaps from directory: " << overlapsPath << endl;
             int i = 1;
             string path = MstSystemExtension::join(overlapsPath, "overlaps" + to_string(i) + ".csv");
             while (MstSystemExtension::fileExists(path)) {
@@ -67,7 +69,7 @@ int main (int argc, char *argv[]) {
             if (i==1) MstUtils::error("Expected to find at least one file containing overlaps with the name: "+path,"buildSeedGraph::main");
         } else {
             // All overlaps stored in one file
-            cout << "Loading overlaps from " << overlapsPath << endl;
+            cout << "Loading overlaps from file: " << overlapsPath << endl;
             FuseCandidateFile file(overlapsPath);
             graph.load(file);
             cout << "Done loading overlaps" << endl;
@@ -86,9 +88,14 @@ int main (int argc, char *argv[]) {
         graph.load(tree, overlapSize, opts.getReal("overlapRMSD", 1.0), opts.getReal("minCosAngle", -1.0));
     }
     if (graph.edgeSize() == 0) MstUtils::error("No seed overlaps found","buildSeedGraph::main"); 
-    cout << "Graph currently has " << graph.seedSize() << " seeds, " << graph.residueSize() << " residues, and " << graph.edgeSize() << " edges. Now loading all seeds" << endl;
+    cout << "Graph currently has " << graph.seedSize() << " seeds, " << graph.residueSize() << " residues, and " << graph.edgeSize() << " edges." << endl;
 
-    graph.loadCache();
+    if (omitSeedsWithoutOverlaps) {
+        cout << "Omitting seeds without overlaps to other seeds" << endl;
+    } else {
+        cout << "Now adding seeds that do not overlap other seeds" << endl;
+        graph.loadCache();
+    }
     
     cout << "Final graph has " << graph.seedSize() << " seeds, " << graph.residueSize() << " residues, and " << graph.edgeSize() << " edges" << endl;
     SeedGraph graphToCluster = adjSameResidues ? graph.withAdjSameResidue() : graph;
@@ -129,7 +136,7 @@ int main (int argc, char *argv[]) {
         }
     }
     
-    cout << "done" << endl;
+    cout << "Done!" << endl;
     delete cache;
     return 0;
 }

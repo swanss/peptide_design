@@ -63,6 +63,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("seedChain", "Chain ID for the seed structures (default '0')", false);
     opts.addOption("seedGraph", "Path to a text file defining a seed graph", false);
     opts.addOption("numPaths", "Number of paths to generate. (default 200)", false);
+    opts.addOption("acceptSingleSeedPaths", "If given, will not reject paths for consisting of residues from a single seed", false);
     opts.addOption("minLength", "The minimum residue length of the sampled paths. (default 15)", false);
     opts.addOption("reqSeed", "The name of a seed in the binary file that all paths should extend from (optional)",false);
     opts.addOption("reqSeedSel", "A selection that specifies the residues in reqSeed that should always be included in sampled paths. Must be a continuous range: e.g. resid 3-5. (note: 'chain 0' is always assumed)",false);
@@ -162,6 +163,7 @@ int main (int argc, char *argv[]) {
             string fixedSeedName = opts.getString("fixedSeed");
             sampler->addFixedSeed(fixedSeedName);
         }
+        if (opts.isGiven("acceptSingleSeedPaths")) sampler->setAcceptSingleSeedPaths(true);
         sampler->setMinimumLength(minLength);
     }
     

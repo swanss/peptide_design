@@ -426,7 +426,7 @@ public:
     void addOverlapInfo(FuseCandidateFile file);
     
     // procedure borrowed from MST/src/msttypes.cpp Clusterer::greedyCluster
-    void performClustering(mstreal max_coverage);
+    void performClustering(mstreal max_coverage, int max_clusters = -1);
     
     void writeClusterInfo(string path, Chain* peptide = nullptr, bool pdbs = true, bool verbose = false);
     

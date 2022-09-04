@@ -1,4 +1,4 @@
-MSTDIR = ../Mosaist
+MSTDIR = ../MST
 MSTINCL = $(MSTDIR)/include
 MSTSRC = $(MSTDIR)/src
 MSTOBJS = $(MSTDIR)/objs

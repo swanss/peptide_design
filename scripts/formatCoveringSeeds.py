@@ -25,7 +25,7 @@ def formatCoveringSeeds():
     cmd.set_color('palette3_orange',[x/255 for x in [250,175,0]])
     colors = ['palette3_red','palette3_blue','palette3_green','palette3_orange','palette3_purple']
 
-    cmd.set("stick_transparency",0.25,"seeds")
+    # cmd.set("stick_transparency",0.25,"seeds")
     cmd.set("stick_transparency",0,"seeds")
     cmd.set("stick_radius",0.07,"seeds")
 

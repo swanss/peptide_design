@@ -78,6 +78,7 @@ public:
 //    virtual vector<PathResult> sample(int numPaths) = 0;
     
     void setMinimumLength(int length) {minimumLength = length;}
+    void setAcceptSingleSeedPaths(bool val) {acceptSingleSeedPaths = val;}
     
     // Optimize without and then with internal coordinate constraints, if set to true
     void setTwoStepFuse(bool val) {twoStepFuse = val;}
@@ -102,9 +103,9 @@ protected:
     AtomPointerVector targetAPV;
     ProximitySearch ps;
     
-    // Number of residues to include for overlap when fusing
-    int overlapLength = 3;
+    int overlapLength = 3; // Number of residues to include for overlap when fusing
     int minimumLength = 15;
+    bool acceptSingleSeedPaths = false; // If true, accept paths that consist of residues from a single seed
     
     bool twoStepFuse = true;
     
