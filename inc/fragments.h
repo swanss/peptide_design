@@ -171,7 +171,7 @@ public:
 	}
 
 	vector<Residue*> getExpansion(Residue* res) {
-		MstUtils::assert(expansions.count(res) > 0, "Residue is not a key in expansions.");
+		MstUtils::assertCond(expansions.count(res) > 0, "Residue is not a key in expansions.");
 		return expansions[res];
 	}
 
@@ -205,7 +205,7 @@ public:
 				return i;
 			}
 		}
-		MstUtils::assert(true, "Residue not found in fragment.");
+		MstUtils::assertCond(true, "Residue not found in fragment.");
         return -1;
 	}
 

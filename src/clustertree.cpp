@@ -322,8 +322,8 @@ ClusterTree::ClusterTree(const vector<ClusterTree> &trees, int mergeLimit): rmsd
     for (const ClusterTree &tree: trees) {
         if (!fetcher) fetcher = tree._fragmentFetcher;
         if (childLim < 0) childLim = tree._childLimit;
-        MstUtils::assert(tree._fragmentFetcher == fetcher, "All trees to be merged must have the same fragment fetcher reference");
-        MstUtils::assert(tree._childLimit == childLim, "All trees to be merged must have the same child limit");
+        MstUtils::assertCond(tree._fragmentFetcher == fetcher, "All trees to be merged must have the same fragment fetcher reference");
+        MstUtils::assertCond(tree._childLimit == childLim, "All trees to be merged must have the same child limit");
     }
     _fragmentFetcher = fetcher;
     _childLimit = childLim;
@@ -417,7 +417,7 @@ void ClusterTree::greedyCluster(vector<Node *> parents, vector<Node *> children)
             }
         }
 
-        MstUtils::assert(bestParent != nullptr, "No best parent found!");
+        MstUtils::assertCond(bestParent != nullptr, "No best parent found!");
         child->moveToParent(bestParent);
     }
 }
@@ -466,7 +466,7 @@ void ClusterTree::read(string clusterFilePath) {
         int numSpaces = distance(line.begin(), textStart);
         line.erase(line.begin(), textStart);
         vector<string> comps = splitString(line, ",");
-        MstUtils::assert(comps.size() >= 3, "Need 3 comma-separated components, got " + to_string(comps.size()));
+        MstUtils::assertCond(comps.size() >= 3, "Need 3 comma-separated components, got " + to_string(comps.size()));
 
         FragmentInfo *info = _fragmentFetcher->makeFragmentInfo(comps[0]);
         Node *node = new Node(info, _childLimit);
@@ -759,8 +759,8 @@ void ClusterPairIterator::makeNextResult() {
     }
 
     // At this point both first and second values should be present
-    MstUtils::assert(nextFirst != nullptr, "Missing nextFirst");
-    MstUtils::assert(nextSecond != nullptr, "Missing nextSecond");
+    MstUtils::assertCond(nextFirst != nullptr, "Missing nextFirst");
+    MstUtils::assertCond(nextSecond != nullptr, "Missing nextSecond");
 
     _nextResult = new pair<Node *, Node *>(nextFirst, nextSecond);
 }

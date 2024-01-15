@@ -663,7 +663,7 @@ vector<string> pathFromCoveringSeeds::getCoveringPath(int maxSeedLength, int min
     
     maxSeedLength = min(maxSeedLength,coverage->max_allowable_segment_length);
     
-    MstUtils::assert(minSeedLength <= maxSeedLength,"minSeedLength must not be greater than maxSeedLength","pathFromCoveringSeeds::getBestCoveringSeed");
+    MstUtils::assertCond(minSeedLength <= maxSeedLength,"minSeedLength must not be greater than maxSeedLength","pathFromCoveringSeeds::getBestCoveringSeed");
     /*
      The minSeedLength must be at least segmentLength. Smaller seed segments will not be able to
      cover the peptide segments

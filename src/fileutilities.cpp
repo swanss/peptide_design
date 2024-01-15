@@ -114,7 +114,7 @@ pair<vector<string>, vector<string>> SeedListFile::read(string pdbPrefix) {
         string path = comps[0];
         if (path == "path") {
             // Header row
-            MstUtils::assert(comps[1] == "chids", "expected second column to be 'chids'");
+            MstUtils::assertCond(comps[1] == "chids", "expected second column to be 'chids'");
             _metadataNames.clear();
             _metadataNames.insert(_metadataNames.end(), comps.begin() + 2, comps.end());
         } else {
@@ -148,7 +148,7 @@ void SeedListFile::write(string seed, string chainIDs, vector<string> metadata) 
     }
     
     *writestream << seed << "," << chainIDs;
-    MstUtils::assert(metadata.size() == _metadataNames.size(), metadata.size() == 0 ? "must provide metadata if field names are provided!" : "must provide metadata field names before writing a seed with metadata!");
+    MstUtils::assertCond(metadata.size() == _metadataNames.size(), metadata.size() == 0 ? "must provide metadata if field names are provided!" : "must provide metadata field names before writing a seed with metadata!");
     for (string field: metadata) {
         *writestream << "," << field;
     }

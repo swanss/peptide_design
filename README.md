@@ -13,9 +13,11 @@ Peptide design has the following dependencies
 1. Clone the repo https://github.com/Grigoryanlab/Mosaist
 2. Follow the instructions to install
 
+Note: this is the latest commit that has been tested `0d32bdab24d71cc2131712b73fc366c3855368dc` (from Oct 12, 2023)
+
 ### FreeSASA
 
-1. Go to http://freesasa.github.io/ , download the latest tarball into the same directory containing the `peptide_design` repo and extract.
+1. Go to the following [link](https://github.com/mittinatten/freesasa/releases/download/2.0.3/freesasa-2.0.3.tar.gz) to download version 2.0.3 of freesasa into the same directory containing the `peptide_design` repo and extract.
 2. Run `./configure --disable-threads --disable-xml --disable-json` 
 3. Run `make all`. You should see that the library `libfreesasa.a` is created.
 
@@ -31,10 +33,7 @@ The default location for both is in the parent directory of `peptide_design`.
 NOTE: we've compiled this project with gcc 6.2.0 and clang 11.0.0. Other compilers haven't been tested
 
 * `make all` - builds all programs
-* `make test` - builds only programs in the `tests` directory
-* `make bin/[executable name]` - builds the specific executable with its dependencies
 * `make clean` - removes build intermediates and products
-* `make python` - builds the Python library (see below)
 
 ## Main pipeline
 
@@ -49,7 +48,7 @@ Generates segments of protein backbone, or 'interface seeds', around a target pr
 `peptide_design/example/01_generateSeeds/run_generateSeeds.sh`
 
 The details of how seeds are generated are controlled through the params file. Anything that is not included in this file
-will be set to the default value, with the exception of **config_file** which must always be provided.
+will be set to the default value, with the exception of **config_file** which must always be included. Be sure to update the config file before running this step.
 
 ```
 fragment_type ADAPTIVE_LENGTH #fragments will grow in length until they have less matches than match_req

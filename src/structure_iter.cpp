@@ -62,29 +62,29 @@ vector<string> seedChainIDs(const string &fn) {
 }
 
 bool StructuresBinaryFile::hasNext() {
-    MstUtils::assert(readMode, "hasNext not supported in write mode");
+    MstUtils::assertCond(readMode, "hasNext not supported in write mode");
     return fs.peek() != EOF;
 }
 
 Structure *StructuresBinaryFile::next() {
-    MstUtils::assert(readMode, "next not supported in write mode");
+    MstUtils::assertCond(readMode, "next not supported in write mode");
     return readNextFileSection(false).first;
 }
 
 void StructuresBinaryFile::skip() {
-    MstUtils::assert(readMode, "skip not supported in write mode");
+    MstUtils::assertCond(readMode, "skip not supported in write mode");
     Structure* S = readNextFileSection(false).first;
     delete S;
 }
 
 void StructuresBinaryFile::reset() {
-    MstUtils::assert(readMode, "reset not supported in write mode");
+    MstUtils::assertCond(readMode, "reset not supported in write mode");
     fs.clear(); // this is necessary in case ifstream doesn't clear eofbit
     fs.seekg(0, fs.beg);
 }
 
 void StructuresBinaryFile::scanFilePositions() {
-    //MstUtils::assert(readMode, "scanFilePositions not supported in write mode");
+    //MstUtils::assertCond(readMode, "scanFilePositions not supported in write mode");
     MstTimer timer; timer.start();
     if (!_structureNames.empty()) return;
     reset();
@@ -125,7 +125,7 @@ void StructuresBinaryFile::scanFilePositions() {
 }
 
 Structure * StructuresBinaryFile::getStructureNamed(string name) {
-    MstUtils::assert(readMode, "getStructureNamed not supported in write mode");
+    MstUtils::assertCond(readMode, "getStructureNamed not supported in write mode");
     if (_filePositions.size() == 0) {
         scanFilePositions();
     }
@@ -138,7 +138,7 @@ Structure * StructuresBinaryFile::getStructureNamed(string name) {
 }
 
 void StructuresBinaryFile::jumpToStructureIndex(int idx) {
-    MstUtils::assert(readMode, "jumpToStructureIndex not supported in write mode");
+    MstUtils::assertCond(readMode, "jumpToStructureIndex not supported in write mode");
     if (_structureNames.size() == 0) {
         scanFilePositions();
     }
@@ -154,8 +154,8 @@ void StructuresBinaryFile::jumpToStructureIndex(int idx) {
 }
 
 void StructuresBinaryFile::appendStructure(Structure *s) {
-    MstUtils::assert(!readMode, "appendStructure not supported in read mode");
-    MstUtils::assert(s->residueSize() != 0, "Structure must have at least one residue");
+    MstUtils::assertCond(!readMode, "appendStructure not supported in read mode");
+    MstUtils::assertCond(s->residueSize() != 0, "Structure must have at least one residue");
 
     if (!structure_added) {
         structure_added = true;
@@ -168,7 +168,7 @@ void StructuresBinaryFile::appendStructure(Structure *s) {
 }
 
 void StructuresBinaryFile::appendStructurePropertyInt(string prop, int val) {
-    MstUtils::assert(!prop.empty(), "property field cannot be empty");
+    MstUtils::assertCond(!prop.empty(), "property field cannot be empty");
 
     MstUtils::writeBin(fs,'I');
     MstUtils::writeBin(fs,prop);
@@ -176,7 +176,7 @@ void StructuresBinaryFile::appendStructurePropertyInt(string prop, int val) {
 }
 
 void StructuresBinaryFile::appendStructurePropertyReal(string prop, mstreal val) {
-    MstUtils::assert(!prop.empty(), "property field cannot be empty");
+    MstUtils::assertCond(!prop.empty(), "property field cannot be empty");
     
     MstUtils::writeBin(fs,'R');
     MstUtils::writeBin(fs,prop);
@@ -245,7 +245,7 @@ pair<Structure*,long> StructuresBinaryFile::readNextFileSection(bool save_metada
 }
 
 vector<string> StructuresBinaryFile::getStructureNames() {
-    MstUtils::assert(readMode, "getStructureNamed not supported in write mode");
+    MstUtils::assertCond(readMode, "getStructureNamed not supported in write mode");
     if (_filePositions.size() == 0) {
         scanFilePositions();
     }
@@ -261,7 +261,7 @@ StructureCache::~StructureCache() {
 }
 
 void StructureCache::preloadFromBinaryFile() {
-    MstUtils::assert(binaryFile != nullptr, "Cannot preload without a binary file");
+    MstUtils::assertCond(binaryFile != nullptr, "Cannot preload without a binary file");
     binaryFile->reset();
     while (binaryFile->hasNext() && (long)cache.size() < capacity) {
         Structure *s = binaryFile->next();
@@ -317,12 +317,12 @@ Structure* StructureCache::getStructure(string name, string prefix) {
     // Push the new structure to the front
     cache.push_front(structure);
     cachePointers[name] = cache.begin();
-    MstUtils::assert(structure->getName() == name, "Names don't match: "+structure->getName()+" vs "+name);
+    MstUtils::assertCond(structure->getName() == name, "Names don't match: "+structure->getName()+" vs "+name);
     return structure;
 }
 
 vector<Atom *> &StructureCache::getAtoms(string name, string prefix) {
-    MstUtils::assert(storeAtoms, "storeAtoms must be true to use getAtoms");
+    MstUtils::assertCond(storeAtoms, "storeAtoms must be true to use getAtoms");
     if (atoms.count(name) == 0) {
         Structure *s = getStructure(name, prefix);
         atoms[name] = s->getAtoms();
@@ -351,7 +351,7 @@ void StructureCache::clear() {
 
 StructureIterator::StructureIterator(const vector<string>& filePaths, int batchSize, vector<string> *chainIDs, int workerIndex, int numWorkers): _filePaths(filePaths), _batchSize(batchSize), _chainIDs(chainIDs), _workerIndex(workerIndex), _numWorkers(numWorkers), _batchIndex(workerIndex) {
     if (chainIDs != nullptr)
-        MstUtils::assert(chainIDs->size() == filePaths.size(), "must have same number of chain IDs and file paths");
+        MstUtils::assertCond(chainIDs->size() == filePaths.size(), "must have same number of chain IDs and file paths");
 }
 
 StructureIterator::StructureIterator(const string binaryFilePath, int batchSize, string chainID, int workerIndex, int numWorkers): _batchSize(batchSize), defaultChainID(chainID), _workerIndex(workerIndex), _numWorkers(numWorkers), _batchIndex(workerIndex) {

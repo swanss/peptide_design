@@ -145,7 +145,7 @@ struct FragmentParams {
 		opts.addOption("mustContact" + ext, "", false);
 		opts.addOption("variableFlank" + ext, "", false);
 
-		MstUtils::assert(((opts.isGiven("minNumFlank" + ext) || opts.isGiven("maxNumFlank" + ext)) != opts.isGiven("numFlank" + ext)), "minNumFlank or maxNumFlank cannot be given with numFlank.");
+		MstUtils::assertCond(((opts.isGiven("minNumFlank" + ext) || opts.isGiven("maxNumFlank" + ext)) != opts.isGiven("numFlank" + ext)), "minNumFlank or maxNumFlank cannot be given with numFlank.");
 		if (opts.isGiven("numFlank" + ext)) {
 			minNumFlank = opts.getInt("numFlank" + ext, 1);
 			maxNumFlank = opts.getInt("numFlank"  + ext, 1);

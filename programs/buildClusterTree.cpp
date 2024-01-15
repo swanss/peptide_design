@@ -49,7 +49,7 @@ int main (int argc, char *argv[]) {
         seedFile->scanFilePositions();
         fetcher = new SingleFragmentFetcher(seedFile, segLen, opts.getString("seedChain", "0"), batchSplit);
     } else {
-        MstUtils::assert(opts.isGiven("pdbs") && opts.isGiven("contacts"), "pdbs and contacts arguments must both be provided");
+        MstUtils::assertCond(opts.isGiven("pdbs") && opts.isGiven("contacts"), "pdbs and contacts arguments must both be provided");
         string pdbsPath = opts.getString("pdbs");
         string contactsPath = opts.getString("contacts");
         fetcher = new PairFragmentFetcher(pdbsPath, contactsPath, 2, batchSplit);

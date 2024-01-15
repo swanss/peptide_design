@@ -103,7 +103,7 @@ pair<vector<Residue *>, vector<int>> PathSampler::getMappedMatchResidues(const S
         for (int j = 0; j < chain.residueSize(); j++) {
             Residue* R = &chain.getResidue(j);
             residues.push_back(R);
-            MstUtils::assert(targetPositions.count(R->getNum()) != 0, "Missing target position with index: " + to_string(R->getNum()),"PathSampler::getMappedMatchResidues");
+            MstUtils::assertCond(targetPositions.count(R->getNum()) != 0, "Missing target position with index: " + to_string(R->getNum()),"PathSampler::getMappedMatchResidues");
             indexes.push_back(targetPositions.at(R->getNum()));
         }
     }

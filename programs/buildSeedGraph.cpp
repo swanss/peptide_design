@@ -33,7 +33,7 @@ int main (int argc, char *argv[]) {
     opts.addOption("minCosAngle", "Minimum cosine angle between Ca vectors allowed in a potential overlap (default -1.0, only used if --tree is provided)", false);
     opts.setOptions(argc, argv);
     
-    MstUtils::assert(opts.isGiven("overlaps") || opts.isGiven("tree"), "Either --overlaps or --tree must be provided");
+    MstUtils::assertCond(opts.isGiven("overlaps") || opts.isGiven("tree"), "Either --overlaps or --tree must be provided");
     string overlapsPath = opts.getString("overlaps", "");
     string treePath = opts.getString("tree", "");
     string binaryPath = opts.getString("seedBin");
@@ -76,7 +76,7 @@ int main (int argc, char *argv[]) {
         }
     } else {
         // Loading overlaps from a cluster tree - any pair of nodes in the tree could be an overlap
-        MstUtils::assert(opts.isGiven("overlapSize"), "--overlapSize must be specified if using a cluster tree");
+        MstUtils::assertCond(opts.isGiven("overlapSize"), "--overlapSize must be specified if using a cluster tree");
         int overlapSize = opts.getInt("overlapSize");
         SingleFragmentFetcher fetcher(&binaryFile, cache, overlapSize, "0");
         ClusterTree tree(&fetcher, 4, true); 

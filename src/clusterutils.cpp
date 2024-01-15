@@ -334,7 +334,7 @@ bool SingleFragmentFetcher::loadAPVsFromStructure(int structureIdx) {
             return false;
         structure = _binaryFile->next();
         formatStructure(structure);
-        MstUtils::assert(pdbs[structureIdx] == structure->getName(), "Names don't match"); 
+        MstUtils::assertCond(pdbs[structureIdx] == structure->getName(), "Names don't match"); 
     } else {
         if (!MstSys::fileExists(pdbs[structureIdx])) return false;
         structure = getFormattedStructure(*_structureCache, pdbs[structureIdx]);
@@ -386,7 +386,7 @@ AtomPointerVector SingleFragmentFetcher::getAPV(FragmentInfo *info) {
     SingleFragmentInfo *fragInfo = dynamic_cast<SingleFragmentInfo *>(info);
     int atomIdx = fragInfo->atomIdx;
 
-    MstUtils::assert(fragInfo->structureIdx < pdbs.size(), "Requested structure index out of bounds");
+    MstUtils::assertCond(fragInfo->structureIdx < pdbs.size(), "Requested structure index out of bounds");
     Structure *s = getFormattedStructure(*_structureCache, pdbs[fragInfo->structureIdx]);
     vector<Atom *> &atoms  = (*_structureCache).getAtoms(pdbs[fragInfo->structureIdx]);
     AtomPointerVector apv(numAtoms());

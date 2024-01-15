@@ -370,7 +370,7 @@ mstreal generalUtilities::cosAngle(CartesianPoint v1, CartesianPoint v2) {
 }
 
 mstreal generalUtilities::avgCosAngleBetweenSegments(const vector<Residue *> &seg1, const vector<Residue *> &seg2) {
-    MstUtils::assert(seg1.size() == seg2.size(),"Two segments must have the same number of residues");
+    MstUtils::assertCond(seg1.size() == seg2.size(),"Two segments must have the same number of residues");
     mstreal avg = 0;
     for (int idx = 0; idx < seg1.size(); idx++) {
         avg += cosAngleBetweenNormalVectors(seg1[idx],seg2[idx]);
@@ -834,7 +834,7 @@ AtomPointerVector residuesToAtoms(vector<Residue*>& residues) {
 
 // calculates the sequence frequencies from a set of sequences
 Matrix seqFreqs(const vector<Sequence>& seqs, double pseudocount, bool normalize, bool nonStd) {
-    MstUtils::assert(seqs.size() > 0, "Error in seqFreqs(vector<Sequence>& seqs, bool normalize, double pseudocounts). An empty vector of sequences was passed.");
+    MstUtils::assertCond(seqs.size() > 0, "Error in seqFreqs(vector<Sequence>& seqs, bool normalize, double pseudocounts). An empty vector of sequences was passed.");
     int numRows = ((nonStd) ? 21 : 20);
     Matrix psuedocounts(numRows, seqs[0].length());
     for (int i = 0; i < 20; i++) { // don't add pseudocount for 21st row if there is one
@@ -848,15 +848,15 @@ Matrix seqFreqs(const vector<Sequence>& seqs, double pseudocount, bool normalize
 
 
 Matrix seqFreqs(const vector<Sequence>& seqs, Matrix& pseudocounts, bool normalize) {
-    MstUtils::assert(seqs.size() > 0, "Error in seqFreqs(vector<Sequence>& seqs, bool normalize, Matrix& pseudocounts). An empty vector of sequences was passed.");
+    MstUtils::assertCond(seqs.size() > 0, "Error in seqFreqs(vector<Sequence>& seqs, bool normalize, Matrix& pseudocounts). An empty vector of sequences was passed.");
     int seqLen = seqs[0].length();
-    MstUtils::assert(pseudocounts.numCols() == seqLen && (pseudocounts.numRows() == 20 || pseudocounts.numRows() == 21), "Error in seqFreqs(vector<Sequence>& seqs, bool normalize, Matrix& pseudocounts). Matrix of pseudocounts must have 20 rows and the number of columns must be the same as the sequence length.");
+    MstUtils::assertCond(pseudocounts.numCols() == seqLen && (pseudocounts.numRows() == 20 || pseudocounts.numRows() == 21), "Error in seqFreqs(vector<Sequence>& seqs, bool normalize, Matrix& pseudocounts). Matrix of pseudocounts must have 20 rows and the number of columns must be the same as the sequence length.");
     
     Matrix freqs(pseudocounts); // 20 x L matrix where L is the length of the sequences
     
     for (int i = 0; i < seqs.size(); i++) {
         Sequence seq = seqs[i];
-        MstUtils::assert(seq.length() == seqLen, "Sequences not the same length."); // better place to do this? perhaps alignment class
+        MstUtils::assertCond(seq.length() == seqLen, "Sequences not the same length."); // better place to do this? perhaps alignment class
         
         for (int j = 0; j < seqLen; j++) {
             string a = seq.getResidue(j);

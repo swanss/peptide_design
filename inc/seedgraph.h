@@ -323,7 +323,7 @@ public:
     SeedGraphMap(StructureCache *sCache = nullptr): SeedGraph(true, sCache) {};
     
     void setValue(Residue *res, T value) {
-        MstUtils::assert(contains(res), "adding value to residue not contained in graph");
+        MstUtils::assertCond(contains(res), "adding value to residue not contained in graph");
         _storage[res] = value;
     }
     

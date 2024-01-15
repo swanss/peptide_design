@@ -398,7 +398,7 @@ vector<SeedGraph> SeedGraph::subgraphs() {
         result.push_back(subgraph);
         
         for (Residue *res: subgraph.getResidues()) {
-            MstUtils::assert(seenResidues.find(res) == seenResidues.end(), "seen residues shouldn't already contain residue from subgraph");
+            MstUtils::assertCond(seenResidues.find(res) == seenResidues.end(), "seen residues shouldn't already contain residue from subgraph");
             seenResidues.insert(res);
         }
     }
@@ -416,12 +416,12 @@ unordered_set<Residue *> SeedGraph::bidirectionalNeighbors(Residue *res) {
 }
 
 unordered_set<Residue *> SeedGraph::forwardNeighbors(Residue *res) {
-    MstUtils::assert(!adjSameResidues);
+    MstUtils::assertCond(!adjSameResidues);
     return adjacencies[res];
 }
 
 unordered_set<Residue *> SeedGraph::backwardNeighbors(Residue *res) {
-    MstUtils::assert(!adjSameResidues);
+    MstUtils::assertCond(!adjSameResidues);
     return reverseAdjacencies[res];
 }
 
@@ -522,7 +522,7 @@ SeedGraph SeedGraph::withAdjSameResidue() {
         i++;
     }
     
-    MstUtils::assert(newGraph.residueSize() == residueSize(), "unequal sizes");
+    MstUtils::assertCond(newGraph.residueSize() == residueSize(), "unequal sizes");
     return newGraph;
 }
 
@@ -562,7 +562,7 @@ void SeedGraph::write(string path) {
 vector<Residue *> SeedGraph::similarContactResidues(Residue *residue, int flankLength, float rmsdCutoff, vector<float> *rmsds) {
     vector<Residue *> results;
     
-    MstUtils::assert(adjacencies.count(residue) != 0, "residue not found in graph");
+    MstUtils::assertCond(adjacencies.count(residue) != 0, "residue not found in graph");
     
     // Get the flanking region of this residue
     vector<Residue *> chainResidues = residue->getChain()->getResidues();

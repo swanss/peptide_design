@@ -84,7 +84,7 @@ OverlapVerifier::~OverlapVerifier() {
 }
 
 bool MaxDeviationVerifier::verify(const vector<Residue *> &segment1, const vector<Residue *> &segment2) const {
-    MstUtils::assert(segment1.size() == segment2.size(), "Segments must be same size");
+    MstUtils::assertCond(segment1.size() == segment2.size(), "Segments must be same size");
     
     // Check all pairs of alpha carbons
     mstreal maxDistance = 0.0;

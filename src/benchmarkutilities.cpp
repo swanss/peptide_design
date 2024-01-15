@@ -19,7 +19,7 @@ void oneDimBinnedData::readHistFile(string hist_file) {
             continue;
         }
         vector<string> split = MstUtils::split(line,",");
-        MstUtils::assert(split.size() == 3); //should have three entries
+        MstUtils::assertCond(split.size() == 3); //should have three entries
         if (line_count == 2) {
             min_value = MstUtils::toReal(split[0]);
         }
@@ -958,7 +958,7 @@ vector<Atom*> searchInterfaceFragments::getProteinAlignedAtoms(const Structure &
 }
 
 mstreal searchInterfaceFragments::segmentCentroidDistances(const Structure& match_split) {
-    MstUtils::assert(match_split.chainSize() == 2,"segmentCentroidDistances() requires a structure with two chains (which represent disjoint segments of the fragment). number of chains: "+MstUtils::toString(match_split.chainSize()));
+    MstUtils::assertCond(match_split.chainSize() == 2,"segmentCentroidDistances() requires a structure with two chains (which represent disjoint segments of the fragment). number of chains: "+MstUtils::toString(match_split.chainSize()));
     CartesianPoint centroid_1 = AtomPointerVector(match_split.getChain(0).getAtoms()).getGeometricCenter();
     CartesianPoint centroid_2 = AtomPointerVector(match_split.getChain(1).getAtoms()).getGeometricCenter();
     mstreal distance = centroid_1.distance(centroid_2);

@@ -487,7 +487,7 @@ vector<Residue *> SequenceStructureCompatibilityScorer::trimFragment(Fragment &f
             residues.push_back(res);
         }
     }
-    //MstUtils::assert(find(residues.begin(), residues.end(), seedRes) == residues.end(), "isolating fragment already contains seed residue");
+    //MstUtils::assertCond(find(residues.begin(), residues.end(), seedRes) == residues.end(), "isolating fragment already contains seed residue");
     //residues.push_back(seedRes);
     result = Structure(residues);
     result.setName(frag.toString());
@@ -537,7 +537,7 @@ mstreal SequenceStructureCompatibilityScorer::sequenceStructureScoreComponent(Fr
             }
             
             int resi = distance(fragResidues.begin(), find(fragResidues.begin(), fragResidues.end(), scoringRes));
-            MstUtils::assert(resi < fragResidues.size(), "residue index out of bounds");
+            MstUtils::assertCond(resi < fragResidues.size(), "residue index out of bounds");
             fasstSolutionSet solSet = fasst->getMatches();
             
             // Generates a 20 x L matrix, where L is length of the sequences

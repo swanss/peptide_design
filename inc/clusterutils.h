@@ -119,7 +119,7 @@ struct PairFragmentInfo: virtual FragmentInfo {
     PairFragmentInfo(const PairFragmentInfo &other): structureIdx(other.structureIdx), atomIdx1(other.atomIdx1), atomIdx2(other.atomIdx2) {};
     PairFragmentInfo(string &textRep) {
         vector<string> comps = splitString(textRep, " ");
-        MstUtils::assert(comps.size() == 3, "Expected string to have 3 components, got " + to_string(comps.size()));
+        MstUtils::assertCond(comps.size() == 3, "Expected string to have 3 components, got " + to_string(comps.size()));
         structureIdx = stoi(comps[0]);
         atomIdx1 = stoi(comps[1]);
         atomIdx2 = stoi(comps[2]);
@@ -188,7 +188,7 @@ struct SingleFragmentInfo: virtual FragmentInfo {
     SingleFragmentInfo(const SingleFragmentInfo &other): structureIdx(other.structureIdx), atomIdx(other.atomIdx) {};
     SingleFragmentInfo(string &textRep) {
         vector<string> comps = splitString(textRep, " ");
-        MstUtils::assert(comps.size() == 2, "Expected string to have 2 components, got " + to_string(comps.size()));
+        MstUtils::assertCond(comps.size() == 2, "Expected string to have 2 components, got " + to_string(comps.size()));
         structureIdx = stoi(comps[0]);
         atomIdx = stoi(comps[1]);
     }
@@ -332,7 +332,7 @@ public:
         if (_numAtoms == 0) {
             _numAtoms = apv.size();
         } else {
-            MstUtils::assert(apv.size() == _numAtoms, "APV must be " + to_string(_numAtoms) + " atoms, not " + to_string(apv.size()));
+            MstUtils::assertCond(apv.size() == _numAtoms, "APV must be " + to_string(_numAtoms) + " atoms, not " + to_string(apv.size()));
         }
         fragments[info->copy()] = apv;
     }

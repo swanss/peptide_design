@@ -260,12 +260,12 @@ bool FuseCandidateFinder::checkOverlapAlignment(const vector<Atom *> &atoms1, co
 }
 
 mstreal FuseCandidateFinder::maxDeviation(const vector<Atom *> &s1, const vector<Atom *> &s2) {
-    MstUtils::assert(s1.size() == s2.size(), "Can't compute max deviation of unequal-sized atom vectors");
+    MstUtils::assertCond(s1.size() == s2.size(), "Can't compute max deviation of unequal-sized atom vectors");
     mstreal result = 0.0;
     for (int i = 0; i < s1.size(); i++) {
         Atom *a1 = s1[i];
         Atom *a2 = s2[i];
-        MstUtils::assert(a1->getName() == a2->getName(), "Atoms are mismatched");
+        MstUtils::assertCond(a1->getName() == a2->getName(), "Atoms are mismatched");
         mstreal dx = a1->getX() - a2->getX();
         mstreal dy = a1->getY() - a2->getY();
         mstreal dz = a1->getZ() - a2->getZ();

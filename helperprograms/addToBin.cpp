@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
   S->setName(name);
   
   //structure can only have one chain (it will be interpreted as a seed chain)
-  MstUtils::assert(S->chainSize() == 1,"There should only by a single chain in the input file");
+  MstUtils::assertCond(S->chainSize() == 1,"There should only by a single chain in the input file");
   Chain* C = &S->getChain(0);
   C->setID("0");
   

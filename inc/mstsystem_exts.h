@@ -37,7 +37,7 @@ public:
         
         if (!stringEndsWith(base, "/"))
             base = base + "/";
-        MstUtils::assert(stringStartsWith(path1, base), "path must begin with base path");
+        MstUtils::assertCond(stringStartsWith(path1, base), "path must begin with base path");
         
         return path1.substr(base.length(), path1.length() - base.length());
     }

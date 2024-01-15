@@ -59,9 +59,9 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < selectedStructureB.chainSize(); i++) selectedChainsB.insert(selectedStructureB.getChain(i).getID());
         
     // check that everything worked
-    MstUtils::assert((selectedStructureA.atomSize() == selectedStructureB.atomSize()),"Different number of atoms in selected structure: "+MstUtils::toString(selectedStructureA.atomSize())+" and "+MstUtils::toString(selectedStructureB.atomSize()));
-    MstUtils::assert((selectedStructureA.residueSize() == selectedStructureB.residueSize()),"Different number of residues in selected structure: "+MstUtils::toString(selectedStructureA.residueSize())+" and "+MstUtils::toString(selectedStructureB.residueSize()));
-    MstUtils::assert(((selectedChainsA.size() > 0) || (selectedChainsB.size() > 0)),"Missing chains in selected structure: "+MstUtils::toString(selectedChainsA.size())+" and "+MstUtils::toString(selectedChainsB.size()));
+    MstUtils::assertCond((selectedStructureA.atomSize() == selectedStructureB.atomSize()),"Different number of atoms in selected structure: "+MstUtils::toString(selectedStructureA.atomSize())+" and "+MstUtils::toString(selectedStructureB.atomSize()));
+    MstUtils::assertCond((selectedStructureA.residueSize() == selectedStructureB.residueSize()),"Different number of residues in selected structure: "+MstUtils::toString(selectedStructureA.residueSize())+" and "+MstUtils::toString(selectedStructureB.residueSize()));
+    MstUtils::assertCond(((selectedChainsA.size() > 0) || (selectedChainsB.size() > 0)),"Missing chains in selected structure: "+MstUtils::toString(selectedChainsA.size())+" and "+MstUtils::toString(selectedChainsB.size()));
     
     // now compute the statistics
     mstreal rmsd = coverageBenchmarkUtils::writeRMSDtoFile(fileNamePrefix,selectedStructureB,selectedStructureA);

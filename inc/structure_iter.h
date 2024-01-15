@@ -45,7 +45,7 @@ public:
     };
 
     StructuresBinaryFile(const StructuresBinaryFile &other): readMode(true), _filePath(other._filePath), _filePositions(other._filePositions), _structureNames(other._structureNames), _version(other._version) {
-        MstUtils::assert(other.readMode, "Copying write-only binary file not supported");
+        MstUtils::assertCond(other.readMode, "Copying write-only binary file not supported");
         cout << "Opening file stream for copy, with " << _structureNames.size() << " loaded structure names" << endl;
         openFileStream();
     }
